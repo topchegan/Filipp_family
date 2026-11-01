@@ -119,6 +119,17 @@
       addCard(furnRow, it.w + 4, it.h + 14, 6, it.name, (g) => it.paint(g));
     }
 
+    // Минивэн крупно, рядом Филипп — сравнить рост. Внизу полоска земли.
+    const vanRow = addRow('Минивэн (A, 10x4) и Филипп для сравнения роста');
+    addCard(vanRow, 110, 40, 6, 'Минивэн на домкрате и Филипп', (g) => {
+      g.fillStyle = '#41a6f6';
+      g.fillRect(0, 0, 110, 40);                         // небо
+      g.fillStyle = '#38b764';
+      g.fillRect(0, 36, 110, 4);                         // трава
+      drawFurniture(g, FURNITURE.A, 26, 4);              // минивэн стоит на земле (низ на y = 36)
+      g.drawImage(SPRITES.filipp.anims.idle.frames[0], 4, 12);   // Филипп 16x24, ноги на земле
+    });
+
     // Фоны экранов уровня: обои, мелкие вещи и как выглядят плитки # и - на этом фоне
     const lvlRow = addRow('Фоны экранов уровня (240x120, увеличены в 3 раза)');
     for (const key in LEVEL_BACKGROUNDS) {
