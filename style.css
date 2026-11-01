@@ -67,7 +67,8 @@ html, body {
   border-radius: 48px;
 }
 
-/* «Бросок» — над кнопкой «Прыжок». Видна только в бою с боссом (класс boss-fight ставит game.js) */
+/* «Бросок» — над кнопкой «Прыжок». Видна в бою с боссом (класс boss-fight) и на уровнях
+   с оружием — с уровня 2 (класс armed). Классы ставит game.js */
 .btn.throw {
   right: 24px;
   bottom: calc(24px + 96px + 16px + env(safe-area-inset-bottom));
@@ -77,7 +78,8 @@ html, body {
   border-radius: 32px;
   display: none;
 }
-body.boss-fight .btn.throw {
+body.boss-fight .btn.throw,
+body.armed .btn.throw {
   display: flex;
 }
 

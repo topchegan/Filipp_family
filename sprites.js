@@ -1792,8 +1792,35 @@ function drawLeraWithBoards(g, x, y, t, say) {
   }
 }
 
-// Выход из части уровня (символ N), 3x4 плитки. look: 'window' — открытое окно, иначе — проход наверх
+// Выход из части уровня (символ N), 3x4 плитки.
+// look: 'window' — открытое окно, 'door' — дверь подъезда на улицу, 'arrow' — проход дальше по двору,
+// иначе — проход наверх
 function drawPartExit(g, x, y, look, t) {
+  if (look === 'door') {
+    g.fillStyle = '#333c57';
+    g.fillRect(x, y, 24, 32);                       // проём
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(x + 3, y + 3, 18, 29);               // яркий день за дверью
+    g.fillStyle = '#a7f070';
+    g.fillRect(x + 3, y + 24, 18, 8);               // трава на улице
+    g.fillStyle = '#566c86';
+    g.fillRect(x + 21, y + 3, 6, 29);               // открытая железная дверь
+    g.fillStyle = '#94b0c2';
+    g.fillRect(x + 22, y + 16, 2, 3);               // ручка
+    return;
+  }
+  if (look === 'arrow') {
+    const bob = Math.floor(t / 15) % 2;             // табличка со стрелкой вправо покачивается
+    g.fillStyle = '#566c86';
+    g.fillRect(x + 11, y + 12, 2, 20);              // столбик
+    g.fillStyle = '#38b764';
+    g.fillRect(x + 1, y + 2, 22, 11);
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(x + 5 + bob, y + 7, 12, 1);
+    g.fillRect(x + 14 + bob, y + 5, 1, 5);
+    g.fillRect(x + 15 + bob, y + 6, 1, 3);
+    return;
+  }
   if (look === 'window') {
     g.fillStyle = '#f4f4f4';
     g.fillRect(x, y, 24, 30);                       // рама
@@ -2554,3 +2581,1190 @@ function drawSprite(ctx, frame, x, y, flip) {
   ctx.drawImage(frame, 0, 0);
   ctx.restore();
 }
+
+// =============================================
+// УРОВЕНЬ 2 «День. Двор у мамы и бабушки» (v0.13)
+// =============================================
+// Персонажи — пиксельные карты, смотрят ВПРАВО, тёмный контур (0) уже нарисован.
+//   Бабушка 14x21 — для сценки в квартире: сине-фиолетовая завивка «сеточкой», очки, оранжевая шаль.
+//   Соседка и сосед 14x22 — с сумками-авоськами (хлеб, бутылка). Соседка — седая завивка,
+//     бордовое пальто; сосед — кепка, усы, бирюзовая куртка.
+//   Собачка 14x9 — светло-серая, тёмные уши, рыжие лапы и морда, красный ошейник.
+//   Дети на великах 20x18 — шлем (голубой или белый), футболка, рама велика (красная или синяя).
+//   Дети на самокатах 14x20 — рыжий в белой футболке и тёмненький в салатовой.
+//   Бабушки на лавке 10x14 — сидят, платки красный, зелёный, синий.
+const BABUSHKA_IDLE1 = [
+  '.....000......',
+  '....01910.....',
+  '...0191910....',
+  '..01919d910...',
+  '.01919191910..',
+  '.09191444440..',
+  '.01914bbebb0..',
+  '.091944444430.',
+  '.01914422440..',
+  '..019444440...',
+  '.03333333330..',
+  '0333233323330.',
+  '033333333330..',
+  '.033377733440.',
+  '.07777777700..',
+  '.0777777770...',
+  '.07777777770..',
+  '.08777777770..',
+  '..0dd000dd0...',
+  '..0fff00fff0..',
+  '...000..000...',
+];
+const BABUSHKA_IDLE2 = [
+  '.....000......',
+  '....01910.....',
+  '...0191910....',
+  '..01919d910...',
+  '.01919191910..',
+  '.09191444440..',
+  '.01914bbebb0..',
+  '.091944444430.',
+  '.0191444f440..',
+  '..019444440...',
+  '.03333333330..',
+  '0333233323330.',
+  '033333333330..',
+  '.033377733440.',
+  '.07777777700..',
+  '.0777777770...',
+  '.07777777770..',
+  '.08777777770..',
+  '..0dd000dd0...',
+  '..0fff00fff0..',
+  '...000..000...',
+];
+const NEIGHBOR_W1 = [
+  '....0000......',
+  '...0edde0.....',
+  '..0dedede0....',
+  '..0ede44440...',
+  '.0ded444040...',
+  '.0ede4444430..',
+  '..0ed444220...',
+  '...0444400....',
+  '..022222220...',
+  '.02222222220..',
+  '.021222222220.',
+  '.021222222040.',
+  '.02122220d0d0.',
+  '0dd22220ddddd0',
+  '0d322220d3d6d0',
+  '0dd22220ddddd0',
+  '.0122220ddddd0',
+  '.022222000000.',
+  '..040040......',
+  '..040040......',
+  '.0ff0ff0......',
+  '..00.00.......',
+];
+const NEIGHBOR_W2 = [
+  '....0000......',
+  '...0edde0.....',
+  '..0dedede0....',
+  '..0ede44440...',
+  '.0ded444040...',
+  '.0ede4444430..',
+  '..0ed444220...',
+  '...0444400....',
+  '..022222220...',
+  '.02222222220..',
+  '.021222222220.',
+  '.021222222040.',
+  '.02122220d0d0.',
+  '0dd22220ddddd0',
+  '0d322220d3d6d0',
+  '0dd22220ddddd0',
+  '.0122220ddddd0',
+  '.022222000000.',
+  '..0400040.....',
+  '.040...040....',
+  '0ff0...0ff0...',
+  '.00.....00....',
+];
+const NEIGHBOR_M1 = [
+  '...00000......',
+  '..0fffff00....',
+  '.0ffffffff0...',
+  '.0e44444440...',
+  '.0e44440440...',
+  '.0e444444430..',
+  '..04444ee40...',
+  '...0444400....',
+  '..077777770...',
+  '.07777777770..',
+  '.078777777770.',
+  '.078777777040.',
+  '.07877770d0d0.',
+  '0dd77770ddddd0',
+  '0d377770d3d6d0',
+  '0dd77770ddddd0',
+  '.0877770ddddd0',
+  '.077777000000.',
+  '..040040......',
+  '..040040......',
+  '.0ff0ff0......',
+  '..00.00.......',
+];
+const NEIGHBOR_M2 = [
+  '...00000......',
+  '..0fffff00....',
+  '.0ffffffff0...',
+  '.0e44444440...',
+  '.0e44440440...',
+  '.0e444444430..',
+  '..04444ee40...',
+  '...0444400....',
+  '..077777770...',
+  '.07777777770..',
+  '.078777777770.',
+  '.078777777040.',
+  '.07877770d0d0.',
+  '0dd77770ddddd0',
+  '0d377770d3d6d0',
+  '0dd77770ddddd0',
+  '.0877770ddddd0',
+  '.077777000000.',
+  '..0400040.....',
+  '.040...040....',
+  '0ff0...0ff0...',
+  '.00.....00....',
+];
+const DOG1 = [
+  '..........00..',
+  '.0.......0ee0.',
+  '0d0.....0dddd0',
+  '.0d000000d0d30',
+  '.0dddeedd2ddd0',
+  '.0dccccccd000.',
+  '.0d30d00d3d0..',
+  '.03003003030..',
+  '..0..0..0.0...',
+];
+const DOG2 = [
+  '..........00..',
+  '..0......0ee0.',
+  '.0d0....0dddd0',
+  '.0d000000d0d30',
+  '.0dddeedd2ddd0',
+  '.0dccccccd000.',
+  '..0d3d00dd30..',
+  '..0303003030..',
+  '...0.0..0.0...',
+];
+const DOG_BITE = [
+  '..........00..',
+  '.0.......0ee0.',
+  '0d0.....0dddd0',
+  '.0d000000d0d33',
+  '.0dddeedd2dd00',
+  '.0dccccccd0033',
+  '0d3000d3dd0.00',
+  '030..030030...',
+  '.0....0..0....',
+];
+const BIKER_A1 = [
+  '.........0000.......',
+  '........0aaaa0......',
+  '.......0aaaaaa0.....',
+  '.......0aa44440.....',
+  '........0444040.....',
+  '.........044440.....',
+  '........0666000.....',
+  '.......066666440....',
+  '.......06666000e0...',
+  '.......088880.020...',
+  '....0002048000200...',
+  '...0fff0222222fff0..',
+  '..0f0d0f20400f0d0f0.',
+  '..0fdedf0.0.0fdedf0.',
+  '..0f0d0f0...0f0d0f0.',
+  '...0fff0.....0fff0..',
+  '....000.......000...',
+  '....................',
+];
+const BIKER_A2 = [
+  '.........0000.......',
+  '........0aaaa0......',
+  '.......0aaaaaa0.....',
+  '.......0aa44440.....',
+  '........0444040.....',
+  '.........044440.....',
+  '........0666000.....',
+  '.......066666440....',
+  '.......06666000e0...',
+  '.......088880.020...',
+  '....0002048000200...',
+  '...0fff0222222fff0..',
+  '..0fd0df20040fd0df0.',
+  '..0f0e0f0..00f0e0f0.',
+  '..0fd0df0...0fd0df0.',
+  '...0fff0.....0fff0..',
+  '....000.......000...',
+  '....................',
+];
+const BIKER_A_FALL = [
+  '....................',
+  '....................',
+  '....................',
+  '....................',
+  '....0000............',
+  '...0aaaa0...........',
+  '..0aaaaaa0..........',
+  '..0aa44440..........',
+  '...0444040..........',
+  '...0666440..........',
+  '..06666600..........',
+  '..088884440..000....',
+  '..08888400000fff00..',
+  '...000000fff22222f0.',
+  '.......0f0d0222d0f0.',
+  '........0fff000ff0..',
+  '.........000...00...',
+  '....................',
+];
+const BIKER_B1 = [
+  '.........0000.......',
+  '........0cccc0......',
+  '.......0cccccc0.....',
+  '.......0cc44440.....',
+  '........0444040.....',
+  '.........044440.....',
+  '........0333000.....',
+  '.......033333440....',
+  '.......03333000e0...',
+  '.......088880.090...',
+  '....0009048000900...',
+  '...0fff0999999fff0..',
+  '..0f0d0f90400f0d0f0.',
+  '..0fdedf0.0.0fdedf0.',
+  '..0f0d0f0...0f0d0f0.',
+  '...0fff0.....0fff0..',
+  '....000.......000...',
+  '....................',
+];
+const BIKER_B2 = [
+  '.........0000.......',
+  '........0cccc0......',
+  '.......0cccccc0.....',
+  '.......0cc44440.....',
+  '........0444040.....',
+  '.........044440.....',
+  '........0333000.....',
+  '.......033333440....',
+  '.......03333000e0...',
+  '.......088880.090...',
+  '....0009048000900...',
+  '...0fff0999999fff0..',
+  '..0fd0df90040fd0df0.',
+  '..0f0e0f0..00f0e0f0.',
+  '..0fd0df0...0fd0df0.',
+  '...0fff0.....0fff0..',
+  '....000.......000...',
+  '....................',
+];
+const BIKER_B_FALL = [
+  '....................',
+  '....................',
+  '....................',
+  '....................',
+  '....0000............',
+  '...0cccc0...........',
+  '..0cccccc0..........',
+  '..0cc44440..........',
+  '...0444040..........',
+  '...0333440..........',
+  '..03333300..........',
+  '..088884440..000....',
+  '..08888400000fff00..',
+  '...000000fff99999f0.',
+  '.......0f0d0999d0f0.',
+  '........0fff000ff0..',
+  '.........000...00...',
+  '....................',
+];
+const SCOOTER_A1 = [
+  '..............',
+  '..............',
+  '..............',
+  '....0000......',
+  '...033330.....',
+  '..03333330....',
+  '..03344440....',
+  '...0444040....',
+  '....0444400...',
+  '...0ccc000e0..',
+  '..0ccccc40e0..',
+  '..0cccc000e0..',
+  '..088880.0e0..',
+  '..080080.0e0..',
+  '..040040.0e0..',
+  '..040040.0e0..',
+  '.0ff0ff000e0..',
+  '.0eeeeeeeeee0.',
+  '.0ff000000ff0.',
+  '..00......00..',
+];
+const SCOOTER_A2 = [
+  '..............',
+  '..............',
+  '..............',
+  '....0000......',
+  '...033330.....',
+  '..03333330....',
+  '..03344440....',
+  '...0444040....',
+  '....0444400...',
+  '...0ccc000e0..',
+  '..0ccccc40e0..',
+  '..0cccc000e0..',
+  '..088880.0e0..',
+  '..080080.0e0..',
+  '..040.0400e0..',
+  '.040..0400e0..',
+  '0ff000ff00e0..',
+  '.0eeeeeeeeee0.',
+  '.0ff000000ff0.',
+  '..00......00..',
+];
+const SCOOTER_B1 = [
+  '..............',
+  '..............',
+  '..............',
+  '..............',
+  '....0000......',
+  '...000000.....',
+  '...0044440....',
+  '...0444040....',
+  '....0444400...',
+  '...0555000e0..',
+  '..05555540e0..',
+  '..05555000e0..',
+  '..088880.0e0..',
+  '..080080.0e0..',
+  '..040040.0e0..',
+  '..040040.0e0..',
+  '.0ff0ff000e0..',
+  '.0eeeeeeeeee0.',
+  '.0ff000000ff0.',
+  '..00......00..',
+];
+const SCOOTER_B2 = [
+  '..............',
+  '..............',
+  '..............',
+  '..............',
+  '....0000......',
+  '...000000.....',
+  '...0044440....',
+  '...0444040....',
+  '....0444400...',
+  '...0555000e0..',
+  '..05555540e0..',
+  '..05555000e0..',
+  '..088880.0e0..',
+  '..080080.0e0..',
+  '..040.0400e0..',
+  '.040..0400e0..',
+  '0ff000ff00e0..',
+  '.0eeeeeeeeee0.',
+  '.0ff000000ff0.',
+  '..00......00..',
+];
+const GRANNY_RED1 = [
+  '...000....',
+  '..02220...',
+  '.0222220..',
+  '.0224440..',
+  '.0244040..',
+  '.02444430.',
+  '..044220..',
+  '.0eeeee0..',
+  '0eeeeeee0.',
+  '0eeeee440.',
+  '0eeeeeeee0',
+  '.0000ee40.',
+  '.....0dd0.',
+  '......00..',
+];
+const GRANNY_RED2 = [
+  '...000....',
+  '..02220...',
+  '.0222220..',
+  '.0224440..',
+  '.0244040..',
+  '.02444430.',
+  '..0440f0..',
+  '.0eeeee0..',
+  '0eeeeeee0.',
+  '0eeeee440.',
+  '0eeeeeeee0',
+  '.0000ee40.',
+  '.....0dd0.',
+  '......00..',
+];
+const GRANNY_GREEN1 = [
+  '...000....',
+  '..06660...',
+  '.0666660..',
+  '.0664440..',
+  '.0644040..',
+  '.06444430.',
+  '..044220..',
+  '.0111110..',
+  '011111110.',
+  '011111440.',
+  '0111111110',
+  '.00001140.',
+  '.....0dd0.',
+  '......00..',
+];
+const GRANNY_GREEN2 = [
+  '...000....',
+  '..06660...',
+  '.0666660..',
+  '.0664440..',
+  '.0644040..',
+  '.06444430.',
+  '..0440f0..',
+  '.0111110..',
+  '011111110.',
+  '011111440.',
+  '0111111110',
+  '.00001140.',
+  '.....0dd0.',
+  '......00..',
+];
+const GRANNY_BLUE1 = [
+  '...000....',
+  '..09990...',
+  '.0999990..',
+  '.0994440..',
+  '.0944040..',
+  '.09444430.',
+  '..044220..',
+  '.0777770..',
+  '077777770.',
+  '077777440.',
+  '0777777770',
+  '.00007740.',
+  '.....0dd0.',
+  '......00..',
+];
+const GRANNY_BLUE2 = [
+  '...000....',
+  '..09990...',
+  '.0999990..',
+  '.0994440..',
+  '.0944040..',
+  '.09444430.',
+  '..0440f0..',
+  '.0777770..',
+  '077777770.',
+  '077777440.',
+  '0777777770',
+  '.00007740.',
+  '.....0dd0.',
+  '......00..',
+];
+
+// Готовим анимации новых персонажей
+SPRITES.babushka = buildCharacter('Бабушка', 14, 21, {
+  idle: { name: 'Стоит и говорит', speed: 20, frames: [BABUSHKA_IDLE1, BABUSHKA_IDLE2] },
+});
+SPRITES.neighborW = buildCharacter('Соседка с сумками', 14, 22, {
+  walk: { name: 'Идёт по лестнице', speed: 16, frames: [NEIGHBOR_W1, NEIGHBOR_W2] },
+});
+SPRITES.neighborM = buildCharacter('Сосед с сумками', 14, 22, {
+  walk: { name: 'Идёт по лестнице', speed: 16, frames: [NEIGHBOR_M1, NEIGHBOR_M2] },
+});
+SPRITES.dog = buildCharacter('Соседская собачка', 14, 9, {
+  walk: { name: 'Гуляет', speed: 12, frames: [DOG1, DOG2] },
+  run:  { name: 'Бежит «ТЯВ!»', speed: 4, frames: [DOG1, DOG2] },
+  bite: { name: 'Вцепилась в шлёпанец', speed: 60, frames: [DOG_BITE] },
+});
+SPRITES.bikerA = buildCharacter('Ребёнок на велике (голубой шлем)', 20, 18, {
+  ride: { name: 'Мчится', speed: 4, frames: [BIKER_A1, BIKER_A2] },
+  fall: { name: 'Сбит ключом «ОЙ!»', speed: 60, frames: [BIKER_A_FALL] },
+});
+SPRITES.bikerB = buildCharacter('Ребёнок на велике (белый шлем)', 20, 18, {
+  ride: { name: 'Мчится', speed: 4, frames: [BIKER_B1, BIKER_B2] },
+  fall: { name: 'Сбит ключом «ОЙ!»', speed: 60, frames: [BIKER_B_FALL] },
+});
+SPRITES.scooterA = buildCharacter('Ребёнок на самокате (рыжий)', 14, 20, {
+  ride: { name: 'Катается', speed: 12, frames: [SCOOTER_A1, SCOOTER_A2] },
+});
+SPRITES.scooterB = buildCharacter('Ребёнок на самокате (тёмный)', 14, 20, {
+  ride: { name: 'Катается', speed: 12, frames: [SCOOTER_B1, SCOOTER_B2] },
+});
+SPRITES.grannyRed = buildCharacter('Бабушка на лавке (красный платок)', 10, 14, {
+  talk: { name: 'Сплетничает', speed: 10, frames: [GRANNY_RED1, GRANNY_RED2] },
+});
+SPRITES.grannyGreen = buildCharacter('Бабушка на лавке (зелёный платок)', 10, 14, {
+  talk: { name: 'Сплетничает', speed: 12, frames: [GRANNY_GREEN1, GRANNY_GREEN2] },
+});
+SPRITES.grannyBlue = buildCharacter('Бабушка на лавке (синий платок)', 10, 14, {
+  talk: { name: 'Сплетничает', speed: 9, frames: [GRANNY_BLUE1, GRANNY_BLUE2] },
+});
+
+// ---------- Оружие: гаечный ключ и контейнер плова (значки 8x8) ----------
+const WRENCH = [
+  '.d......',
+  'de.d....',
+  'ddde....',
+  '.eddc...',
+  '...edd..',
+  '....edd.',
+  '.....edd',
+  '......e.',
+];
+const PLOV_BOX = [
+  '........',
+  '.000000.',
+  '02222220',
+  '0cccccc0',
+  '0c44c430',
+  '0c4c44c0',
+  '0cccccc0',
+  '.000000.',
+];
+const ICON_WRENCH = makeFrame(WRENCH, 8, 8, 'Гаечный ключ');
+const ICON_PLOV = makeFrame(PLOV_BOX, 8, 8, 'Контейнер плова');
+
+// Летящий гаечный ключ: крутится (angle — угол поворота)
+function drawWrench(g, cx, cy, angle) {
+  g.save();
+  g.translate(Math.round(cx), Math.round(cy));
+  g.rotate(Math.round(angle / (Math.PI / 2)) * (Math.PI / 2));   // поворот по четвертям — пиксели остаются чёткими
+  g.drawImage(ICON_WRENCH, -4, -4);
+  g.restore();
+}
+
+// Плов на земле: полоса риса с морковкой. w — ширина, fade от 0 до 1 — сколько осталось лежать
+function drawPlovStrip(g, x, y, w, fade) {
+  g.fillStyle = '#ffcd75';
+  g.fillRect(x + 1, y, w - 2, 2);
+  g.fillRect(x, y + 1, w, 2);
+  for (let i = 1; i < w - 1; i += 3) {
+    g.fillStyle = (i * 7) % 5 === 0 ? '#ef7d57' : '#f4f4f4';   // морковка и рисинки
+    g.fillRect(x + i, y + ((i * 3) % 2), 1, 1);
+  }
+  if (fade > 0.6) {                                   // пока свежий — пар
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(x + 6, y - 3, 1, 2);
+    g.fillRect(x + w - 8, y - 4, 1, 2);
+  }
+}
+
+// Ящик с гаечными ключами 8x8 (на уровне 2 — символ y): +3 ключа
+function drawKeyBox(g, x, y) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y + 1, 8, 7);
+  g.fillStyle = '#ef7d57';
+  g.fillRect(x + 1, y + 2, 6, 5);                   // деревянный ящик
+  g.fillStyle = '#b13e53';
+  g.fillRect(x + 1, y + 4, 6, 1);
+  g.fillStyle = '#94b0c2';                           // торчат ключи
+  g.fillRect(x + 2, y - 1, 1, 3);
+  g.fillRect(x + 5, y, 1, 2);
+  g.fillRect(x + 1, y - 1, 3, 1);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 4, y + 3, 1, 3);                   // табличка «+»
+  g.fillRect(x + 3, y + 4, 3, 1);
+}
+
+// Стрелка-предупреждение у края экрана (дети на великах). dir: -1 — велик едет справа налево
+function drawWarnArrow(g, x, y, dir, t) {
+  if (Math.floor(t / 6) % 2) return;                 // мигает
+  g.fillStyle = '#b13e53';
+  g.fillRect(x - 6, y - 6, 12, 12);
+  g.fillStyle = '#ffcd75';
+  for (let i = 0; i < 4; i++) g.fillRect(x + dir * (2 - i) - 0, y - i, 1, i * 2 + 1);
+  g.fillRect(x - dir * 1 - (dir > 0 ? 3 : 0), y - 1, 4, 3);
+}
+
+// Лавка для бабушек-сплетниц (сами бабушки рисуются спрайтами сверху). w — ширина в пикселях
+function drawGossipBench(g, x, y, w) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y + 5, w, 5);
+  plank(g, x + 1, y + 6, w - 2, 3);                  // сиденье
+  g.fillStyle = '#566c86';
+  g.fillRect(x + 3, y + 10, 2, 6);                   // ножки
+  g.fillRect(x + w - 5, y + 10, 2, 6);
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y - 8, w, 4);
+  plank(g, x + 1, y - 7, w - 2, 2);                  // спинка
+  g.fillStyle = '#566c86';
+  g.fillRect(x + 3, y - 4, 1, 9);
+  g.fillRect(x + w - 4, y - 4, 1, 9);
+}
+
+// Поливалка на газоне 8x8 (на уровне 2 — символ w). Сама струя рисуется в игре
+function drawSprinkler(g, x, y, t) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x + 1, y + 5, 6, 3);
+  g.fillRect(x + 3, y + 1, 2, 5);
+  g.fillStyle = '#ffcd75';
+  g.fillRect(x + 2, y + 6, 4, 1);                   // основание
+  g.fillStyle = '#b13e53';
+  g.fillRect(x + 3, y + 2, 2, 3);                   // трубка
+  g.fillStyle = '#566c86';
+  g.fillRect(x + (Math.floor(t / 8) % 2 ? 1 : 5), y + 1, 2, 1);   // крутящаяся головка
+}
+
+// Капля воды из поливалки
+function drawWaterDrop(g, x, y, big) {
+  g.fillStyle = big ? '#3b5dc9' : '#41a6f6';         // тёмные капли — видно и на светлом небе
+  g.fillRect(x, y, 2, 2);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x, y, 1, 1);
+}
+
+// Арка выхода со двора (на уровне 2 — финиш E). x, y — левый верхний угол проёма 32x32.
+// Вокруг проёма — стена дома до самого верха экрана.
+function drawArch(g, x, y) {
+  const top = y - 96;
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x - 24, top, 80, 128);                  // стена дома
+  g.fillStyle = '#566c86';
+  for (let j = top + 6; j < y + 32; j += 12) g.fillRect(x - 24, j, 80, 1);   // швы панелей
+  for (const wx of [x - 18, x + 38]) {               // окна по бокам
+    for (let j = top + 12; j < y - 10; j += 24) {
+      g.fillStyle = '#566c86'; g.fillRect(wx, j, 12, 14);
+      g.fillStyle = '#41a6f6'; g.fillRect(wx + 1, j + 1, 10, 12);
+    }
+  }
+  // Проём арки с круглым верхом, за ним — светлая улица
+  pixelCircle(g, x + 16, y + 8, 16, '#566c86');
+  g.fillStyle = '#566c86';
+  g.fillRect(x - 2, y + 8, 36, 24);
+  pixelCircle(g, x + 16, y + 8, 14, '#73eff7');
+  g.fillStyle = '#73eff7';
+  g.fillRect(x, y + 8, 32, 24);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 6, y + 4, 10, 2);                   // облачко в проёме
+  g.fillStyle = '#a7f070';
+  g.fillRect(x, y + 26, 32, 6);                      // улица за аркой
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x, y + 29, 32, 3);
+  // Табличка с номером дома
+  g.fillStyle = '#3b5dc9';
+  g.fillRect(x + 38, y + 4, 14, 9);
+  drawText(g, '13', x + 40, y + 5, '#f4f4f4');
+}
+
+// ---------- ПРЕДМЕТЫ УРОВНЯ 2 ----------
+// Новые свойства предметов:
+//   tops  — тонкие платформы (как полка «-»): снизу насквозь, сверху можно стоять
+//   step  — твёрдые части — низкие ступеньки: на них заходят без прыжка
+//   ramps — горка: съезжаешь быстро вниз вправо
+//   conveyor — карусель: стоишь — тебя тащит (−1 — влево)
+//   car   — машина: запрыгнул на крышу — сигнализация «УИ-УИ-УИ!»
+
+// Лестничный пролёт вниз: n ступенек по 8 пикселей в ширину и 4 в высоту, слева направо вниз
+function makeFlight(name, n) {
+  const h = n * 4;
+  const parts = [];
+  for (let i = 0; i < n; i++) parts.push({ x: i * 8, y: i * 4, w: 8, h: h - i * 4 });
+  return {
+    name: name, w: n, h: n / 2, parts: parts, step: true,
+    draw(g, x, y) {
+      for (const p of parts) {
+        g.fillStyle = '#566c86';
+        g.fillRect(x + p.x, y + p.y, 8, p.h);       // бетон
+        g.fillStyle = '#94b0c2';
+        g.fillRect(x + p.x, y + p.y, 8, 2);         // проступь
+      }
+      // Перила: красный поручень наискосок и стойки
+      g.fillStyle = '#566c86';
+      for (let i = 0; i < n; i++) g.fillRect(x + i * 8 + 3, y + i * 4 - 14, 1, 14);
+      pixelLine(g, x, y - 16, x + n * 8, y + n * 4 - 16, '#b13e53', 2);
+    },
+  };
+}
+FURNITURE.flight = makeFlight('Лестничный пролёт вниз', 6);
+FURNITURE.flight2 = makeFlight('Короткий пролёт вниз', 4);
+
+Object.assign(FURNITURE, {
+  // Почтовые ящики на стене: висят, сверху можно стоять
+  mailboxes: {
+    name: 'Почтовые ящики', w: 4, h: 2,
+    draw(g, x, y) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x, y, 32, 16);
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) {
+        g.fillStyle = '#94b0c2';
+        g.fillRect(x + 1 + i * 8, y + 1 + j * 8, 6, 6);
+        g.fillStyle = '#1a1c2c';
+        g.fillRect(x + 2 + i * 8, y + 3 + j * 8, 4, 1);   // щель
+      }
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + 10, y + 1, 4, 3);              // торчит газета
+    },
+  },
+  // Цветы в горшке: твёрдый только горшок
+  flowerpot: {
+    name: 'Цветы в горшке', w: 2, h: 2,
+    parts: [{ x: 3, y: 8, w: 10, h: 8 }],
+    draw(g, x, y) {
+      g.fillStyle = '#38b764';
+      g.fillRect(x + 7, y + 2, 2, 6);               // стебли и листья
+      g.fillRect(x + 4, y + 4, 3, 2);
+      g.fillRect(x + 9, y + 3, 3, 2);
+      g.fillStyle = '#a7f070';
+      g.fillRect(x + 5, y + 6, 2, 2);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 6, y, 4, 3);                   // цветок
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 7, y + 1, 2, 1);
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 3, y + 8, 10, 8);              // горшок
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 3, y + 8, 10, 2);
+    },
+  },
+  // Лифт с табличкой «ЛИФТ НЕ РАБОТАЕТ» — картинка на стене, не мешает
+  lift: {
+    name: 'Лифт не работает', w: 9, h: 6, parts: [],
+    draw(g, x, y) {
+      g.fillStyle = '#333c57';
+      g.fillRect(x + 18, y + 16, 36, 32);           // рамка
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 20, y + 18, 15, 30);           // створки
+      g.fillRect(x + 37, y + 18, 15, 30);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 56, y + 28, 3, 5);             // кнопка вызова
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 57, y + 29, 1, 1);
+      g.fillStyle = '#f4f4f4';                       // табличка
+      g.fillRect(x + 2, y, 68, 16);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 2, y + 15, 68, 1);
+      drawText(g, 'ЛИФТ', x + 24, y + 1, '#b13e53');
+      drawText(g, 'НЕ РАБОТАЕТ', x + 4, y + 8, '#b13e53');
+    },
+  },
+  // Ламповый телевизор на ножках (квартира бабушки)
+  tubeTv: {
+    name: 'Ламповый телевизор', w: 4, h: 4,
+    parts: [{ x: 0, y: 6, w: 32, h: 18 }, { x: 4, y: 24, w: 24, h: 8 }],
+    draw(g, x, y, t) {
+      g.fillStyle = '#94b0c2';
+      pixelLine(g, x + 16, y + 6, x + 8, y, '#94b0c2');   // антенна-«рога»
+      pixelLine(g, x + 16, y + 6, x + 25, y, '#94b0c2');
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y + 6, 32, 18);                 // деревянный корпус
+      g.fillStyle = '#5d275d';
+      g.fillRect(x, y + 22, 32, 2);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 2, y + 8, 20, 14);             // экран
+      g.fillStyle = Math.floor((t || 0) / 20) % 2 ? '#41a6f6' : '#73eff7';
+      g.fillRect(x + 3, y + 9, 18, 12);             // показывает!
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 9, y + 12, 6, 6);              // диктор
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 25, y + 9, 3, 3);              // ручки
+      g.fillRect(x + 25, y + 14, 3, 3);
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 6, y + 24, 3, 8);              // ножки
+      g.fillRect(x + 23, y + 24, 3, 8);
+      g.fillRect(x + 6, y + 26, 20, 2);
+    },
+  },
+
+  // ---------- Детская площадка ----------
+  // Горка: по лесенке слева вверх, наверху площадка, вниз вправо скатываешься быстро
+  slide: {
+    name: 'Горка', w: 9, h: 5, parts: [],
+    tops: [{ x: 0, y: 32, w: 14 }, { x: 0, y: 24, w: 14 }, { x: 0, y: 16, w: 14 }, { x: 0, y: 8, w: 22 }],
+    ramps: [{ x: 22, y: 8, w: 50, h: 32 }],
+    draw(g, x, y) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 19, y + 10, 2, 30);            // стойка площадки
+      g.fillRect(x + 44, y + 25, 2, 15);            // стойка горки
+      g.fillStyle = '#3b5dc9';                       // лесенка
+      g.fillRect(x + 1, y + 8, 2, 32);
+      g.fillRect(x + 12, y + 8, 2, 32);
+      for (const ry of [32, 24, 16]) g.fillRect(x + 1, y + ry, 13, 2);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y + 8, 22, 3);                  // площадка
+      g.fillRect(x + 2, y, 2, 8);                   // перильца
+      g.fillRect(x + 2, y, 18, 2);
+      g.fillRect(x + 18, y, 2, 8);
+      // Скат: жёлтый жёлоб с бортиком
+      for (let i = 0; i < 50; i++) {
+        const sy = y + 8 + Math.round(i * 32 / 50);
+        g.fillStyle = '#1a1c2c';
+        g.fillRect(x + 22 + i, sy - 1, 1, 1);
+        g.fillStyle = '#ffcd75';
+        g.fillRect(x + 22 + i, sy, 1, 2);
+        g.fillStyle = '#ef7d57';
+        g.fillRect(x + 22 + i, sy + 2, 1, 1);
+      }
+    },
+  },
+  // Карусель: крутится и тащит влево, сталкивает
+  carousel: {
+    name: 'Карусель', w: 6, h: 3, conveyor: -1,
+    parts: [{ x: 0, y: 16, w: 48, h: 8 }],
+    draw(g, x, y, t) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 23, y + 2, 2, 14);             // ось
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 18, y, 12, 3);                 // шапка
+      // Поручни ездят по кругу: передние ярче, задние темнее
+      for (let k = 0; k < 4; k++) {
+        const a = (t || 0) * 0.06 + k * Math.PI / 2;
+        const hx = x + 23 + Math.round(Math.cos(a) * 19);
+        g.fillStyle = Math.sin(a) > 0 ? '#ffcd75' : '#ef7d57';
+        g.fillRect(hx, y + 6, 2, 10);
+        g.fillRect(hx - 2, y + 6, 6, 2);
+      }
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x, y + 16, 48, 8);                 // диск
+      g.fillStyle = '#41a6f6';
+      const shift = Math.floor((t || 0) * 0.6) % 8;  // полоски бегут влево
+      for (let i = 0; i < 48; i += 8) {
+        const sx = (i - shift + 48) % 48;
+        g.fillRect(x + sx, y + 17, 3, 2);
+      }
+      g.fillStyle = '#29366f';
+      g.fillRect(x, y + 21, 48, 3);
+    },
+  },
+  // Шведская стенка: ступеньки-перекладины, на них можно стоять
+  wallbars: {
+    name: 'Шведская стенка', w: 3, h: 6, parts: [],
+    tops: [{ x: 0, y: 4, w: 24 }, { x: 0, y: 12, w: 24 }, { x: 0, y: 20, w: 24 }, { x: 0, y: 28, w: 24 }, { x: 0, y: 36, w: 24 }],
+    draw(g, x, y) {
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x, y, 3, 48);                      // боковины
+      g.fillRect(x + 21, y, 3, 48);
+      g.fillStyle = '#ffcd75';
+      for (let j = 4; j < 44; j += 8) g.fillRect(x + 1, j + y, 22, 2);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y, 3, 1);
+      g.fillRect(x + 21, y, 3, 1);
+    },
+  },
+  // Турник: перекладина — тонкая платформа
+  hbar: {
+    name: 'Турник', w: 4, h: 4, parts: [],
+    tops: [{ x: 0, y: 6, w: 32 }],
+    draw(g, x, y) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 1, y + 6, 2, 26);
+      g.fillRect(x + 29, y + 6, 2, 26);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y + 6, 32, 2);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x, y + 5, 32, 1);
+    },
+  },
+  // Дерево: ствол твёрдый (3 плитки), крона — две тонкие платформы
+  tree: {
+    name: 'Дерево', w: 6, h: 7,
+    parts: [{ x: 20, y: 32, w: 8, h: 24 }],
+    tops: [{ x: 2, y: 32, w: 44 }, { x: 10, y: 12, w: 28 }],
+    draw(g, x, y) {
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 21, y + 14, 6, 42);            // ствол
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 22, y + 14, 1, 42);
+      // Крона: пышные шапки листвы, нижний и верхний «ярус»
+      for (const [cx, cy, r] of [[12, 30, 9], [24, 26, 11], [36, 30, 9], [18, 12, 8], [30, 12, 8], [24, 6, 6]]) {
+        pixelCircle(g, x + cx, y + cy, r, '#38b764');
+      }
+      for (const [cx, cy, r] of [[10, 27, 3], [26, 21, 4], [37, 27, 3], [18, 9, 3], [29, 8, 3]]) {
+        pixelCircle(g, x + cx, y + cy, r, '#a7f070');
+      }
+      g.fillStyle = '#257179';                       // края ярусов, на которые встаёшь
+      g.fillRect(x + 2, y + 32, 44, 2);
+      g.fillRect(x + 10, y + 12, 28, 2);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 2, y + 31, 44, 1);
+      g.fillRect(x + 10, y + 11, 28, 1);
+    },
+  },
+  // Лужа после поливалки: скользко, не твёрдая
+  puddle: {
+    name: 'Лужа', w: 3, h: 1, parts: [],
+    puddle: { x: 0, y: 6, w: 24, h: 2 },
+    draw(g, x, y) {
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x + 2, y + 6, 20, 2);
+      g.fillRect(x, y + 7, 24, 1);
+      g.fillStyle = '#73eff7';
+      g.fillRect(x + 5, y + 6, 6, 1);
+    },
+  },
+});
+
+// Машины: кузов, кабина, колёса, фары. spec: цвет, тень, форма ('sedan', 'hatch', 'small')
+function makeCar(name, w, h, color, shade, shape) {
+  const W = w * 8, H = h * 8;
+  const cabin = shape === 'small' ? { x: 6, y: 0, w: 18, h: 6 } :
+                shape === 'hatch' ? { x: 4, y: 0, w: 32, h: 10 } : { x: 12, y: 0, w: 30, h: 10 };
+  const body = { x: 0, y: cabin.h, w: W, h: H - cabin.h };
+  return {
+    name: name, w: w, h: h, car: true, parts: [body, cabin],
+    draw(g, x, y) {
+      g.fillStyle = color;
+      g.fillRect(x, y + body.y, W, body.h - 3);
+      g.fillRect(x + cabin.x, y + 1, cabin.w, cabin.h);
+      g.fillStyle = shade;
+      g.fillRect(x, y + H - 7, W, 4);               // низ кузова
+      g.fillStyle = '#73eff7';                       // стёкла
+      g.fillRect(x + cabin.x + 2, y + 3, Math.floor(cabin.w / 2) - 3, cabin.h - 3);
+      g.fillRect(x + cabin.x + Math.floor(cabin.w / 2) + 1, y + 3, Math.floor(cabin.w / 2) - 3, cabin.h - 3);
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + cabin.x + 3, y + 3, 2, 1);      // блик
+      g.fillStyle = shade;
+      g.fillRect(x + Math.floor(W / 2), y + body.y + 1, 1, body.h - 8);   // дверь
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + W - 3, y + body.y + 2, 3, 3);   // фара
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y + body.y + 2, 2, 3);           // задний фонарь
+      // Колёса
+      for (const wx of [6, W - 14]) {
+        pixelCircle(g, x + wx + 4, y + H - 4, 4, '#1a1c2c');
+        g.fillStyle = '#94b0c2';
+        g.fillRect(x + wx + 3, y + H - 5, 2, 2);
+      }
+    },
+  };
+}
+FURNITURE.carRed = makeCar('Красный седан', 7, 3, '#b13e53', '#5d275d', 'sedan');
+FURNITURE.carBlue = makeCar('Синий хэтчбек', 6, 3, '#3b5dc9', '#29366f', 'hatch');
+FURNITURE.carSmall = makeCar('Маленькая зелёная машинка', 4, 2, '#38b764', '#257179', 'small');
+FURNITURE.carWhite = makeCar('Белый седан', 7, 3, '#f4f4f4', '#94b0c2', 'sedan');
+
+// ---------- ФОНЫ УРОВНЯ 2: ДЕНЬ ----------
+// Подъезд: бетонные плитки; двор: трава; парковка: асфальт
+const FLOOR_PODYEZD = { fill: '#566c86', seam: '#333c57', top: '#94b0c2' };
+const GROUND_DAY    = { fill: '#38b764', seam: '#257179', top: '#a7f070' };
+const ASPHALT       = { fill: '#566c86', seam: '#333c57', top: '#94b0c2' };
+
+// Стены подъезда: снизу крашеные (тёмно-бирюзовые), сверху побелка. floor — номер этажа на стене
+function drawPodyezdWall(g, x, y, floor, windowX) {
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x, y, 240, 120);
+  g.fillStyle = '#257179';
+  g.fillRect(x, y + 60, 240, 60);
+  g.fillStyle = '#29366f';
+  g.fillRect(x, y + 60, 240, 2);
+  if (windowX !== undefined) {                       // окно на площадке
+    g.fillStyle = '#566c86';
+    g.fillRect(x + windowX, y + 10, 30, 30);
+    g.fillStyle = '#73eff7';
+    g.fillRect(x + windowX + 2, y + 12, 26, 26);
+    g.fillStyle = '#566c86';
+    g.fillRect(x + windowX + 14, y + 12, 2, 26);
+  }
+  if (floor) {                                       // номер этажа, нарисованный краской
+    g.fillStyle = '#566c86';
+    g.fillRect(x + 118, y + 6, 11, 11);
+    drawText(g, floor, x + 121, y + 8, '#f4f4f4');
+  }
+}
+
+// Дневное небо: светлое, белое солнце, облака; вдали панельные дома
+function drawDaySky(g, x, y, sunX, houses) {
+  g.fillStyle = '#73eff7';
+  g.fillRect(x, y, 240, 120);
+  g.fillStyle = '#41a6f6';
+  g.fillRect(x, y, 240, 6);
+  if (sunX !== undefined) {
+    pixelCircle(g, x + sunX, y + 18, 11, '#f4f4f4');
+    g.fillStyle = '#f4f4f4';
+    for (const [dx, dy] of [[-16, 0], [14, 0], [0, -16], [0, 14], [-11, -11], [10, -11], [-11, 10], [10, 10]]) {
+      g.fillRect(x + sunX + dx, y + 18 + dy, 2, 2);  // лучи
+    }
+  }
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 40, y + 20, 26, 4);
+  g.fillRect(x + 46, y + 17, 12, 3);
+  g.fillRect(x + 170, y + 32, 20, 3);
+  if (houses) {                                      // панельные дома вдали
+    for (const [hx, hw, hh] of houses) {
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + hx, y + 112 - hh, hw, hh);
+      g.fillStyle = '#41a6f6';
+      for (let j = 112 - hh + 4; j < 104; j += 8) for (let i = 4; i < hw - 4; i += 8) g.fillRect(x + hx + i, y + j, 4, 4);
+    }
+  }
+}
+
+// Кусты и газон у земли (приглушённо)
+function drawBushes(g, x, y) {
+  for (let i = 8; i < 240; i += 40) {
+    pixelCircle(g, x + i, y + 108, 7, '#257179');
+    pixelCircle(g, x + i + 9, y + 109, 5, '#257179');
+  }
+}
+
+Object.assign(LEVEL_BACKGROUNDS, {
+  // ---------- УРОВЕНЬ 2, ЧАСТЬ 1: ПОДЪЕЗД ----------
+  grannyFlat: { name: 'Квартира бабушки', tile: { fill: '#566c86', seam: '#333c57', top: '#b13e53' },
+    draw(g, x, y) {
+      g.fillStyle = '#257179';
+      g.fillRect(x, y, 240, 120);
+      g.fillStyle = '#29366f';                       // обои в цветочек
+      for (let j = 4; j < 56; j += 10) for (let i = (j % 20 === 4 ? 4 : 9); i < 240; i += 10) g.fillRect(x + i, y + j, 2, 2);
+      // Ковёр на стене
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 84, y + 4, 72, 44);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 87, y + 7, 66, 38);
+      g.fillStyle = '#5d275d';
+      for (let i = 0; i < 4; i++) {
+        const cx = x + 98 + i * 15, cy = y + 26;
+        g.fillRect(cx - 1, cy - 6, 3, 13);
+        g.fillRect(cx - 5, cy - 1, 11, 3);
+      }
+      // Дверь в подъезд слева (отсюда Филипп выходит) и окно с тюлем
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 2, y + 18, 20, 38);
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 18, y + 38, 2, 2);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 186, y + 8, 34, 30);
+      g.fillStyle = '#73eff7';
+      g.fillRect(x + 188, y + 10, 30, 26);
+      g.fillStyle = '#f4f4f4';                       // тюль
+      for (let i = 188; i < 218; i += 3) g.fillRect(x + i, y + 10, 1, 26);
+    } },
+  stairs5: { name: 'Подъезд: 5 этаж', tile: FLOOR_PODYEZD, exitLook: 'door',
+    draw(g, x, y) { drawPodyezdWall(g, x, y, '5', 150); } },
+  stairs4: { name: 'Подъезд: 4 этаж', tile: FLOOR_PODYEZD,
+    draw(g, x, y) { drawPodyezdWall(g, x, y, '4', 60); } },
+  stairs3: { name: 'Подъезд: 3 этаж', tile: FLOOR_PODYEZD,
+    draw(g, x, y) { drawPodyezdWall(g, x, y, '3', 170); } },
+  stairs1: { name: 'Подъезд: 1 этаж', tile: FLOOR_PODYEZD,
+    draw(g, x, y) {
+      drawPodyezdWall(g, x, y, '1');
+      g.fillStyle = '#29366f';                       // надпись маркером на стене
+      drawText(g, 'ТУТ БЫЛ ВОВА', x + 150, y + 70, '#29366f');
+    } },
+  podyezdDoor: { name: 'Подъезд: дверь на улицу', tile: FLOOR_PODYEZD, exitLook: 'door',
+    draw(g, x, y) {
+      drawPodyezdWall(g, x, y, '1', 40);
+      g.fillStyle = '#566c86';                       // батарея
+      for (let i = 0; i < 6; i++) g.fillRect(x + 100 + i * 4, y + 92, 3, 16);
+    } },
+
+  // ---------- УРОВЕНЬ 2, ЧАСТЬ 2: ДЕТСКАЯ ПЛОЩАДКА ----------
+  yardDay: { name: 'Двор днём: солнце', tile: GROUND_DAY,
+    draw(g, x, y) { drawDaySky(g, x, y, 190, [[10, 50, 70], [70, 40, 56]]); drawBushes(g, x, y); } },
+  playground: { name: 'Детская площадка', tile: GROUND_DAY, exitLook: 'arrow',
+    draw(g, x, y) {
+      drawDaySky(g, x, y, undefined, [[120, 60, 76], [190, 40, 50]]);
+      g.fillStyle = '#41a6f6';                       // низкая оградка площадки вдали
+      for (let i = 2; i < 240; i += 8) g.fillRect(x + i, y + 96, 2, 16);
+      g.fillRect(x, y + 100, 240, 2);
+    } },
+  lawn: { name: 'Газон с поливалкой', tile: GROUND_DAY,
+    draw(g, x, y) {
+      drawDaySky(g, x, y, undefined, [[30, 70, 64], [150, 50, 80]]);
+      drawBushes(g, x, y);
+      g.fillStyle = '#f4f4f4';                       // табличка на газоне
+      g.fillRect(x + 100, y + 86, 40, 12);
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 119, y + 98, 2, 14);
+      drawText(g, 'ГАЗОН', x + 105, y + 88, '#257179');
+    } },
+
+  // ---------- УРОВЕНЬ 2, ЧАСТЬ 3: ПАРКОВКА И АРКА ----------
+  parking: { name: 'Парковка', tile: ASPHALT,
+    draw(g, x, y) {
+      drawDaySky(g, x, y, 60, [[100, 70, 72], [180, 50, 60]]);
+      g.fillStyle = '#f4f4f4';                       // разметка на стене-бордюре
+      for (let i = 10; i < 240; i += 30) g.fillRect(x + i, y + 108, 14, 2);
+    } },
+  parkingHouse: { name: 'Парковка у дома', tile: ASPHALT,
+    draw(g, x, y) {
+      drawDaySky(g, x, y);
+      g.fillStyle = '#94b0c2';                       // стена дома рядом
+      g.fillRect(x, y + 20, 240, 92);
+      g.fillStyle = '#566c86';
+      for (let j = 26; j < 112; j += 14) g.fillRect(x, y + j, 240, 1);
+      for (let i = 14; i < 240; i += 40) {
+        g.fillStyle = '#566c86'; g.fillRect(x + i, y + 30, 16, 16);
+        g.fillStyle = '#41a6f6'; g.fillRect(x + i + 1, y + 31, 14, 14);
+      }
+    } },
+  // Стена дома с граффити «ГЛЕБ — ЛОХ». Тут Филипп думает «ЭТО ПРАВДА.»
+  graffiti: { name: 'Стена с граффити', tile: ASPHALT, truth: true,
+    draw(g, x, y) {
+      drawDaySky(g, x, y);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y + 14, 240, 98);
+      g.fillStyle = '#566c86';
+      for (let j = 20; j < 112; j += 14) g.fillRect(x, y + j, 240, 1);
+      // Граффити крупными буквами: обводка, потом заливка
+      drawText(g, 'ГЛЕБ — ЛОХ', x + 32, y + 46, '#1a1c2c', 0, { scale: 3 });
+      drawText(g, 'ГЛЕБ — ЛОХ', x + 30, y + 44, '#b13e53', 0, { scale: 3 });
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 48, y + 66, 2, 6);              // подтёки краски
+      g.fillRect(x + 110, y + 66, 2, 9);
+      g.fillRect(x + 176, y + 66, 2, 5);
+    } },
+  archYard: { name: 'Двор у арки', tile: ASPHALT, gateLook: 'arch',
+    draw(g, x, y) { drawDaySky(g, x, y, 40, [[0, 60, 60]]); } },
+});
+
+// ---------- ФОН ЗАСТАВКИ: КВАРТИРА БАБУШКИ ----------
+// Ковёр на стене, ламповый телевизор ПОКАЗЫВАЕТ (t — счётчик для мигания экрана)
+BACKGROUNDS.grannyRoom = function (g, t) {
+  g.fillStyle = '#257179';
+  g.fillRect(0, 0, 240, 72);
+  g.fillStyle = '#38b764';                           // обои в цветочек
+  for (let j = 6; j < 66; j += 12) for (let i = (j % 24 === 6 ? 6 : 12); i < 240; i += 12) g.fillRect(i, j, 2, 2);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(0, 66, 240, 3);                         // плинтус
+  g.fillStyle = '#b13e53';                           // пол
+  g.fillRect(0, 69, 240, 67);
+  g.fillStyle = '#5d275d';
+  for (let j = 75; j < 136; j += 6) g.fillRect(0, j, 240, 1);
+  // Ковёр на стене
+  g.fillStyle = '#5d275d';
+  g.fillRect(20, 8, 90, 52);
+  g.fillStyle = '#b13e53';
+  g.fillRect(23, 11, 84, 46);
+  g.fillStyle = '#ffcd75';
+  for (let i = 0; i < 5; i++) {
+    const cx = 34 + i * 16;
+    g.fillRect(cx - 1, 26, 3, 15);
+    g.fillRect(cx - 6, 32, 13, 3);
+  }
+  g.fillStyle = '#ef7d57';
+  g.fillRect(23, 11, 84, 2);
+  g.fillRect(23, 55, 84, 2);
+  // Тумба и ламповый телевизор
+  g.fillStyle = '#5d275d';
+  g.fillRect(150, 60, 56, 26);
+  g.fillStyle = '#b13e53';
+  g.fillRect(156, 22, 46, 38);
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(160, 26, 30, 26);
+  const on = Math.floor((t || 0) / 12) % 2;
+  g.fillStyle = on ? '#41a6f6' : '#73eff7';
+  g.fillRect(162, 28, 26, 22);                       // экран показывает
+  g.fillStyle = '#ffcd75';
+  g.fillRect(170, 34, 10, 10);                       // диктор
+  g.fillStyle = '#29366f';
+  g.fillRect(170, 44, 10, 6);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(172, 37, 2, 2);
+  g.fillRect(176, 37, 2, 2);
+  g.fillStyle = '#ffcd75';
+  g.fillRect(194, 30, 4, 4);                         // ручки
+  g.fillRect(194, 38, 4, 4);
+  pixelLine(g, 178, 22, 166, 8, '#94b0c2');          // антенна
+  pixelLine(g, 178, 22, 192, 6, '#94b0c2');
+};

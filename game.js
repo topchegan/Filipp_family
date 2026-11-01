@@ -93,7 +93,68 @@ const CONFIG = {
   clockStartHour: 9,         // время на часах в начале уровня: часы...
   clockStartMinute: 30,      // ...и минуты
   secondsPerGameMinute: 1,   // сколько настоящих секунд длится одна игровая минута
+
+  // ----- УРОВЕНЬ 2: свои числа для Леры и часов. Чего здесь нет — берётся из настроек выше -----
+  level2: {
+    leraHeadStart: 3,        // фора Леры в начале уровня, секунд
+    leraSpeed: 1.0,          // скорость Леры по шкале (на уровне 1 — 0.8)
+    leraSpeedUp: 0.1,        // ускорение после каждого звонка
+    callPushBack: 200,       // на сколько Леру отбрасывает звонок
+    clockStartHour: 13,      // уровень 2 начинается в 13:30
+    clockStartMinute: 30,
+  },
+
+  // ----- Оружие (есть с уровня 2) -----
+  weaponsFromLevel: 2,       // с какого уровня есть оружие и видна кнопка «Бросок»
+  keysStart: 5,              // гаечных ключей в начале уровня 2
+  keysMax: 9,                // больше ключей не бывает
+  keyBoxKeys: 3,             // сколько ключей в ящике
+  wrenchSpeed: 3.2,          // сила броска ключа вперёд
+  wrenchLift: 0.6,           // насколько ключ взлетает вверх (дуга пологая, на уровне пояса)
+  wrenchGravity: 0.05,       // как быстро опускается летящий ключ
+  enemyStunSeconds: 2,       // сколько секунд враг сидит со звёздочками после ключа
+  plovStart: 1,              // бабушка даёт контейнеров плова
+  plovSeconds: 8,            // сколько секунд плов лежит на земле
+  plovTiles: 3,              // ширина полосы плова в плитках
+  slipSeconds: 2.5,          // сколько секунд враг лежит, поскользнувшись на плове
+
+  // ----- Враги и предметы уровня 2 -----
+  neighborSpeed: 0.35,       // соседи с сумками ходят медленно
+  neighborPush: 2.5,         // как сильно соседи отталкивают «ОСТОРОЖНО!» (кружку не отнимают)
+  dogSpeed: 0.4,             // собачка гуляет
+  dogRunSpeed: 1.6,          // собачка бежит к Филиппу «ТЯВ!»
+  dogSeeDistance: 90,        // с какого расстояния собачка замечает Филиппа
+  dogHoldSeconds: 1.5,       // сколько секунд собачка держит шлёпанец
+  dogSlowMul: 0.35,          // скорость Филиппа, пока собачка держит шлёпанец
+  bikeSpeed: 2.4,            // дети на великах
+  bikeEverySeconds: 4,       // как часто проезжает велик, пока Филипп рядом с дорожкой
+  bikeWarnSeconds: 1,        // за сколько секунд до велика звенит «ДЗЫНЬ-ДЗЫНЬ» и мигает стрелка
+  scooterSpeed: 0.8,         // дети на самокатах (касание отбрасывает, кружку не отнимает)
+  sprinklerReach: 48,        // как далеко бьёт струя поливалки
+  sprinklerJetSeconds: 2,    // сколько секунд струя бьёт в одну сторону
+  sprinklerPauseSeconds: 0.7,// пауза, пока поливалка поворачивается
+  gossipRadius: 40,          // размер «зоны сплетен» вокруг лавки с бабушками
+  gossipNods: 6,             // сколько раз нажать «Прыжок» («кивнуть»), чтобы вырваться
+  gossipAngrySeconds: 5,     // после ключа «ХУЛИГАН!» зона столько секунд больше...
+  gossipAngryMul: 1.5,       // ...во столько раз
+  slideSpeed: 2.6,           // как быстро съезжаешь с горки
+  carouselSpeed: 0.8,        // как сильно карусель тащит влево
+  carAlarmSeconds: 3,        // сколько секунд воет сигнализация «УИ-УИ-УИ!»
 };
+
+// Какой уровень сейчас собран: 0 — уровень 1, 1 — уровень 2
+let currentLevelIndex = 0;
+
+// Число из настроек с учётом уровня: у уровня 2 своё (CONFIG.level2), если оно там есть
+function levelCfg(name) {
+  const own = CONFIG['level' + (currentLevelIndex + 1)];
+  return own && own[name] !== undefined ? own[name] : CONFIG[name];
+}
+
+// Есть ли на этом уровне оружие (ключи и плов)
+function weaponsOn() {
+  return currentLevelIndex + 1 >= CONFIG.weaponsFromLevel;
+}
 
 // ---------- Холст ----------
 const W = 240;   // ширина игрового экрана в пикселях
@@ -230,6 +291,36 @@ function knockSound() {
   tone(110, audioCtx.currentTime, 0.06, 0.1);
 }
 
+// Гаечный ключ попал: «БДЗЫНЬ!» — звонкий металлический звук
+function clangSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(1800, t0, 0.05, 0.05);
+  tone(1200, t0 + 0.05, 0.15, 0.04);
+}
+
+// Собачка: «ТЯВ!» — два коротких высоких звука
+function barkSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(900, t0, 0.05, 0.06);
+  tone(700, t0 + 0.08, 0.06, 0.06);
+}
+
+// Велосипедный звонок «ДЗЫНЬ-ДЗЫНЬ»
+function bellSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  for (const d of [0, 0.25]) for (let i = 0; i < 4; i++) tone(i % 2 ? 2100 : 2400, t0 + d + i * 0.03, 0.03, 0.03);
+}
+
+// Сигнализация машины «УИ-УИ-УИ!»
+function sirenSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  for (let i = 0; i < 6; i++) tone(i % 2 ? 600 : 950, t0 + i * 0.18, 0.16, 0.035);
+}
+
 // Звонок телефона: «ДЗЫНЬ-ДЗЫНЬ» — две трели из быстро чередующихся нот
 function phoneRing() {
   if (!audioCtx) return;
@@ -258,6 +349,8 @@ let jumpHit = false;
 let throwHit = false;
 // Пауза (кнопка ⏸, P, Esc), выбор в меню (стрелки вверх-вниз), подтверждение (Прыжок, Z, пробел, Enter)
 let pauseHit = false;
+// Смена оружия: C на клавиатуре (тап по значку в HUD ловится отдельно)
+let switchHit = false;
 let menuMove = 0;
 let confirmHit = false;
 
@@ -275,6 +368,7 @@ window.addEventListener('keydown', (e) => {
   unlockAudio();
   if (!e.repeat) {
     if (e.code === 'KeyP' || e.code === 'Escape') pauseHit = true;
+    if (e.code === 'KeyC') switchHit = true;
     if (e.code === 'ArrowUp') menuMove -= 1;
     if (e.code === 'ArrowDown') menuMove += 1;
     if (e.code === 'Enter' || e.code === 'KeyZ' || e.code === 'Space') confirmHit = true;
@@ -621,7 +715,7 @@ function createSceneState(defaultScene) {
         // Фон 'level' — замерший уровень (для разговора по телефону)
         if (this.scene.background === 'level') levelState.draw();
         else if (this.scene.background === 'boss') bossState.draw();     // арена босса
-        else BACKGROUNDS[this.scene.background](ctx);
+        else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
         if (step.type === 'say') this.drawDialog(step);
@@ -819,10 +913,14 @@ const COMMON_SYMBOLS = {
 };
 // 2) СВОИ символы у каждого уровня — в levels.js, поле legend: буква → что это.
 //    «Что это» — имя предмета из FURNITURE (sofa, table...) или одна из особых вещей:
-const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'rake', 'lera'];
+const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'rake', 'lera',
+                        // уровень 2: соседи, собачка, дорожка великов, самокат, поливалка,
+                        // лавка с 2 и с 3 бабушками, ящик с ключами
+                        'neighbor', 'dog', 'biker', 'scooter', 'sprinkler', 'gossip2', 'gossip3', 'keybox'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
-const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 } };
+const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
+                        gossip2: { w: 4, h: 2 }, gossip3: { w: 5, h: 2 } };
 
 // Легенда текущего уровня (буква → что это). Ставится в buildLevel
 let levelLegend = {};
@@ -835,7 +933,7 @@ function symbolThing(ch) {
 let levelParts = [];     // все части уровня
 let partIndex = 0;       // в какой части сейчас Филипп
 let level = null;        // текущая часть: всё, что нужно для игры (см. buildPart)
-let bossArena = null;    // арена босса: собирается из LEVELS[0].boss как обычная часть
+let bossArena = null;    // арена босса: собирается из boss уровня как обычная часть (у уровня 2 босса пока нет)
 let totalLength = 1;     // длина всего уровня для шкалы HUD: от старта до калитки через все части
 
 // Ошибки в карте. Если они есть, вместо игры показываем экран с ошибками.
@@ -852,10 +950,6 @@ function buildLevel(data) {
     errors.push('В LEVELS.JS НЕТ НИ ОДНОЙ ЧАСТИ УРОВНЯ (PARTS).');
     return;
   }
-  if (!data.boss) {
-    errors.push('В LEVELS.JS НЕТ АРЕНЫ БОССА (BOSS).');
-    return;
-  }
   // Легенда уровня: каждая буква — известный предмет или особая вещь, и не общий символ
   levelLegend = data.legend || {};
   for (const ch in levelLegend) {
@@ -868,7 +962,7 @@ function buildLevel(data) {
   }
   if (errors.length > 0) return;
   // 1) Проверяем каждый экран каждой части и арену: фон, 15 строк по 30 символов, известные символы
-  const toCheck = data.parts.concat([{ screens: [data.boss], arena: true }]);
+  const toCheck = data.boss ? data.parts.concat([{ screens: [data.boss], arena: true }]) : data.parts;
   toCheck.forEach((part, pi) => {
     const pn = part.arena ? 'АРЕНА БОССА' : 'ЧАСТЬ ' + (pi + 1);
     if (!Array.isArray(part.screens) || part.screens.length === 0) {
@@ -907,12 +1001,12 @@ function buildLevel(data) {
     offset += lp.width;
     levelParts.push(lp);
   });
-  // 3) Арена босса — отдельная «часть» из одного экрана
-  bossArena = buildPart({ name: data.boss.name, screens: [data.boss] }, -1, false, true);
+  // 3) Арена босса — отдельная «часть» из одного экрана (если у уровня есть босс)
+  bossArena = data.boss ? buildPart({ name: data.boss.name, screens: [data.boss] }, -1, false, true) : null;
   if (errors.length > 0) return;
   const last = levelParts[levelParts.length - 1];
   totalLength = last.offset + last.gate.x;
-  bossArena.offset = totalLength - SCREEN_W / 2;   // на шкале HUD Филипп на арене — у самого финиша
+  if (bossArena) bossArena.offset = totalLength - SCREEN_W / 2;   // на шкале HUD Филипп на арене — у самого финиша
 }
 
 // Собирает одну часть уровня из её экранов
@@ -941,6 +1035,12 @@ function buildPart(part, pi, isLast, isArena) {
     puddles: [],       // лужи {x, y, w, h}: скользко
     hot: [],           // горячий верх мангала {x, y, w, h}
     swings: [],        // качели {x, y}: сиденье раскачивается
+    ramps: [],         // горки {x, y, w, h}: съезжаешь вниз вправо
+    keyBoxes: [],      // ящики с гаечными ключами {x, y}
+    bikeLanes: [],     // дорожки великов {x, y}: отсюда и рядом мчатся дети на великах
+    sprinklers: [],    // поливалки {x, y}
+    gossips: [],       // лавки с бабушками {x, y, w, n}: вокруг «зона сплетен»
+    cars: [],          // машины (для сигнализации)
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
     start: null,       // старт Филиппа {x, y}
@@ -974,7 +1074,13 @@ function buildPart(part, pi, isLast, isArena) {
       }
       if (thing === 'beer') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
       if (thing === 'cig' || thing === 'coffee') { lp.boosts.push({ kind: thing, x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
-      if (thing === 'kirill' || thing === 'cat' || thing === 'vacuum') { lp.spawns.push({ type: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'kirill' || thing === 'cat' || thing === 'vacuum' || thing === 'neighbor' || thing === 'dog' || thing === 'scooter') {
+        lp.spawns.push({ type: thing, x: tileX(c), y: tileY(r + 1) });
+        continue;
+      }
+      if (thing === 'keybox') { lp.keyBoxes.push({ x: tileX(c), y: tileY(r + 1) - 8 }); continue; }
+      if (thing === 'biker') { lp.bikeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'sprinkler') { lp.sprinklers.push({ x: tileX(c), y: tileY(r) }); continue; }
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'lego') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
       if (thing === 'rake') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
@@ -994,14 +1100,24 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'gate') { gates++; lp.gate = { x: x, y: y }; continue; }
       if (thing === 'exit') { exits++; lp.exit = { x: x, y: y }; continue; }
       if (thing === 'lera') { lp.npcs.push({ x: x, y: y }); continue; }
+      if (thing === 'gossip2' || thing === 'gossip3') {
+        lp.gossips.push({ x: x, y: y, w: size.w * TILE, n: thing === 'gossip3' ? 3 : 2, ground: tileY(r + 1) });
+        continue;
+      }
       // Предмет целиком твёрдый: каждая его часть — препятствие
       const def = FURNITURE[thing];
-      lp.furniture.push({ def: def, x: x, y: y });
+      const item = { def: def, x: x, y: y, alarm: 0 };
+      lp.furniture.push(item);
       if (thing === 'stairs') lp.stairs.push(x);
+      if (def.car) lp.cars.push(item);
       for (const p of furnitureParts(def)) {
-        lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce, lie: !!def.lie });
+        lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce, lie: !!def.lie,
+                         step: !!def.step, conveyor: def.conveyor || 0, car: def.car ? item : null });
         if (def.hot) lp.hot.push({ x: x + p.x - 1, y: y + p.y - 1, w: p.w + 2, h: p.h + 1 });
       }
+      // Тонкие платформы предмета (крона дерева, перекладины) и горки
+      for (const t of def.tops || []) lp.tops.push({ x: x + t.x, y: y + t.y, w: t.w });
+      for (const rp of def.ramps || []) lp.ramps.push({ x: x + rp.x, y: y + rp.y, w: rp.w, h: rp.h });
       if (def.puddle) lp.puddles.push({ x: x + def.puddle.x, y: y + def.puddle.y, w: def.puddle.w, h: def.puddle.h });
       if (def.swing) lp.swings.push({ x: x, y: y });
     }
@@ -1058,7 +1174,7 @@ let clockSteps = 0;
 
 // Время на игровых часах строкой, например «09:47»
 function clockText() {
-  const total = CONFIG.clockStartHour * 60 + CONFIG.clockStartMinute +
+  const total = levelCfg('clockStartHour') * 60 + levelCfg('clockStartMinute') +
                 Math.floor(clockSteps / (60 * CONFIG.secondsPerGameMinute));
   const hh = Math.floor(total / 60) % 24;
   const mm = total % 60;
@@ -1077,6 +1193,9 @@ function barX(globalX) {
   const part = Math.max(0, Math.min(1, globalX / totalLength));
   return Math.round(BAR.x + part * BAR.w);
 }
+
+// Значки оружия под HUD слева (уровень 2): «ключ x5» и «плов x1». Тап по значку — сменить оружие
+const WEAPON_PANEL = { x: 2, y: HUD_H + 1, w: 54, h: 11 };
 
 // Где Филипп на всём уровне (а не только в текущей части)
 function playerGlobalX() {
@@ -1107,6 +1226,9 @@ const ENEMY_SIZES = {
   kirill: { w: 8,  h: 18 },
   cat:    { w: 10, h: 7 },
   vacuum: { w: 16, h: 7 },
+  neighbor: { w: 10, h: 20 },   // соседи с сумками (уровень 2)
+  dog:      { w: 12, h: 7 },    // собачка
+  scooter:  { w: 10, h: 17 },   // ребёнок на самокате
 };
 
 // Новый враг из точки появления на карте
@@ -1117,27 +1239,35 @@ function makeEnemy(sp) {
     x: sp.x + (8 - size.w) / 2, y: sp.y - size.h,   // ноги на полу плитки
     homeX: sp.x, vx: 0, vy: 0, dir: -1,             // сначала идёт влево — навстречу Филиппу
     state: 'walk', timer: Math.floor(Math.random() * 120), cool: 0, onGround: false,
+    variant: (sp.x / TILE) % 2,                     // соседка или сосед, рыжий или тёмный на самокате
+    stunT: 0,                                       // сидит со звёздочками после ключа
+    slipT: 0,                                       // лежит, поскользнувшись на плове
   };
 }
 
-// Есть ли под точкой опора (пол, предмет или полка)
-function hasGround(x, y) {
-  const probe = { x: x, y: y, w: 1, h: 2 };
+// Есть ли под точкой опора (пол, предмет или полка). deep = true — смотрим глубже (ступеньки лестницы)
+function hasGround(x, y, deep) {
+  const probe = { x: x, y: y, w: 1, h: deep ? 6 : 2 };
   return level.solids.some((s) => overlaps(probe, s)) ||
          level.tops.some((t) => x >= t.x && x < t.x + t.w && y >= t.y - 1 && y <= t.y + 2);
 }
 
-// Двигаем врага: гравитация, стены, края. avoidEdges — разворачиваться у края, а не падать
-function moveEnemy(e, avoidEdges) {
+// Двигаем врага: гравитация, стены, края. avoidEdges — разворачиваться у края, а не падать.
+// stairs = true — умеет ходить по ступенькам лестницы вверх и вниз (соседи, собачка)
+function moveEnemy(e, avoidEdges, stairs) {
   e.vy = Math.min(CONFIG.maxFall, e.vy + CONFIG.gravity);
   // по X
   const oldX = e.x;
   e.x += e.vx;
   let blocked = e.x < 0 || e.x + e.w > level.width;
-  for (const s of level.solids) if (overlaps(e, s)) blocked = true;
+  for (const s of level.solids) {
+    if (!overlaps(e, s)) continue;
+    if (stairs && s.step && e.y + e.h - s.y <= 5) { e.y = s.y - e.h; continue; }   // шагнул на ступеньку
+    blocked = true;
+  }
   if (!blocked && avoidEdges && e.onGround) {
     const footX = e.vx > 0 ? e.x + e.w : e.x - 1;
-    if (!hasGround(footX, e.y + e.h)) blocked = true;
+    if (!hasGround(footX, e.y + e.h, stairs)) blocked = true;
   }
   if (blocked) { e.x = oldX; e.dir = -e.dir; e.vx = 0; }
   // по Y
@@ -1193,11 +1323,28 @@ const levelState = {
   smoke: 0,          // сколько шагов ещё тянется дымок после сигарет
   smokeTrail: [],    // облачка дыма {x, y, t}
   sofaIdle: 0,       // сколько шагов Филипп стоит неподвижно на диване
+  // --- Уровень 2 ---
+  keys: 0,           // гаечные ключи
+  plov: 0,           // контейнеры плова
+  weapon: 'keys',    // что сейчас в руке: 'keys' — ключ, 'plov' — плов
+  shots: [],         // летящие ключи и контейнеры плова
+  plovs: [],         // плов на земле {x, y, w, timer}
+  bikes: [],         // дети на великах {lane, x, y, dir, state, timer}
+  laneTimers: [],    // для каждой дорожки великов: сколько шагов до следующего велика
+  boxesTaken: [],    // для каждой части: какие ящики с ключами уже взяты
+  gossipHold: null,  // у какой лавки с бабушками застрял Филипп (или null)
+  nods: 0,           // сколько раз Филипп «кивнул» бабушкам
+  nodTimer: 0,       // для картинки кивка
+  slowT: 0,          // сколько шагов ещё собачка держит шлёпанец
+  thought: null,     // мысль над Филиппом {text, t} — «ЭТО ПРАВДА.»
+  truthDone: false,  // мысль у граффити уже была
+  carry: null,       // что переносится в следующий уровень: кружки, ключи, плов
 
   // mode:
   //   'resume'   — вернуться после разговора по телефону: ничего не сбрасываем
   //   'nextPart' — перейти в следующую часть уровня (Лера и часы продолжают)
   //   'lastCall' — «ЕЩЁ РАЗ»: продолжить с места последнего звонка
+  //   'nextLevel'— начать следующий уровень (кружки переносятся, но не меньше 3)
   //   иначе      — начать уровень сначала
   enter(mode) {
     if (mode === 'resume') return;
@@ -1210,12 +1357,27 @@ const levelState = {
       player.lying = false;
       return;
     }
-    if (mode !== 'lastCall' || !this.saved) {
+    if (mode === 'nextLevel') {
+      // Запоминаем, что унести с собой, и собираем следующий уровень
+      this.carry = { lives: this.lives, keys: this.keys, plov: this.plov, armed: weaponsOn() };
+      loadLevel(currentLevelIndex + 1);
+    }
+    const fresh = mode !== 'lastCall' || !this.saved;
+    if (fresh) {
+      // Ключи и плов переносятся, если на прошлом уровне уже было оружие.
+      // На уровень 2 Филипп приходит без них: ключи берёт у бабушки, плов она даёт с собой.
+      const c = this.carry;
+      this.carry = null;
+      const armed = c && c.armed;
       this.saved = { part: 0, x: levelParts[0].start.x, y: levelParts[0].start.y, leraX: 0,
-                     leraSpeed: CONFIG.leraSpeed, clockSteps: 0,
+                     leraSpeed: levelCfg('leraSpeed'), clockSteps: 0,
                      taken: levelParts.map((p) => p.phones.map(() => false)),
                      beersTaken: levelParts.map((p) => p.beers.map(() => false)),
-                     boostsTaken: levelParts.map((p) => p.boosts.map(() => false)) };
+                     boostsTaken: levelParts.map((p) => p.boosts.map(() => false)),
+                     boxesTaken: levelParts.map((p) => p.keyBoxes.map(() => false)),
+                     keys: armed ? c.keys : CONFIG.keysStart,
+                     plov: armed ? c.plov : CONFIG.plovStart,
+                     lives: c ? Math.max(CONFIG.startLives, c.lives) : CONFIG.startLives };
     }
     // Восстанавливаем всё как было на старте или в момент последнего звонка
     partIndex = this.saved.part;
@@ -1226,12 +1388,17 @@ const levelState = {
     this.taken = copyTaken(this.saved.taken);
     this.beersTaken = copyTaken(this.saved.beersTaken);
     this.boostsTaken = copyTaken(this.saved.boostsTaken);
-    this.lives = CONFIG.startLives;                   // «ЕЩЁ РАЗ» — снова 3 кружки
+    this.boxesTaken = copyTaken(this.saved.boxesTaken);
+    this.keys = this.saved.keys;
+    this.plov = this.saved.plov;
+    this.weapon = 'keys';
+    // Новый уровень — кружки с прошлого уровня (не меньше 3). «ЕЩЁ РАЗ» — снова 3 кружки
+    this.lives = fresh ? this.saved.lives : CONFIG.startLives;
     this.resetEffects();                              // и полный кураж, без кофе и пива
     this.invuln = 0;
     this.resetPart();
     clockSteps = this.saved.clockSteps;
-    this.waitSteps = CONFIG.leraHeadStart * 60;    // фора в шагах
+    this.waitSteps = levelCfg('leraHeadStart') * 60;    // фора в шагах
     this.alarm = false;
     this.alarmTimer = 0;
     this.ringing = -1;
@@ -1245,6 +1412,22 @@ const levelState = {
     this.swingCool = 0;
     player.stun = 0;
     player.standingOn = null;
+    player.groundSolid = null;
+    player.onRamp = false;
+    player.carOn = null;
+    // Уровень 2: ключи в полёте, плов, велики, бабушки, поливалки, машины
+    this.shots = [];
+    this.plovs = [];
+    this.bikes = [];
+    this.laneTimers = level.bikeLanes.map(() => 0);
+    this.gossipHold = null;
+    this.nods = 0;
+    this.slowT = 0;
+    this.thought = null;
+    this.truthDone = false;
+    for (const g of level.gossips) { g.angry = 0; g.released = false; }
+    for (const sp of level.sprinklers) { sp.timer = 0; sp.dir = 0; }
+    for (const c of level.cars) c.alarm = 0;
   },
 
   // Кураж полный, никаких кофе, пива и дыма
@@ -1266,11 +1449,12 @@ const levelState = {
     return CONFIG.courageMinFactor + (1 - CONFIG.courageMinFactor) * (this.courage / 0.5);
   },
 
-  // Множитель скорости бега: кураж, кофе, «отходняк»
+  // Множитель скорости бега: кураж, кофе, «отходняк», собачка держит шлёпанец
   speedFactor() {
     let k = this.courageFactor();
     if (this.coffee > 0) k *= CONFIG.coffeeSpeedMul;
     else if (this.coffeeCrash > 0) k *= CONFIG.coffeeCrashMul;
+    if (this.slowT > 0) k *= CONFIG.dogSlowMul;
     return k;
   },
 
@@ -1382,15 +1566,22 @@ const levelState = {
       return;
     }
 
+    this.updateGossip(input);                         // бабушки на лавке держат — кнопки не слушаются
     this.movePlayer(input);
     clockSteps++;
     this.tickEffects();
     if (this.invuln > 0) this.invuln--;
     if (this.swingCool > 0) this.swingCool--;
+    if (this.slowT > 0) this.slowT--;
 
     // --- Враги, ловушки, пиво ---
     this.updateEnemies();
     this.updateTraps();
+    // --- Уровень 2: оружие, велики, поливалки, машины, ящики с ключами, граффити ---
+    this.updateWeapons(input);
+    this.updateBikes();
+    this.updateSprinklers();
+    this.updateYard();
     this.popups = this.popups.filter((p) => ++p.t < 50);
 
     // Кружки кончились — Лера догоняет
@@ -1422,8 +1613,15 @@ const levelState = {
 
     // --- Финиш ---
     if (level.gate && player.x + player.w >= level.gate.x + 4) {
-      // Калитка ведёт на арену босса: затемнение, дальше — арена
-      setState('inLevelScene', { background: 'level', next: 'boss', nextArg: 'intro', steps: [{ type: 'fade' }] });
+      if (bossArena) {
+        // Калитка ведёт на арену босса: затемнение, дальше — арена
+        setState('inLevelScene', { background: 'level', next: 'boss', nextArg: 'intro', steps: [{ type: 'fade' }] });
+      } else {
+        // Босса нет (уровень 2 пока): сценка конца уровня из scenes.js, например level2End
+        const end = SCENES['level' + (currentLevelIndex + 1) + 'End'];
+        setState('inLevelScene', { background: 'level', next: end.next, nextArg: end.nextArg,
+                                   steps: [{ type: 'fade' }].concat(end.steps) });
+      }
       return;
     }
 
@@ -1453,26 +1651,65 @@ const levelState = {
     this.ringing = -1;
     this.alarm = false;
     // Лера отлетает назад и немного ускоряется
-    this.leraX = Math.max(0, this.leraX - CONFIG.callPushBack);
-    this.leraSpeed += CONFIG.leraSpeedUp;
+    this.leraX = Math.max(0, this.leraX - levelCfg('callPushBack'));
+    this.leraSpeed += levelCfg('leraSpeedUp');
     // Тихо запоминаем место звонка: после поражения «ЕЩЁ РАЗ» начнётся отсюда
     const ph = level.phones[i];
     this.saved = { part: partIndex, x: ph.x - 1, y: ph.y + 14 - player.h, leraX: this.leraX,
                    leraSpeed: this.leraSpeed, clockSteps: clockSteps, taken: copyTaken(this.taken),
-                   beersTaken: copyTaken(this.beersTaken), boostsTaken: copyTaken(this.boostsTaken) };
+                   beersTaken: copyTaken(this.beersTaken), boostsTaken: copyTaken(this.boostsTaken),
+                   boxesTaken: copyTaken(this.boxesTaken), keys: this.keys, plov: this.plov };
     // Сценка разговора поверх замершего уровня
     setState('inLevelScene', {
       background: 'level',
       next: 'level',
       nextArg: 'resume',
       steps: [
-        { type: 'say', who: 'filipp', text: takeFromBag('excuses', CALL_EXCUSES) },
-        { type: 'say', who: 'lera', text: takeFromBag('answers', CALL_ANSWERS) },
+        { type: 'say', who: 'filipp', text: takeFromBag('excuses' + currentLevelIndex, this.callExcuses()) },
+        { type: 'say', who: 'lera', text: takeFromBag('answers' + currentLevelIndex, this.callAnswers()) },
       ],
     });
   },
 
-  // Враги: Кирилл, Туся, пылесос
+  // Отмазки и ответы Леры для текущего уровня (scenes.js). Для уровня 2 — свои, если они есть
+  callExcuses() {
+    return currentLevelIndex === 1 && typeof CALL_EXCUSES_2 !== 'undefined' ? CALL_EXCUSES_2 : CALL_EXCUSES;
+  },
+  callAnswers() {
+    return currentLevelIndex === 1 && typeof CALL_ANSWERS_2 !== 'undefined' ? CALL_ANSWERS_2 : CALL_ANSWERS;
+  },
+
+  // Толчок без потери кружки: соседи «ОСТОРОЖНО!», самокаты, поливалка. srcX — откуда толкнули
+  shove(text, srcX, power) {
+    if (this.coffee > 0) return;                     // с кофе Филипп проскакивает
+    const cx = player.x + player.w / 2;
+    const dir = cx < srcX ? -1 : 1;
+    player.vx = dir * power;
+    player.vy = -2;
+    player.onGround = false;
+    player.stun = 20;
+    player.stunKind = 'knock';
+    hurtSound();
+    this.popup(text, cx, player.y - 4);
+  },
+
+  // Стоит ли враг ногами в плове
+  onPlov(e) {
+    const feet = { x: e.x, y: e.y + e.h - 2, w: e.w, h: 4 };
+    return this.plovs.some((p) => overlaps(feet, { x: p.x, y: p.y, w: p.w, h: 4 }));
+  },
+
+  // Ключ попал во врага: «БДЗЫНЬ!», враг сидит со звёздочками
+  stunEnemy(e) {
+    e.stunT = Math.round(CONFIG.enemyStunSeconds * 60);
+    e.vx = 0;
+    if (e.type === 'dog' && e.state === 'bite') this.slowT = 0;   // отпустила шлёпанец
+    if (e.type === 'kirill' || e.type === 'dog' || e.type === 'cat') { e.state = 'walk'; e.timer = 0; }
+    clangSound();
+    this.popup('БДЗЫНЬ!', e.x + e.w / 2, e.y - 6);
+  },
+
+  // Враги: Кирилл, Туся, пылесос (уровень 1), соседи, собачка, самокаты (уровень 2)
   updateEnemies() {
     const pcx = player.x + player.w / 2;
     const pBottom = player.y + player.h;
@@ -1482,6 +1719,76 @@ const levelState = {
       const sameRow = Math.abs(pBottom - (e.y + e.h)) < 16;   // Филипп примерно на том же полу
       if (e.cool > 0) e.cool--;
       e.timer++;
+
+      // Оглушён ключом (звёздочки) или поскользнулся на плове — стоит или лежит и никого не трогает
+      if (e.stunT > 0 || e.slipT > 0) {
+        if (e.stunT > 0) e.stunT--;
+        else e.slipT--;
+        e.vx = 0;
+        if (e.type !== 'vacuum') moveEnemy(e, true);
+        continue;
+      }
+      // Наступил на плов — поскользнулся и упал
+      if (e.type !== 'vacuum' && e.state !== 'bite' && e.onGround && this.onPlov(e)) {
+        e.slipT = Math.round(CONFIG.slipSeconds * 60);
+        this.popup('ШМЯК!', ecx, e.y - 6);
+        continue;
+      }
+
+      if (e.type === 'neighbor') {
+        // Сосед с сумками медленно ходит по пролёту туда-сюда. Касание — «ОСТОРОЖНО!» и отталкивает
+        if (Math.abs(e.x - e.homeX) > 48) e.dir = e.x > e.homeX ? -1 : 1;
+        e.vx = e.dir * CONFIG.neighborSpeed;
+        moveEnemy(e, true, true);
+        if (e.cool === 0 && overlaps(player, e)) {
+          this.shove('ОСТОРОЖНО!', ecx, CONFIG.neighborPush);
+          e.cool = 60;
+        }
+      }
+
+      if (e.type === 'scooter') {
+        // Ребёнок на самокате катается туда-сюда. Касание отбрасывает (кружку не отнимает)
+        if (Math.abs(e.x - e.homeX) > 64) e.dir = e.x > e.homeX ? -1 : 1;
+        e.vx = e.dir * CONFIG.scooterSpeed;
+        moveEnemy(e, true);
+        if (e.cool === 0 && overlaps(player, e)) {
+          this.shove('БИП-БИП!', ecx, CONFIG.neighborPush);
+          e.cool = 60;
+        }
+      }
+
+      if (e.type === 'dog') {
+        if (e.state === 'bite') {
+          // Вцепилась в шлёпанец: держится у ног Филиппа, он еле идёт
+          e.dir = player.facing;
+          e.x = player.facing > 0 ? player.x - e.w + 3 : player.x + player.w - 3;
+          e.y = player.y + player.h - e.h;
+          if (this.slowT <= 0) {
+            e.state = 'walk'; e.timer = 0; e.cool = 180;
+            e.dir = -player.facing;                       // отпустила и убегает
+          }
+        } else if (e.state === 'run') {
+          e.dir = dx < 0 ? -1 : 1;
+          e.vx = e.dir * CONFIG.dogRunSpeed;
+          if (!sameRow || Math.abs(dx) > 150) { e.state = 'walk'; e.timer = 0; }
+          moveEnemy(e, true, true);
+          if (this.coffee === 0 && overlaps(player, e)) {
+            e.state = 'bite'; e.timer = 0;
+            this.slowT = Math.round(CONFIG.dogHoldSeconds * 60);
+            barkSound();
+            this.popup('ГРРР!', ecx, e.y - 6);
+          }
+        } else {
+          if (Math.abs(e.x - e.homeX) > 32) e.dir = e.x > e.homeX ? -1 : 1;
+          e.vx = e.dir * CONFIG.dogSpeed;
+          if (e.cool === 0 && sameRow && Math.abs(dx) < CONFIG.dogSeeDistance) {
+            e.state = 'run'; e.timer = 0;                 // заметила — «ТЯВ!» и бежит к Филиппу
+            barkSound();
+            this.popup('ТЯВ!', ecx, e.y - 6);
+          }
+          moveEnemy(e, true, true);
+        }
+      }
 
       if (e.type === 'kirill') {
         if (e.state === 'sit') {
@@ -1620,6 +1927,233 @@ const levelState = {
     });
   },
 
+  // ---------- УРОВЕНЬ 2 ----------
+
+  // Бабушки на лавке: «зона сплетен». Вошёл — застрял, вырваться — «кивнуть» 6 раз (Прыжок)
+  gossipZone(g) {
+    const k = g.angry > 0 ? CONFIG.gossipAngryMul : 1;           // после ключа «ХУЛИГАН!» зона больше
+    return { cx: g.x + g.w / 2, cy: g.ground, rx: CONFIG.gossipRadius * k, ry: CONFIG.gossipRadius * 0.7 * k };
+  },
+  inGossip(g, margin) {
+    const z = this.gossipZone(g);
+    const dx = (player.x + player.w / 2 - z.cx) / (z.rx * margin);
+    const dy = (player.y + player.h - 11 - z.cy) / (z.ry * margin);   // середина Филиппа
+    return dx * dx + dy * dy < 1;
+  },
+  updateGossip(input) {
+    for (const g of level.gossips) {
+      if (g.angry > 0) g.angry--;
+      // Отпустили — не ловят, пока Филипп не отойдёт подальше (можно отойти для разбега)
+      if (g.released && Math.abs(player.x + player.w / 2 - (g.x + g.w / 2)) > this.gossipZone(g).rx + 48) g.released = false;
+    }
+    if (this.nodTimer > 0) this.nodTimer--;
+    if (this.gossipHold) {
+      const g = this.gossipHold;
+      player.stun = Math.max(player.stun, 2);          // стоит, кнопки не слушаются
+      player.stunKind = 'gossip';
+      player.vx = 0;
+      if (input.jumpPressed) {
+        this.nods++;
+        this.nodTimer = 8;
+        if (this.nods >= CONFIG.gossipNods) {
+          g.released = true;                            // отпустили — можно идти дальше
+          this.gossipHold = null;
+          player.stun = 0;
+          this.popup(GOSSIP_BYE, player.x + player.w / 2, player.y - 4);
+        }
+      }
+      return;
+    }
+    for (const g of level.gossips) {
+      if (!g.released && this.inGossip(g, 1)) {
+        this.gossipHold = g;
+        this.nods = 0;
+        player.vx = 0;
+        g.talkStart = this.tick;
+        break;
+      }
+    }
+  },
+  // Где сидят бабушки (для попадания ключом)
+  gossipBox(g) {
+    return { x: g.x, y: g.ground - 22, w: g.w, h: 22 };
+  },
+
+  // Оружие: смена (C или тап по значку), бросок (X или кнопка «Бросок»), полёт ключей и плова
+  updateWeapons(input) {
+    if (!weaponsOn()) return;
+    for (const t of input.taps) {
+      const P = WEAPON_PANEL;
+      if (t.x >= 0 && t.x < P.x + P.w + 6 && t.y >= HUD_H - 4 && t.y < P.y + P.h + 8) {
+        this.weapon = t.x < P.x + P.w / 2 ? 'keys' : 'plov';
+      }
+    }
+    if (input.switchPressed) this.weapon = this.weapon === 'keys' ? 'plov' : 'keys';
+    const canThrow = !player.lying && !this.gossipHold && !(player.stun > 0 && player.stunKind === 'trip');
+    if (input.throwPressed && canThrow) {
+      const cx = player.x + player.w / 2;
+      if (this.weapon === 'keys' && this.keys > 0) {
+        this.keys--;
+        this.shots.push({ kind: 'wrench', x: cx + player.facing * 4, y: player.y + 13, t: 0,
+                          vx: player.facing * CONFIG.wrenchSpeed, vy: -CONFIG.wrenchLift });
+      } else if (this.weapon === 'plov' && this.plov > 0) {
+        this.plov--;
+        this.shots.push({ kind: 'plov', x: cx + player.facing * 4, y: player.y + 9, t: 0,
+                          vx: player.facing * 1.6, vy: -1.5 });
+      } else {
+        this.popup('ПУСТО!', cx, player.y - 4);
+      }
+    }
+    for (const sh of this.shots) {
+      sh.t++;
+      sh.vy += sh.kind === 'wrench' && !sh.bounced ? CONFIG.wrenchGravity : 0.2;
+      sh.x += sh.vx;
+      sh.y += sh.vy;
+      const box = { x: sh.x - 4, y: sh.y - 4, w: 8, h: 8 };
+      if (sh.kind === 'wrench' && !sh.bounced) {
+        // Попал во врага — «БДЗЫНЬ!», враг сидит со звёздочками
+        for (const e of this.enemies) {
+          if (e.stunT > 0 || e.slipT > 0 || !overlaps(box, e)) continue;
+          this.stunEnemy(e);
+          sh.done = true;
+          break;
+        }
+        // Попал в ребёнка на велике — сбил с велика «ОЙ!»
+        for (const b of this.bikes) {
+          if (sh.done || b.state !== 'ride' || !overlaps(box, this.bikeBox(b))) continue;
+          b.state = 'fall';
+          b.timer = Math.round(CONFIG.enemyStunSeconds * 60);
+          clangSound();
+          this.popup('БДЗЫНЬ!', b.x + 10, b.y - 20);
+          this.popup('ОЙ!', b.x + 10, b.y - 8);
+          sh.done = true;
+        }
+        // Попал в бабушек — ключ отскакивает, «ХУЛИГАН!», зона сплетен больше
+        for (const g of level.gossips) {
+          if (sh.done || !overlaps(box, this.gossipBox(g))) continue;
+          sh.bounced = true;
+          sh.vx = -sh.vx * 0.4;
+          sh.vy = -2;
+          g.angry = Math.round(CONFIG.gossipAngrySeconds * 60);
+          this.popup('ХУЛИГАН!', g.x + g.w / 2, g.ground - 26);
+        }
+      }
+      if (sh.done) continue;
+      if (sh.kind === 'plov' && sh.vy > 0) {
+        // Контейнер упал — плов высыпается полосой
+        let landY = null;
+        for (const o of level.solids) if (overlaps(box, o)) landY = o.y;
+        for (const t of level.tops) {
+          if (sh.x >= t.x && sh.x < t.x + t.w && sh.y + 3 >= t.y && sh.y + 3 - sh.vy <= t.y) landY = t.y;
+        }
+        if (landY !== null) {
+          const w = CONFIG.plovTiles * TILE;
+          this.plovs.push({ x: Math.round(sh.x - w / 2), y: landY - 3, w: w, timer: Math.round(CONFIG.plovSeconds * 60) });
+          sh.done = true;
+          continue;
+        }
+      } else if (level.solids.some((o) => overlaps(box, o))) {
+        sh.done = true;                               // ключ ударился о стену или упал — исчез
+      }
+      if (sh.x < cameraX - 16 || sh.x > cameraX + W + 16 || sh.y > H + 8) sh.done = true;
+    }
+    this.shots = this.shots.filter((sh) => !sh.done);
+    for (const pl of this.plovs) pl.timer--;
+    this.plovs = this.plovs.filter((pl) => pl.timer > 0);
+  },
+
+  // Хитбокс велика: низкий, чтобы его можно было перепрыгнуть
+  bikeBox(b) {
+    return { x: b.x + 2, y: b.y - 12, w: 16, h: 12 };
+  },
+
+  // Дети на великах: пока Филипп рядом с дорожкой, раз в несколько секунд мчится велик.
+  // За секунду до него — «ДЗЫНЬ-ДЗЫНЬ» и стрелка у правого края экрана
+  updateBikes() {
+    level.bikeLanes.forEach((lane, i) => {
+      const near = player.x > lane.x - 240 && player.x < lane.x + 60;
+      if (!near) { this.laneTimers[i] = 20; return; }
+      if (--this.laneTimers[i] > 0) return;
+      this.laneTimers[i] = Math.round(CONFIG.bikeEverySeconds * 60);
+      this.bikes.push({ lane: i, x: 0, y: lane.y, dir: -1, state: 'warn',
+                        timer: Math.round(CONFIG.bikeWarnSeconds * 60), variant: i % 2, hit: false });
+      bellSound();
+    });
+    for (const b of this.bikes) {
+      if (b.state === 'warn') {
+        if (--b.timer <= 0) { b.state = 'ride'; b.x = Math.round(cameraX) + W + 2; }
+        continue;
+      }
+      if (b.state === 'fall') {
+        if (--b.timer <= 0) b.state = 'ride';         // встал и поехал дальше
+        continue;
+      }
+      b.x += b.dir * CONFIG.bikeSpeed;
+      const box = this.bikeBox(b);
+      if (this.plovs.some((pl) => overlaps(box, { x: pl.x, y: pl.y, w: pl.w, h: 4 }))) {
+        b.state = 'fall';                              // наехал на плов — упал
+        b.timer = Math.round(CONFIG.slipSeconds * 60);
+        this.popup('ШМЯК!', b.x + 10, b.y - 20);
+        continue;
+      }
+      if (!b.hit && overlaps(player, box)) {
+        b.hit = true;
+        this.hurt('БАЦ!', b.x + 10);                   // удар — минус кружка
+      }
+      if (b.x < cameraX - 40) b.gone = true;
+    }
+    this.bikes = this.bikes.filter((b) => !b.gone);
+  },
+
+  // Точки струи поливалки: дуга от головки до земли
+  sprinklerArc(sp) {
+    const pts = [];
+    const x0 = sp.x + 4, y0 = sp.y + 2, ground = sp.y + 8;
+    for (let t = 0.1; t <= 1.001; t += 0.1) {
+      pts.push({ x: x0 + sp.dir * CONFIG.sprinklerReach * t, y: y0 + (ground - y0) * t - 4 * 24 * t * (1 - t) });
+    }
+    return pts;
+  },
+  // Поливалка: струя бьёт то влево, то вправо и отталкивает (кружку не отнимает)
+  updateSprinklers() {
+    const jet = Math.round(CONFIG.sprinklerJetSeconds * 60);
+    const pause = Math.round(CONFIG.sprinklerPauseSeconds * 60);
+    for (const sp of level.sprinklers) {
+      sp.timer = (sp.timer + 1) % (2 * (jet + pause));
+      sp.dir = sp.timer < jet ? -1 : (sp.timer >= jet + pause && sp.timer < 2 * jet + pause ? 1 : 0);
+      if (sp.dir === 0 || this.swingCool > 0) continue;
+      if (this.sprinklerArc(sp).some((pt) => overlaps(player, { x: pt.x - 2, y: pt.y - 2, w: 4, h: 4 }))) {
+        this.shove('ПШШ!', sp.x + 4, CONFIG.neighborPush);
+        this.swingCool = 40;
+      }
+    }
+  },
+
+  // Двор: сигнализация машин, ящики с ключами, граффити «ЭТО ПРАВДА.»
+  updateYard() {
+    for (const c of level.cars) if (c.alarm > 0) c.alarm--;
+    if (weaponsOn()) {
+      const boxes = this.boxesTaken[partIndex];
+      level.keyBoxes.forEach((b, i) => {
+        if (boxes[i] || this.keys >= CONFIG.keysMax) return;
+        if (overlaps(player, { x: b.x - 1, y: b.y - 2, w: 10, h: 10 })) {
+          boxes[i] = true;
+          this.keys = Math.min(CONFIG.keysMax, this.keys + CONFIG.keyBoxKeys);
+          pickupSound();
+          this.popup('+' + CONFIG.keyBoxKeys + ' КЛЮЧА', b.x + 4, b.y - 4);
+        }
+      });
+    }
+    // Стена с граффити: Филипп дошёл до середины экрана — думает «ЭТО ПРАВДА.»
+    const pcx = player.x + player.w / 2;
+    const scr = level.screens[Math.floor(pcx / SCREEN_W)];
+    if (!this.truthDone && scr && LEVEL_BACKGROUNDS[scr.bg].truth && pcx % SCREEN_W > 110) {
+      this.truthDone = true;
+      this.thought = { text: GRAFFITI_THOUGHT, t: 180 };
+    }
+    if (this.thought && --this.thought.t <= 0) this.thought = null;
+  },
+
   // Переход в следующую часть: сценка выхода (если есть), затемнение, титр с названием части
   startPartTransition() {
     const next = levelParts[partIndex + 1];
@@ -1646,6 +2180,14 @@ const levelState = {
     if (!stunned) {
       if (keys.left) dir -= 1;
       if (keys.right) dir += 1;
+    }
+
+    // Горка: съезжаешь быстро вправо, кнопки «влево-вправо» не помогают
+    const wasOnRamp = player.onRamp;
+    if (player.onRamp) { dir = 0; player.vx = CONFIG.slideSpeed; }
+    // Карусель: стоишь на ней — тащит в сторону
+    if (player.onGround && player.groundSolid && player.groundSolid.conveyor) {
+      player.x += player.groundSolid.conveyor * CONFIG.carouselSpeed;
     }
 
     // Кураж, кофе и «отходняк» меняют скорость бега
@@ -1695,6 +2237,13 @@ const levelState = {
     player.x += player.vx;
     for (const s of level.solids) {
       if (overlaps(player, s)) {
+        // Низкая ступенька лестничного пролёта: заходим на неё без прыжка
+        const upY = s.y - player.h;
+        if (s.step && player.y + player.h - s.y <= 5 &&
+            !level.solids.some((o) => o !== s && overlaps({ x: player.x, y: upY, w: player.w, h: player.h }, o))) {
+          player.y = upY;
+          continue;
+        }
         if (player.vx > 0) player.x = s.x - player.w;
         else if (player.vx < 0) player.x = s.x + s.w;
         player.vx = 0;
@@ -1711,10 +2260,12 @@ const levelState = {
     player.onGround = false;
     let bounced = false;
     let standingOnSofa = false;
+    let landed = null;              // на чём стоим (для карусели и машин)
     for (const s of level.solids) {
       if (overlaps(player, s)) {
         if (player.vy > 0) {        // падали вниз — встали на платформу
           player.y = s.y - player.h;
+          landed = s;
           if (s.bounce) bounced = true;     // это батут — сейчас подбросит
           else player.onGround = true;
           if (s.lie) standingOnSofa = true; // диван или шезлонг
@@ -1759,6 +2310,35 @@ const levelState = {
           player.onGround = true;
         }
       }
+    }
+
+    // Горка: скат — наклонная линия. Встал на него сверху — едешь вниз
+    player.onRamp = false;
+    if (player.vy >= 0) {
+      const cx = player.x + player.w / 2;
+      for (const rp of level.ramps) {
+        if (cx < rp.x || cx > rp.x + rp.w) continue;
+        const surf = rp.y + (cx - rp.x) / rp.w * rp.h;
+        const bottom = player.y + player.h;
+        if (bottom >= surf - (wasOnRamp ? 6 : 0) && oldBottom <= surf + 3) {
+          player.y = surf - player.h;
+          player.vy = 0;
+          player.onGround = true;
+          player.onRamp = true;
+          if (!wasOnRamp) this.popup('УИ-И-И!', cx, player.y - 4);
+        }
+      }
+    }
+
+    // На чём стоим: карусель тащит, на машине — сигнализация «УИ-УИ-УИ!» (просто шутка)
+    player.groundSolid = player.onGround ? landed : null;
+    if (player.onGround) {
+      const car = landed && landed.car;
+      if (car && car !== player.carOn && car.alarm === 0) {
+        car.alarm = Math.round(CONFIG.carAlarmSeconds * 60);
+        sirenSound();
+      }
+      player.carOn = car || null;
     }
 
     // Диван или шезлонг: постоял неподвижно — лёг. Лера при этом идёт!
@@ -1826,14 +2406,42 @@ const levelState = {
     // Выход из части: в окне — открытое окно, иначе — проход наверх
     if (level.exit) {
       const scr = level.screens[Math.floor(level.exit.x / SCREEN_W)];
-      drawPartExit(ctx, level.exit.x - cam, level.exit.y, scr.bg === 'windowEnd' ? 'window' : 'stairs', this.tick);
+      const look = LEVEL_BACKGROUNDS[scr.bg].exitLook || (scr.bg === 'windowEnd' ? 'window' : 'stairs');
+      drawPartExit(ctx, level.exit.x - cam, level.exit.y, look, this.tick);
     }
-    // Калитка и предметы (с тёмным контуром)
-    if (level.gate) drawGate(ctx, level.gate.x - cam, level.gate.y);
+    // Калитка (на уровне 2 — арка) и предметы (с тёмным контуром)
+    if (level.gate) {
+      const scr = level.screens[Math.floor(level.gate.x / SCREEN_W)];
+      if (LEVEL_BACKGROUNDS[scr.bg].gateLook === 'arch') drawArch(ctx, level.gate.x - cam, level.gate.y);
+      else drawGate(ctx, level.gate.x - cam, level.gate.y);
+    }
     for (const f of level.furniture) {
       if (f.x - cam > W || f.x + f.def.w * TILE - cam < 0) continue;  // за экраном — не рисуем
       drawFurniture(ctx, f.def, f.x - cam, f.y, this.tick);
     }
+    // Машины с сигнализацией: мигают фары
+    for (const c of level.cars) {
+      if (c.alarm <= 0 || Math.floor(c.alarm / 6) % 2) continue;
+      const w = c.def.w * TILE, by = c.y + c.def.parts[0].y;
+      ctx.fillStyle = '#ffcd75';
+      ctx.fillRect(c.x - cam + w - 4, by + 1, 5, 5);
+      ctx.fillStyle = '#ef7d57';
+      ctx.fillRect(c.x - cam - 1, by + 1, 4, 5);
+    }
+    // Лавки с бабушками и «зона сплетен»
+    for (const g of level.gossips) this.drawGossip(g, cam);
+    // Поливалки и струя воды
+    for (const sp of level.sprinklers) {
+      drawSprinkler(ctx, sp.x - cam, sp.y, this.tick);
+      if (sp.dir !== 0) {
+        this.sprinklerArc(sp).forEach((pt, i) => drawWaterDrop(ctx, Math.round(pt.x) - cam + ((this.tick + i) % 3) - 1, Math.round(pt.y), i % 2));
+      }
+    }
+    // Ящики с ключами
+    const boxes = this.boxesTaken[partIndex] || [];
+    level.keyBoxes.forEach((b, i) => { if (!boxes[i]) drawKeyBox(ctx, b.x - cam, b.y); });
+    // Плов на земле
+    for (const pl of this.plovs) drawPlovStrip(ctx, pl.x - cam, pl.y, pl.w, pl.timer / (CONFIG.plovSeconds * 60));
     // Лера с досками у двери: когда Филипп дошёл до лестницы — «Я ТЕБЯ ЖДУ!»
     for (const npc of level.npcs) {
       drawLeraWithBoards(ctx, npc.x - cam, npc.y, this.tick, player.x + player.w >= npc.triggerX);
@@ -1859,6 +2467,20 @@ const levelState = {
     });
     // Враги
     for (const e of this.enemies) this.drawEnemy(e, cam);
+    // Дети на великах
+    for (const b of this.bikes) {
+      if (b.state === 'warn') continue;
+      const spr = SPRITES[b.variant ? 'bikerB' : 'bikerA'];
+      const anim = spr.anims[b.state === 'fall' ? 'fall' : 'ride'];
+      const frame = anim.frames[Math.floor(this.tick / anim.speed) % anim.frames.length];
+      drawSprite(ctx, frame, Math.round(b.x) - cam, b.y - 18, b.dir < 0);
+      if (b.state === 'fall') drawStars(ctx, Math.round(b.x) - cam + 10, b.y - 14, this.tick);
+    }
+    // Летящие ключи (крутятся) и контейнеры плова
+    for (const sh of this.shots) {
+      if (sh.kind === 'wrench') drawWrench(ctx, sh.x - cam, sh.y, sh.t * 0.5);
+      else ctx.drawImage(ICON_PLOV, Math.round(sh.x) - 4 - cam, Math.round(sh.y) - 4);
+    }
 
     // Телефоны, которые ещё не взяты. Звонящий сейчас — трясётся сильнее и «ДЗЫНЬ!»
     const taken = this.taken[partIndex] || [];
@@ -1886,7 +2508,10 @@ const levelState = {
       for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawSprite(ctx, glow, sx + ox, sy + oy, player.facing === -1);
     }
     if (!blinkOff) {
-      if (player.lying || (player.stun > 0 && player.stunKind === 'trip')) {
+      if (this.gossipHold) {
+        // Застрял у бабушек: стоит и кивает
+        drawSprite(ctx, SPRITES.filipp.anims.idle.frames[0], sx, sy + (this.nodTimer > 4 ? 1 : 0), player.facing === -1);
+      } else if (player.lying || (player.stun > 0 && player.stunKind === 'trip')) {
         // Споткнулся о Тусю: лежит на полу (картинка повёрнута на бок)
         ctx.save();
         ctx.translate(sx + 8, sy + 24 - 8);
@@ -1909,6 +2534,24 @@ const levelState = {
       drawTextCenteredShadow(p.text, px, Math.max(HUD_H + 2, Math.round(p.y - 10 - p.t / 3)), '#f4f4f4', '#b13e53');
     }
 
+    // Мысль над Филиппом («ЭТО ПРАВДА.») и подсказка «КИВАЙ!» у бабушек
+    if (this.thought) {
+      drawTextCenteredShadow(this.thought.text, Math.max(30, Math.min(W - 30, sx + 8)), Math.max(HUD_H + 14, sy - 12), '#ffcd75', '#1a1c2c');
+    }
+    if (this.gossipHold) {
+      const hint = 'КИВАЙ! ' + this.nods + '/' + CONFIG.gossipNods;
+      drawTextCenteredShadow(hint, Math.max(30, Math.min(W - 30, sx + 8)), Math.max(HUD_H + 14, sy - 12), '#ffcd75', '#1a1c2c');
+    }
+    // Собачка держит шлёпанец
+    if (this.slowT > 0 && Math.floor(this.tick / 10) % 2) drawText(ctx, 'ГРРР', sx - 6, sy + 14, '#f4f4f4');
+
+    // Велик скоро выедет: «ДЗЫНЬ-ДЗЫНЬ» и мигающая стрелка у правого края
+    for (const b of this.bikes) {
+      if (b.state !== 'warn') continue;
+      drawWarnArrow(ctx, W - 9, b.y - 8, -1, this.tick);
+      drawTextShadow('ДЗЫНЬ-ДЗЫНЬ', W - 16 - textWidth('ДЗЫНЬ-ДЗЫНЬ'), b.y - 11, '#ffcd75', '#1a1c2c');
+    }
+
     // Батут: надпись «БОЙНГ!» там, где Филипп оттолкнулся
     if (this.boingTimer > 0) {
       drawTextCenteredShadow('БОЙНГ!', Math.round(this.boingX) + 5 - cam, Math.round(this.boingY) + 4, '#ffcd75', '#1a1c2c');
@@ -1925,10 +2568,72 @@ const levelState = {
     this.drawHud();
   },
 
+  // Лавка с бабушками: пунктирный полукруг «зоны сплетен», «БУ-БУ-БУ», реплики, когда Филипп застрял
+  drawGossip(g, cam) {
+    const z = this.gossipZone(g);
+    if (z.cx + z.rx - cam < 0 || z.cx - z.rx - cam > W) return;
+    // Пунктирный полукруг: точки по краю зоны. Злые бабушки — красный
+    ctx.fillStyle = g.angry > 0 ? '#b13e53' : '#333c57';
+    for (let a = 0; a <= Math.PI; a += 0.09) {
+      if (Math.floor((a * 20 + this.tick / 6)) % 2) continue;
+      ctx.fillRect(Math.round(z.cx + Math.cos(a) * z.rx) - cam, Math.round(z.cy - Math.sin(a) * z.ry), 2, 1);
+    }
+    drawGossipBench(ctx, g.x - cam, g.ground - 16, g.w);
+    const names = ['grannyRed', 'grannyGreen', 'grannyBlue'];
+    const gap = g.w / g.n;
+    for (let i = 0; i < g.n; i++) {
+      const spr = SPRITES[names[(i + Math.floor(g.x / 8)) % 3]].anims.talk;
+      const talking = this.gossipHold === g || Math.floor(this.tick / 40 + i) % 3 === 0;
+      const frame = spr.frames[talking ? Math.floor(this.tick / spr.speed) % 2 : 0];
+      // смотрят на Филиппа
+      drawSprite(ctx, frame, Math.round(g.x + gap * i + gap / 2 - 5) - cam, g.ground - 24, player.x + player.w / 2 < g.x + gap * i + gap / 2);
+    }
+    const cx = Math.round(z.cx) - cam;
+    if (this.gossipHold === g) {
+      // Реплики по очереди: каждые 1,2 секунды говорит другая бабушка
+      const k = Math.floor((this.tick - (g.talkStart || 0)) / 72);
+      const text = GOSSIP_LINES[k % GOSSIP_LINES.length];
+      const bx = Math.round(g.x + gap * (k % g.n) + gap / 2) - cam;
+      const tw = textWidth(text);
+      const x0 = Math.max(2, Math.min(W - tw - 6, bx - Math.round(tw / 2) - 2));
+      const y0 = Math.max(HUD_H + 14, g.ground - 54);   // выше подсказки «КИВАЙ!»
+      ctx.fillStyle = '#f4f4f4';
+      ctx.fillRect(x0, y0, tw + 4, 10);
+      ctx.fillRect(Math.max(x0 + 2, Math.min(x0 + tw, bx)), y0 + 10, 2, 3);   // хвостик облачка
+      drawText(ctx, text, x0 + 2, y0 + 2, '#b13e53');
+    } else if (Math.abs(player.x - z.cx) < 160 && Math.floor(this.tick / 30) % 2 === 0) {
+      drawTextCentered(ctx, 'БУ-БУ-БУ', cx, Math.max(HUD_H + 14, g.ground - 34), '#f4f4f4');
+    }
+  },
+
   // Рисуем одного врага. Картинка — по центру хитбокса, ноги — по низу
   drawEnemy(e, cam) {
     const ex = Math.round(e.x) - cam, ey = Math.round(e.y);
     if (ex < -20 || ex > W + 20) return;
+    if (e.type === 'neighbor' || e.type === 'dog' || e.type === 'scooter') {
+      const key = e.type === 'neighbor' ? (e.variant ? 'neighborM' : 'neighborW') :
+                  e.type === 'dog' ? 'dog' : (e.variant ? 'scooterB' : 'scooterA');
+      const spr = SPRITES[key];
+      const animName = e.type === 'dog' ? (e.state === 'bite' ? 'bite' : (e.state === 'run' ? 'run' : 'walk')) :
+                       e.type === 'neighbor' ? 'walk' : 'ride';
+      const anim = spr.anims[animName];
+      const still = e.stunT > 0 || e.slipT > 0;
+      const frame = anim.frames[still ? 0 : Math.floor(this.tick / anim.speed) % anim.frames.length];
+      const fx = ex + Math.round((e.w - frame.width) / 2);
+      const fy = ey + e.h - frame.height;
+      if (e.slipT > 0) {
+        // Поскользнулся на плове: лежит на земле (картинка на боку)
+        ctx.save();
+        ctx.translate(ex + e.w / 2, ey + e.h - frame.width / 2);
+        ctx.rotate(-Math.PI / 2 * (e.dir < 0 ? -1 : 1));
+        ctx.drawImage(frame, -frame.width / 2, -frame.height / 2);
+        ctx.restore();
+        return;
+      }
+      drawSprite(ctx, frame, fx, fy, e.dir < 0);
+      if (e.stunT > 0) drawStars(ctx, ex + e.w / 2, fy - 3, this.tick);
+      return;
+    }
     if (e.type === 'vacuum') {
       drawVacuum(ctx, ex, ey - 1, this.tick);
       return;
@@ -2021,6 +2726,24 @@ const levelState = {
     // Иконки-головы: Лера рисуется поверх Филиппа, когда догоняет
     ctx.drawImage(ICONS.filipp.image, barX(playerGlobalX() + player.w / 2) - 4, HUD_H - 8);
     ctx.drawImage(ICONS.lera.image, barX(this.leraX) - 4, HUD_H - 8);
+
+    // Оружие (с уровня 2): «ключ x5» и «плов x1», активное — в жёлтой рамке
+    if (weaponsOn() && state !== bossState) {
+      const P = WEAPON_PANEL;
+      ctx.fillStyle = '#1a1c2c';
+      ctx.fillRect(P.x, P.y, P.w, P.h);
+      [['keys', ICON_WRENCH, this.keys], ['plov', ICON_PLOV, this.plov]].forEach(([kind, img, n], i) => {
+        const x = P.x + i * (P.w / 2);
+        const active = this.weapon === kind;
+        ctx.fillStyle = active ? '#ffcd75' : '#333c57';
+        ctx.fillRect(x, P.y, P.w / 2 - 1, 1);
+        ctx.fillRect(x, P.y + P.h - 1, P.w / 2 - 1, 1);
+        ctx.fillRect(x, P.y, 1, P.h);
+        ctx.fillRect(x + P.w / 2 - 2, P.y, 1, P.h);
+        ctx.drawImage(img, x + 2, P.y + 2);
+        drawText(ctx, 'X' + n, x + 12, P.y + 2, active ? '#ffcd75' : (n > 0 ? '#94b0c2' : '#566c86'));
+      });
+    }
   },
 };
 
@@ -2446,7 +3169,6 @@ function drawPause() {
 // ЭКРАН: ВЫБОР УРОВНЯ (только для тестов, если CONFIG.DEBUG_MENU = true)
 // =============================================
 // Список строится сам из levels.js: для каждого уровня — все его части и босс.
-let currentLevelIndex = 0;
 
 // Собрать нужный уровень (если сейчас собран другой)
 function loadLevel(li) {
@@ -2487,7 +3209,7 @@ const levelSelectState = {
     if (e.boss) {
       // Как будто дошёл до калитки: Лера позади, телефоны «отзвонены»
       levelState.leraX = totalLength * 0.7;
-      levelState.leraSpeed = CONFIG.leraSpeed + 4 * CONFIG.leraSpeedUp;
+      levelState.leraSpeed = levelCfg('leraSpeed') + 4 * levelCfg('leraSpeedUp');
       setState('boss', 'intro');
     } else if (e.part > 0) {
       // Начать с нужной части: Лера немного позади, телефоны прошлых частей уже взяты
@@ -2554,11 +3276,14 @@ let state = null;
 
 // Включить экран. arg — дополнительные данные (например, «продолжить с места последнего звонка»)
 function setState(name, arg) {
-  // Кнопка «Бросок» видна только в бою с боссом, кнопка паузы — на уровне и в бою
-  document.body.classList.toggle('boss-fight', name === 'boss');
-  document.body.classList.toggle('playing', name === 'level' || name === 'boss');
   state = states[name];
   state.enter(arg);
+  if (state !== states[name]) return;     // экран сам сразу включил другой (например, босс — сценку)
+  // Кнопка «Бросок» видна в бою с боссом и на уровнях с оружием, кнопка паузы — на уровне и в бою.
+  // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
+  document.body.classList.toggle('boss-fight', name === 'boss');
+  document.body.classList.toggle('armed', name === 'level' && weaponsOn());
+  document.body.classList.toggle('playing', name === 'level' || name === 'boss');
 }
 
 // =============================================
@@ -2576,9 +3301,12 @@ function update() {
   jumpHit = false;
   const throwPressed = throwHit;                   // «Бросок» только что нажали
   throwHit = false;
+  const switchPressed = switchHit;                 // C — сменить оружие
+  switchHit = false;
   const input = {
     jumpPressed: jumpPressed,
     throwPressed: throwPressed,
+    switchPressed: switchPressed,
     menuMove: menuMove,                             // стрелки вверх-вниз в меню
     confirm: confirmHit,                            // «Прыжок», Z, пробел, Enter — выбрать пункт
     taps: taps,                                     // касания экрана

@@ -116,7 +116,10 @@
     furnItems.N1 = { name: 'Выход из части: наверх (N, 3x4)', w: 24, h: 32, paint: (g) => drawPartExit(g, 2, 18, 'stairs', 0) };
     furnItems.N2 = { name: 'Выход из части: окно (N на фоне windowEnd)', w: 24, h: 32, paint: (g) => drawPartExit(g, 2, 18, 'window', 0) };
     furnItems.L = { name: 'Лера с досками (L, 2x3) — картинка', w: 76, h: 24, paint: (g) => drawLeraWithBoards(g, 30, 18, 0, true) };
-    const furnRow = addRow('Предметы на уровне (все твёрдые, тёмный контур — где можно стоять)');
+    furnItems.N3 = { name: 'Уровень 2: дверь подъезда (N на фонах stairs5, podyezdDoor)', w: 28, h: 32, paint: (g) => drawPartExit(g, 2, 18, 'door', 0) };
+    furnItems.N4 = { name: 'Уровень 2: выход к парковке (N на фоне playground)', w: 24, h: 32, paint: (g) => drawPartExit(g, 2, 18, 'arrow', 0) };
+    furnItems.E2 = { name: 'Уровень 2: арка выхода со двора (E на фоне archYard)', w: 84, h: 118, paint: (g) => drawArch(g, 28, 102) };
+    const furnRow = addRow('Предметы на уровне (тёмный контур — твёрдые части, где можно стоять)');
     for (const key in furnItems) {
       const it = furnItems[key];
       addCard(furnRow, it.w + 4, it.h + 18, 6, it.name, (g) => it.paint(g));
@@ -146,6 +149,26 @@
     addCard(boostRow, 30, 18, 6, 'Лежит на диване: «ХР-Р-Р...»', (g) => {
       g.save(); g.translate(15, 9); g.rotate(-Math.PI / 2); g.drawImage(SPRITES.filipp.anims.idle.frames[0], -8, -12); g.restore();
     });
+
+    // Уровень 2: оружие и особые вещи
+    const l2Row = addRow('Уровень 2: оружие, ящик с ключами, поливалка, лавка с бабушками');
+    addCard(l2Row, 12, 12, 6, 'Гаечный ключ (значок в HUD)', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 12, 12); g.drawImage(ICON_WRENCH, 2, 2); });
+    addCard(l2Row, 44, 12, 6, 'Ключ летит и крутится', (g) => { for (let i = 0; i < 4; i++) drawWrench(g, 6 + i * 11, 6, i * Math.PI / 2); });
+    addCard(l2Row, 12, 12, 6, 'Контейнер плова', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 12, 12); g.drawImage(ICON_PLOV, 2, 2); });
+    addCard(l2Row, 28, 10, 6, 'Плов на земле (3 плитки, 8 с)', (g) => { g.fillStyle = '#566c86'; g.fillRect(0, 8, 28, 2); drawPlovStrip(g, 2, 5, 24, 1); });
+    addCard(l2Row, 12, 12, 6, 'Ящик с ключами (y): +3', (g) => drawKeyBox(g, 2, 3));
+    addCard(l2Row, 64, 34, 6, 'Поливалка (w) и струя', (g) => {
+      g.fillStyle = '#73eff7'; g.fillRect(0, 0, 64, 34);
+      g.fillStyle = '#38b764'; g.fillRect(0, 32, 64, 2);
+      drawSprinkler(g, 52, 24, 0);
+      for (let i = 1; i <= 10; i++) { const t = i / 10; drawWaterDrop(g, Math.round(56 - 48 * t), Math.round(26 + 6 * t - 96 * t * (1 - t)), i % 2); }
+    });
+    addCard(l2Row, 60, 34, 6, 'Лавка с бабушками (g, h)', (g) => {
+      g.fillStyle = '#73eff7'; g.fillRect(0, 0, 60, 34);
+      drawGossipBench(g, 10, 18, 40);
+      ['grannyRed', 'grannyGreen', 'grannyBlue'].forEach((k, i) => g.drawImage(SPRITES[k].anims.talk.frames[0], 12 + i * 13, 10));
+    });
+    addCard(l2Row, 16, 16, 6, 'Стрелка: едет велик', (g) => { g.fillStyle = '#73eff7'; g.fillRect(0, 0, 16, 16); drawWarnArrow(g, 8, 8, -1, 0); });
 
     // Бой с близнецами: игрушки, тень падения, сердечки
     const bossRow = addRow('Босс: игрушки, тень, сердечки');
@@ -208,7 +231,8 @@
     }
 
     // Фоны 240x136 — они большие, поэтому увеличиваем не в 6, а в 3 раза
-    const BG_NAMES = { livingRoom: 'Гостиная утром', extension: 'Двор с пристройкой' };
+    const BG_NAMES = { livingRoom: 'Гостиная утром', extension: 'Двор с пристройкой',
+                       grannyRoom: 'Квартира бабушки: ковёр, ламповый телевизор показывает' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
     addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
