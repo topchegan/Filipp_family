@@ -1,0 +1,68 @@
+/* Убираем стандартные отступы и запрещаем прокрутку */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1a1c2c;          /* тёмный фон вокруг холста */
+  touch-action: none;           /* браузер не обрабатывает жесты сам */
+  -webkit-user-select: none;    /* нельзя выделить текст */
+  user-select: none;
+  -webkit-touch-callout: none;  /* нет меню при долгом нажатии */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Холст ставим ровно по центру экрана */
+#game {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;   /* чёткие пиксели при увеличении */
+  image-rendering: crisp-edges;
+  touch-action: none;
+}
+
+/* Слой с кнопками поверх игры */
+#controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 0;
+  pointer-events: none;         /* сам слой не мешает, нажимаются только кнопки */
+}
+
+/* Одна экранная кнопка */
+.btn {
+  position: fixed;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  width: 96px;
+  height: 96px;
+  border-radius: 20px;
+  background: rgba(244, 244, 244, 0.25);   /* #f4f4f4, полупрозрачный */
+  border: 3px solid rgba(244, 244, 244, 0.5);
+  color: #f4f4f4;
+  font: bold 40px sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+/* Подсветка нажатой кнопки (класс ставит game.js) */
+.btn.pressed {
+  background: rgba(244, 244, 244, 0.5);
+}
+
+.btn[data-btn="left"]  { left: 24px; }
+.btn[data-btn="right"] { left: 136px; }
+
+.btn.jump {
+  right: 24px;
+  width: 140px;
+  font-size: 24px;
+  border-radius: 48px;
+}

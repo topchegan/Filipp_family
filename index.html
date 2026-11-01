@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <!-- Запрещаем масштабирование страницы пальцами -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <!-- Полноэкранный режим, если добавить игру на домашний экран iPad -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Побег на дачу">
+  <title>Филипп: побег на дачу</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Игровой холст. Его размер 240x136, а увеличиваем мы его в style.css и game.js -->
+  <canvas id="game" width="240" height="136"></canvas>
+
+  <!-- Экранные кнопки для iPad. data-btn — имя кнопки, его читает game.js -->
+  <div id="controls">
+    <div class="btn" data-btn="left">←</div>
+    <div class="btn" data-btn="right">→</div>
+    <div class="btn jump" data-btn="jump">Прыжок</div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
