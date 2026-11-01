@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Витрина спрайтов</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #1a1c2c;
+      color: #f4f4f4;
+      font-family: sans-serif;
+    }
+    h1 { font-size: 22px; }
+    h2 { font-size: 18px; color: #ffcd75; }
+    /* Ряд карточек с анимациями, переносится на новую строку */
+    .row { display: flex; flex-wrap: wrap; gap: 16px; }
+    .card { text-align: center; }
+    /* Спрайты рисуем на холсте увеличенными, пиксели чёткие */
+    canvas {
+      background: #41a6f6;   /* цвет неба, как в игре */
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+    .label { margin-top: 6px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Витрина спрайтов</h1>
+  <div id="list"></div>
+
+  <script src="sprites.js"></script>
+  <script>
+    // Во сколько раз увеличиваем спрайты
+    const ZOOM = 6;
+    const list = document.getElementById('list');
+    const players = []; // все анимации на странице
+
+    // Для каждого персонажа — заголовок и карточки с анимациями
+    for (const key in SPRITES) {
+      const ch = SPRITES[key];
+      const title = document.createElement('h2');
+      title.textContent = ch.name + ' (' + ch.w + 'x' + ch.h + ')';
+      list.appendChild(title);
+
+      const row = document.createElement('div');
+      row.className = 'row';
+      list.appendChild(row);
+
+      for (const animKey in ch.anims) {
+        const anim = ch.anims[animKey];
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        // Холст в настоящем размере спрайта, а CSS увеличивает его в ZOOM раз
+        const cv = document.createElement('canvas');
+        cv.width = ch.w;
+        cv.height = ch.h;
+        cv.style.width = ch.w * ZOOM + 'px';
+        cv.style.height = ch.h * ZOOM + 'px';
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = anim.name + ' — кадров: ' + anim.frames.length;
+
+        card.appendChild(cv);
+        card.appendChild(label);
+        row.appendChild(card);
+        players.push({ ctx: cv.getContext('2d'), anim: anim, w: ch.w, h: ch.h });
+      }
+    }
+
+    // Проигрываем все анимации по кругу, 60 шагов в секунду
+    let tick = 0;
+    let last = performance.now();
+    function loop(now) {
+      while (now - last >= 1000 / 60) {
+        tick++;
+        last += 1000 / 60;
+      }
+      for (const p of players) {
+        const i = Math.floor(tick / p.anim.speed) % p.anim.frames.length;
+        p.ctx.clearRect(0, 0, p.w, p.h);
+        p.ctx.drawImage(p.anim.frames[i], 0, 0);
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

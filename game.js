@@ -22,26 +22,37 @@ resize();
 // ---------- Уровень ----------
 const LEVEL_W = 720;   // ширина уровня — 3 экрана
 
-// Пол и платформы: x, y — левый верхний угол, w, h — ширина и высота
+// Пол и платформы: x, y — левый верхний угол, w, h — ширина и высота.
+// Низ платформы должен быть выше 98, иначе Филипп (рост 22) упрётся в неё головой.
 const solids = [
   { x: 0,   y: 120, w: LEVEL_W, h: 16 },  // пол
-  { x: 60,  y: 96,  w: 40, h: 6 },
+  { x: 60,  y: 88,  w: 40, h: 6 },
   { x: 130, y: 76,  w: 36, h: 6 },
   { x: 200, y: 56,  w: 44, h: 6 },
-  { x: 290, y: 90,  w: 50, h: 6 },
+  { x: 290, y: 88,  w: 50, h: 6 },
   { x: 380, y: 66,  w: 32, h: 6 },
   { x: 450, y: 44,  w: 40, h: 6 },
   { x: 540, y: 84,  w: 56, h: 6 },
-  { x: 630, y: 100, w: 40, h: 6 },
+  { x: 630, y: 88,  w: 40, h: 6 },
 ];
 
 // ---------- Герой ----------
+// x, y, w, h — это ХИТБОКС: невидимая рамка, по которой считаются столкновения.
+// Она меньше картинки 16x24 и примерно совпадает с телом.
 const player = {
-  x: 20, y: 104,   // позиция (левый верхний угол)
-  w: 10, h: 16,    // размер
+  x: 20, y: 98,    // позиция хитбокса (левый верхний угол)
+  w: 10, h: 22,    // размер хитбокса
   vx: 0, vy: 0,    // скорость по x и y
   onGround: false, // стоит ли на земле
+  facing: 1,       // куда смотрит: 1 — вправо, -1 — влево
+  anim: 'idle',    // текущая анимация
+  animTime: 0,     // сколько шагов идёт текущая анимация
 };
+
+// Насколько картинка сдвинута относительно хитбокса.
+// Картинка шире и выше, поэтому рисуем её левее и выше на эти пиксели.
+const SPRITE_OFFSET_X = 3;
+const SPRITE_OFFSET_Y = 2;
 
 // Настройки движения (подбираются на глаз)
 const ACCEL = 0.15;      // разгон за один шаг
@@ -181,6 +192,20 @@ function update() {
     }
   }
 
+  // Куда смотрит герой: меняем только когда нажата кнопка
+  if (dir !== 0) player.facing = dir;
+
+  // Выбираем анимацию по тому, что делает герой
+  let anim;
+  if (!player.onGround) anim = player.vy < 0 ? 'jump' : 'fall';
+  else if (Math.abs(player.vx) > 0.1) anim = 'run';
+  else anim = 'idle';
+  if (anim !== player.anim) {   // анимация сменилась — начинаем её с первого кадра
+    player.anim = anim;
+    player.animTime = 0;
+  }
+  player.animTime++;
+
   // Камера плавно догоняет героя, держа его в центре экрана
   const target = player.x + player.w / 2 - W / 2;
   cameraX += (target - cameraX) * 0.1;
@@ -202,15 +227,22 @@ function draw() {
     ctx.fillRect(s.x - cam, s.y, s.w, s.h);
   }
 
-  // Филипп
-  ctx.fillStyle = '#ef7d57';
-  ctx.fillRect(Math.round(player.x) - cam, Math.round(player.y), player.w, player.h);
+  // Филипп: берём нужный кадр текущей анимации
+  const anim = SPRITES.filipp.anims[player.anim];
+  const frameIndex = Math.floor(player.animTime / anim.speed) % anim.frames.length;
+  drawSprite(
+    ctx,
+    anim.frames[frameIndex],
+    Math.round(player.x) - SPRITE_OFFSET_X - cam,
+    Math.round(player.y) - SPRITE_OFFSET_Y,
+    player.facing === -1   // смотрит влево — отражаем картинку
+  );
 
   // Версия в углу
   ctx.fillStyle = '#f4f4f4';
   ctx.font = '8px monospace';
   ctx.textBaseline = 'top';
-  ctx.fillText('v0.1', 2, 2);
+  ctx.fillText('v0.2', 2, 2);
 }
 
 // ---------- Игровой цикл ----------
