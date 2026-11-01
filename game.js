@@ -102,6 +102,28 @@ const CONFIG = {
     callPushBack: 200,       // на сколько Леру отбрасывает звонок
     clockStartHour: 13,      // уровень 2 начинается в 13:30
     clockStartMinute: 30,
+
+    // --- Босс уровня 2: мама. Шкала «ВНИМАНИЕ» от 0 до 1 (1 — победа) ---
+    bossPushBack: 4600,      // на сколько отлетает Лера при входе на арену (около минуты на бой)
+    momWalkSpeed: 0.35,      // мама медленно ходит по правой половине арены
+    momComeSpeed: 0.6,       // фаза 2: мама идёт к Филиппу «ДАЙ ОБНИМУ!»
+    momThrowSeconds: 1.2,    // как часто мама что-то бросает (фаза 1)
+    momThrowSeconds2: 1.1,   // ...и в фазе 2
+    momRequestChance: 0.3,   // фаза 1: доля серых просьб (остальное — сердечки)
+    momRequestChance2: 0.55, // фаза 2: просьб больше
+    momPhotoChance: 0.15,    // фаза 2: шанс большого сердца «ФОТО ИЗ ДЕТСТВА»
+    momFlightSeconds: 1.3,   // сколько летит сердечко или просьба
+    momPhotoFlightSeconds: 0.8, // «ФОТО ИЗ ДЕТСТВА» летит быстрее
+    momGravity: 0.08,        // как сильно дуга загибается вниз
+    momHeartGain: 0.09,      // поймал сердечко — шкала растёт
+    momPhotoGain: 0.15,      // поймал «ФОТО ИЗ ДЕТСТВА» — растёт больше
+    momHeartLoss: 0.03,      // сердечко упало на землю — шкала чуть падает «НУ ВОТ...»
+    momWrenchLoss: 0.2,      // ключ в маму — шкала минус 20%
+    momStuckSeconds: 2,      // коснулся просьбы — застрял «ЛАДНО, ПОСМОТРЮ...»
+    momHugSeconds: 2,        // фаза 2: сколько секунд постоять рядом, чтобы обняться
+    momHugGain: 0.2,         // объятие — шкала +20%
+    momHugCooldown: 4,       // после объятия мама отходит на столько секунд
+    momPlovGift: 3,          // сколько плова мама даёт в конце
   },
 
   // ----- Оружие (есть с уровня 2) -----
@@ -149,6 +171,11 @@ let currentLevelIndex = 0;
 function levelCfg(name) {
   const own = CONFIG['level' + (currentLevelIndex + 1)];
   return own && own[name] !== undefined ? own[name] : CONFIG[name];
+}
+
+// Какой экран босса у текущего уровня: 'boss' — Вася и Настя, 'mom' — мама
+function bossStateName() {
+  return bossArena && bossArena.mama ? 'mom' : 'boss';
 }
 
 // Есть ли на этом уровне оружие (ключи и плов)
@@ -639,7 +666,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (this.scene.background === 'level' || this.scene.background === 'boss') return false;
+      if (this.scene.background === 'level' || this.scene.background === 'boss' || this.scene.background === 'mom') return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -654,6 +681,8 @@ function createSceneState(defaultScene) {
       }
       const pressed = input.pressed;
       const step = this.step;
+      // Арена мамы: пока идёт вступление, мама входит в кадр с пакетами
+      if (this.scene.background === 'mom') momState.introTick();
 
       // Молоток: в момент удара — звук «тук»
       for (const key in this.actors) {
@@ -686,6 +715,9 @@ function createSceneState(defaultScene) {
       } else if (step.type === 'fade') {
         // Затемнение: шторки закрываются за 24 шага
         if (this.timer >= FADE_TIME) this.nextStep();
+      } else if (step.type === 'wait') {
+        // Пауза: ничего не говорят, просто ждём seconds секунд (например, мама входит в кадр)
+        if (this.timer >= (step.seconds || 1) * 60) this.nextStep();
       } else if (step.type === 'picture') {
         // Картинка-анимация: идёт seconds секунд, нажатие — пропустить
         if (this.timer >= (step.seconds || 2) * 60 || (pressed && this.timer > 20)) this.nextStep();
@@ -715,6 +747,7 @@ function createSceneState(defaultScene) {
         // Фон 'level' — замерший уровень (для разговора по телефону)
         if (this.scene.background === 'level') levelState.draw();
         else if (this.scene.background === 'boss') bossState.draw();     // арена босса
+        else if (this.scene.background === 'mom') momState.draw();       // арена мамы
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
@@ -729,7 +762,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (this.scene.background !== 'level' && this.scene.background !== 'boss') drawVersion();   // на уровне версия уже есть в HUD
+      if (['level', 'boss', 'mom'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -916,7 +949,9 @@ const COMMON_SYMBOLS = {
 const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'rake', 'lera',
                         // уровень 2: соседи, собачка, дорожка великов, самокат, поливалка,
                         // лавка с 2 и с 3 бабушками, ящик с ключами
-                        'neighbor', 'dog', 'biker', 'scooter', 'sprinkler', 'gossip2', 'gossip3', 'keybox'];
+                        'neighbor', 'dog', 'biker', 'scooter', 'sprinkler', 'gossip2', 'gossip3', 'keybox',
+                        // босс уровня 2
+                        'mama'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
 const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
@@ -1041,6 +1076,7 @@ function buildPart(part, pi, isLast, isArena) {
     sprinklers: [],    // поливалки {x, y}
     gossips: [],       // лавки с бабушками {x, y, w, n}: вокруг «зона сплетен»
     cars: [],          // машины (для сигнализации)
+    mama: null,        // арена уровня 2: где стоит мама {x, y} (y — где ноги)
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
     start: null,       // старт Филиппа {x, y}
@@ -1082,6 +1118,7 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'biker') { lp.bikeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'sprinkler') { lp.sprinklers.push({ x: tileX(c), y: tileY(r) }); continue; }
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'mama') { lp.mama = { x: tileX(c), y: tileY(r + 1) }; continue; }
       if (thing === 'lego') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
       if (thing === 'rake') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
@@ -1125,7 +1162,8 @@ function buildPart(part, pi, isLast, isArena) {
   if (starts === 0) errors.push(pn + ': НЕТ СТАРТА P. ПОСТАВЬ ОДНУ БУКВУ P.');
   if (starts > 1) errors.push(pn + ': СТАРТОВ P ' + starts + ', А НУЖЕН ОДИН.');
   if (isArena) {
-    if (lp.twins.length !== 2) errors.push(pn + ': НУЖНЫ ВАСЯ (V) И НАСТЯ (N) — РОВНО ПО ОДНОЙ.');
+    if (lp.twins.length > 0 && lp.twins.length !== 2) errors.push(pn + ': НУЖНЫ ВАСЯ И НАСТЯ — РОВНО ПО ОДНОЙ.');
+    if (lp.twins.length === 0 && !lp.mama) errors.push(pn + ': НА АРЕНЕ НЕТ БОССА (ВАСИ И НАСТИ ИЛИ МАМЫ).');
   } else if (isLast) {
     if (gates === 0) errors.push(pn + ': НЕТ ФИНИША E. В ПОСЛЕДНЕЙ ЧАСТИ НУЖНА ОДНА БУКВА E.');
     if (gates > 1) errors.push(pn + ': ФИНИШЕЙ E ' + gates + ', А НУЖЕН ОДИН.');
@@ -1614,8 +1652,8 @@ const levelState = {
     // --- Финиш ---
     if (level.gate && player.x + player.w >= level.gate.x + 4) {
       if (bossArena) {
-        // Калитка ведёт на арену босса: затемнение, дальше — арена
-        setState('inLevelScene', { background: 'level', next: 'boss', nextArg: 'intro', steps: [{ type: 'fade' }] });
+        // Калитка (арка) ведёт на арену босса: затемнение, дальше — арена
+        setState('inLevelScene', { background: 'level', next: bossStateName(), nextArg: 'intro', steps: [{ type: 'fade' }] });
       } else {
         // Босса нет (уровень 2 пока): сценка конца уровня из scenes.js, например level2End
         const end = SCENES['level' + (currentLevelIndex + 1) + 'End'];
@@ -2010,6 +2048,7 @@ const levelState = {
       sh.x += sh.vx;
       sh.y += sh.vy;
       const box = { x: sh.x - 4, y: sh.y - 4, w: 8, h: 8 };
+      if (state === momState && momState.hitByShot(sh, box)) { sh.done = true; continue; }   // попал в маму
       if (sh.kind === 'wrench' && !sh.bounced) {
         // Попал во врага — «БДЗЫНЬ!», враг сидит со звёздочками
         for (const e of this.enemies) {
@@ -3076,6 +3115,321 @@ const bossState = {
 };
 
 // =============================================
+// ЭКРАН: БОСС УРОВНЯ 2 — МАМА
+// =============================================
+// Арена — один экран (boss уровня 2 в levels.js). Мама ходит по правой половине и бросает по дуге:
+//   розовые сердечки — поймал, и шкала «ВНИМАНИЕ» растёт; упало на землю — чуть падает «НУ ВОТ...»;
+//   серые просьбы (кран, унитаз, лампочка, плитка) — коснулся, и Филипп 2 секунды стоит «ЛАДНО, ПОСМОТРЮ...».
+// ФАЗА 1: шкала меньше половины. ФАЗА 2: мама идёт к Филиппу «ДАЙ ОБНИМУ!» — постоял рядом 2 секунды,
+// и объятие: шкала +20%. Просьб больше, иногда летит большое сердце «ФОТО ИЗ ДЕТСТВА».
+// Ключ в маму — шкала минус 20%, плов в маму — пропал зря. Лера идёт и во время боя.
+// Победа — шкала полная. Все числа — в CONFIG.level2.
+const REQUEST_KINDS = ['tap', 'toilet', 'bulb', 'tile'];   // кран, унитаз, лампочка, плитка
+
+const momState = {
+  mama: null,       // мама {x, y, w, h, ...} — хитбокс
+  flying: [],       // летящие сердечки и просьбы
+  attention: 0,     // шкала «ВНИМАНИЕ»: 0 — пусто, 1 — победа
+  hugT: 0,          // сколько шагов Филипп стоит рядом с мамой (для объятия)
+  hugging: 0,       // сколько шагов ещё длится объятие
+  hugCool: 0,       // после объятия мама отходит
+  throwTimer: 0,    // через сколько шагов мама бросит следующее
+  sadT: 0,          // сколько шагов мама грустит «НУ ВОТ...»
+  phase2Said: false,// уже сказала «ДАЙ ОБНИМУ!» при начале фазы 2
+  intro: false,     // идёт вступление: мама входит в кадр
+  saved: null,      // начало арены — для «ЕЩЁ РАЗ»
+
+  // mode: 'intro' — первый вход (Лера отлетает), 'retry' — «ЕЩЁ РАЗ», 'fight' — вернулись после вступления
+  enter(mode) {
+    if (mode === 'fight') { this.intro = false; this.mama.x = this.mama.homeX; return; }
+    if (mode === 'intro') {
+      levelState.leraX -= levelCfg('bossPushBack');   // может уйти за начало шкалы — так даже лучше
+      this.saved = { leraX: levelState.leraX, leraSpeed: levelState.leraSpeed, clockSteps: clockSteps,
+                     keys: levelState.keys, plov: levelState.plov };
+    } else if (mode === 'retry') {
+      levelState.leraX = this.saved.leraX;
+      levelState.leraSpeed = this.saved.leraSpeed;
+      clockSteps = this.saved.clockSteps;
+      levelState.keys = this.saved.keys;
+      levelState.plov = this.saved.plov;
+      levelState.lives = CONFIG.startLives;
+      levelState.resetEffects();
+    }
+    this.reset();
+    if (mode === 'intro') {
+      // Титр и разговор перед боем — поверх арены. Мама входит в кадр справа
+      this.intro = true;
+      this.mama.x = W + 12;
+      const steps = [{ type: 'title', text: 'БОСС:\nМАМА', auto: 2 }].concat(SCENES.momIntro.steps);
+      setState('inLevelScene', { background: 'mom', next: 'mom', nextArg: 'fight', steps: steps });
+    }
+  },
+
+  // Арена в начальное положение
+  reset() {
+    level = bossArena;
+    partIndex = levelParts.length;
+    levelState.resetPart();
+    levelState.invuln = 0;
+    levelState.alarm = false;
+    levelState.ringing = -1;
+    levelState.placePlayer(level.start.x, level.start.y);
+    cameraX = 0;
+    const m = level.mama;
+    this.mama = { x: m.x, y: m.y - 20, w: 10, h: 20, homeX: m.x, goalX: m.x, dir: -1,
+                  vx: 0, vy: 0, onGround: true, timer: 0 };
+    this.flying = [];
+    this.attention = 0;
+    this.hugT = 0;
+    this.hugging = 0;
+    this.hugCool = 0;
+    this.throwTimer = 90;
+    this.sadT = 0;
+    this.phase2Said = false;
+  },
+
+  // Вступление: мама идёт из-за правого края на своё место
+  introTick() {
+    if (!this.intro) return;
+    const m = this.mama;
+    if (m.x > m.homeX) { m.x = Math.max(m.homeX, m.x - 0.8); m.dir = -1; m.walking = true; }
+    else m.walking = false;
+    levelState.tick++;
+  },
+
+  phase() {
+    return this.attention >= 0.5 ? 2 : 1;
+  },
+
+  update(input) {
+    levelState.tick++;
+    levelState.movePlayer(input);
+    clockSteps++;
+    levelState.tickEffects();
+    if (levelState.invuln > 0) levelState.invuln--;
+    levelState.popups = levelState.popups.filter((p) => ++p.t < 50);
+    levelState.updateWeapons(input);                 // ключ и плов (попадание в маму — hitByShot)
+
+    // Лера идёт и во время боя
+    levelState.leraX += levelState.leraSpeed;
+    if (levelState.leraX >= playerGlobalX()) { this.lose(); return; }
+    const wasAlarm = levelState.alarm;
+    levelState.alarm = playerGlobalX() - levelState.leraX < CONFIG.alarmDistance;
+    if (levelState.alarm) {
+      if (!wasAlarm) levelState.alarmTimer = 0;
+      if (levelState.alarmTimer % 60 === 0) vibrate();
+      levelState.alarmTimer++;
+    }
+
+    this.updateHug();
+    this.updateMama();
+    this.updateFlying();
+    if (this.attention >= 1) this.win();
+  },
+
+  // Поражение: та же сценка, но «ЕЩЁ РАЗ» — с начала арены
+  lose() {
+    setState('defeat', Object.assign({}, SCENES.defeat, { next: 'mom', nextArg: 'retry' }));
+  },
+
+  // Шкала «ВНИМАНИЕ» меняется: от 0 до 1
+  addAttention(d) {
+    this.attention = Math.max(0, Math.min(1, this.attention + d));
+  },
+
+  // Мама ходит: в фазе 1 — по правой половине, в фазе 2 — к Филиппу «ДАЙ ОБНИМУ!»
+  updateMama() {
+    const m = this.mama;
+    m.timer++;
+    if (this.sadT > 0) this.sadT--;
+    if (this.hugging > 0) { m.walking = false; return; }
+    const pcx = player.x + player.w / 2;
+    let speed = levelCfg('momWalkSpeed');
+    if (this.phase() === 2 && this.hugCool === 0) {
+      if (!this.phase2Said) { this.phase2Said = true; levelState.popup(MOM_TEXT.hug, m.x + 5, m.y - 4); }
+      // Подходит к Филиппу и встаёт рядом
+      m.goalX = Math.max(4, Math.min(W - 14, pcx + (pcx < m.x + 5 ? 8 : -18)));
+      speed = levelCfg('momComeSpeed');
+    } else if (Math.abs(m.goalX - m.x) < 2 || m.timer % 180 === 0) {
+      // Гуляет по правой половине арены
+      m.goalX = W / 2 + 8 + Math.random() * (W / 2 - 32);
+    }
+    const dx = m.goalX - m.x;
+    m.walking = Math.abs(dx) > 1;
+    if (m.walking) { m.dir = Math.sign(dx); m.x += m.dir * Math.min(speed, Math.abs(dx)); }
+    else m.dir = pcx < m.x + 5 ? -1 : 1;              // стоит — смотрит на сына
+
+    // Бросает сердечко или просьбу
+    if (--this.throwTimer <= 0) {
+      this.launch();
+      this.throwTimer = Math.round(levelCfg(this.phase() === 2 ? 'momThrowSeconds2' : 'momThrowSeconds') * 60);
+    }
+  },
+
+  // Мама бросает по дуге: сердечко, просьбу или (в фазе 2) большое сердце «ФОТО ИЗ ДЕТСТВА»
+  launch() {
+    const m = this.mama;
+    const phase2 = this.phase() === 2;
+    let kind;
+    if (phase2 && Math.random() < levelCfg('momPhotoChance')) kind = 'photo';
+    else kind = Math.random() < levelCfg(phase2 ? 'momRequestChance2' : 'momRequestChance') ? 'request' : 'heart';
+    // Куда упадёт: просьба — почти на Филиппа (в фазе 2 разбросаннее, их больше), сердечко — где-то
+    // рядом с ним (чтобы успеть добежать)
+    const pcx = player.x + player.w / 2;
+    let tx = pcx + (Math.random() - 0.5) * (kind === 'request' ? (phase2 ? 120 : 50) : 150);
+    tx = Math.max(10, Math.min(W - 10, tx));
+    const size = kind === 'photo' ? { w: 14, h: 12 } : kind === 'heart' ? { w: 7, h: 7 } : { w: 14, h: 11 };
+    let landY = H;                                    // земля или предмет под точкой падения
+    for (const s of level.solids) if (tx >= s.x && tx < s.x + s.w && s.y < landY && s.y > HUD_H + 30) landY = s.y;
+    const x0 = m.x + 5, y0 = m.y + 2;
+    const T = Math.round(levelCfg(kind === 'photo' ? 'momPhotoFlightSeconds' : 'momFlightSeconds') * 60);
+    const gr = levelCfg('momGravity');
+    this.flying.push({
+      kind: kind, w: size.w, h: size.h, tx: tx, landY: landY, t: 0, T: T,
+      x: x0 - size.w / 2, y: y0 - size.h / 2,
+      vx: (tx - x0) / T, vy: (landY - size.h / 2 - y0 - gr * T * T / 2) / T,
+      icon: REQUEST_KINDS[Math.floor(Math.random() * REQUEST_KINDS.length)],
+    });
+    m.dir = tx < x0 ? -1 : 1;
+    if (kind === 'heart') levelState.popup(takeFromBag('momHearts', MOM_TEXT.hearts), m.x + 5, m.y - 4);
+    if (kind === 'photo') levelState.popup(MOM_TEXT.photo, m.x + 5, m.y - 4);
+  },
+
+  // Полёт: поймал сердечко — шкала растёт; упало — чуть падает; просьба — застрял
+  updateFlying() {
+    const gr = levelCfg('momGravity');
+    for (const f of this.flying) {
+      f.t++;
+      f.vy += gr;
+      f.x += f.vx;
+      f.y += f.vy;
+      const box = { x: f.x - 1, y: f.y - 1, w: f.w + 2, h: f.h + 2 };   // чуть больше — легче поймать
+      if (overlaps(player, box)) {
+        f.done = true;
+        if (f.kind === 'request') {
+          if (!(player.stun > 0 && player.stunKind === 'request')) {
+            player.stun = Math.round(levelCfg('momStuckSeconds') * 60);
+            player.stunKind = 'request';
+            player.vx = 0;
+            this.hugT = 0;
+            hurtSound();
+            levelState.popup(MOM_TEXT.stuck, player.x + player.w / 2, player.y - 4);
+          }
+        } else {
+          this.addAttention(levelCfg(f.kind === 'photo' ? 'momPhotoGain' : 'momHeartGain'));
+          gulpSound();
+          levelState.popup(f.kind === 'photo' ? '+' + Math.round(levelCfg('momPhotoGain') * 100) + '%' : '+', f.x + f.w / 2, f.y - 2);
+        }
+        continue;
+      }
+      if (f.y + f.h >= f.landY) {
+        f.done = true;
+        if (f.kind !== 'request') {                    // сердечко упало — мама вздыхает
+          this.addAttention(-levelCfg('momHeartLoss'));
+          this.sadT = 70;
+          levelState.popup(MOM_TEXT.sigh, this.mama.x + 5, this.mama.y - 4);
+        }
+      }
+    }
+    this.flying = this.flying.filter((f) => !f.done);
+  },
+
+  // Фаза 2: постоял рядом с мамой 2 секунды (не бегая) — объятие, шкала +20%
+  updateHug() {
+    if (this.hugCool > 0) this.hugCool--;
+    const m = this.mama;
+    if (this.hugging > 0) {
+      this.hugging--;
+      player.stun = Math.max(player.stun, 2);
+      player.stunKind = 'hug';
+      if (this.hugging === 0) {
+        this.hugCool = Math.round(levelCfg('momHugCooldown') * 60);
+        m.goalX = W / 2 + 40;                         // отходит обратно
+      }
+      return;
+    }
+    const near = this.phase() === 2 && this.hugCool === 0 && player.onGround && player.stun === 0 &&
+                 Math.abs(player.vx) < 0.3 && Math.abs(player.x + player.w / 2 - (m.x + 5)) < 22;
+    if (!near) { this.hugT = 0; return; }
+    if (++this.hugT >= levelCfg('momHugSeconds') * 60) {
+      this.hugT = 0;
+      this.hugging = 60;
+      this.addAttention(levelCfg('momHugGain'));
+      gulpSound();
+      levelState.popup(MOM_TEXT.hugDone, m.x + 5, m.y - 4);
+    }
+  },
+
+  // Ключ или плов попали в маму. Возвращает true, если попали
+  hitByShot(sh, box) {
+    if (sh.bounced || !overlaps(box, this.mama)) return false;
+    const m = this.mama;
+    if (sh.kind === 'wrench') {
+      this.addAttention(-levelCfg('momWrenchLoss'));
+      clangSound();
+      levelState.popup(MOM_TEXT.wrench, m.x + 5, m.y - 4);
+    } else {
+      levelState.popup(MOM_TEXT.plov, m.x + 5, m.y - 4);
+    }
+    this.sadT = 90;
+    return true;
+  },
+
+  // Победа: мама даёт плов, потом звонок начальника и конец уровня (scenes.js: level2Win)
+  win() {
+    this.flying = [];
+    this.hugging = 0;
+    this.sadT = 0;
+    player.stun = 0;
+    levelState.alarm = false;
+    levelState.popups = [];
+    levelState.plov += levelCfg('momPlovGift');
+    setState('inLevelScene', SCENES.level2Win);
+  },
+
+  draw() {
+    levelState.draw();                               // фон, Филипп, надписи, HUD
+    const m = this.mama;
+    // Мама
+    const animName = this.hugging > 0 ? 'hug' : (this.sadT > 0 ? 'sad' : (m.walking ? 'walk' : 'stand'));
+    const anim = SPRITES.mama.anims[animName];
+    const frame = anim.frames[Math.floor(levelState.tick / anim.speed) % anim.frames.length];
+    drawSprite(ctx, frame, Math.round(m.x) - 2, Math.round(m.y) + m.h - 22, m.dir < 0);
+    // Фаза 2: «ДАЙ ОБНИМУ!» над мамой и сердечко-полоска, сколько осталось постоять рядом
+    if (!this.intro && this.phase() === 2 && this.hugCool === 0 && this.hugging === 0 && Math.floor(levelState.tick / 30) % 2 === 0) {
+      drawTextCenteredShadow(MOM_TEXT.hug, Math.max(34, Math.min(W - 34, Math.round(m.x) + 5)), Math.round(m.y) - 12, '#ef7d57', '#1a1c2c');
+    }
+    if (this.hugT > 0) {
+      const p = this.hugT / (levelCfg('momHugSeconds') * 60);
+      const bx = Math.round(player.x) - 3;
+      ctx.fillStyle = '#1a1c2c';
+      ctx.fillRect(bx, Math.round(player.y) - 8, 16, 3);
+      ctx.fillStyle = '#ef7d57';
+      ctx.fillRect(bx, Math.round(player.y) - 8, Math.round(16 * p), 3);
+    }
+    if (this.hugging > 0) drawLoveHeart(ctx, Math.round((player.x + m.x) / 2) + 2, Math.round(m.y) - 10 - Math.floor((60 - this.hugging) / 6), false);
+    // Сердечки и просьбы в полёте
+    for (const f of this.flying) {
+      if (f.kind === 'request') drawRequest(ctx, Math.round(f.x), Math.round(f.y), f.icon);
+      else drawLoveHeart(ctx, Math.round(f.x), Math.round(f.y), f.kind === 'photo');
+    }
+    // Шкала «ВНИМАНИЕ» под HUD справа (слева — значки оружия)
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(60, HUD_H, W - 60, 10);
+    drawText(ctx, 'ВНИМАНИЕ', 64, HUD_H + 2, '#ef7d57');
+    const bx = 118, bw = W - bx - 6;
+    ctx.fillStyle = '#333c57';
+    ctx.fillRect(bx, HUD_H + 3, bw, 5);
+    ctx.fillStyle = '#ef7d57';
+    ctx.fillRect(bx, HUD_H + 3, Math.round(bw * this.attention), 5);
+    ctx.fillStyle = '#b13e53';
+    ctx.fillRect(bx, HUD_H + 7, Math.round(bw * this.attention), 1);
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fillRect(bx + Math.round(bw / 2), HUD_H + 2, 1, 7);   // середина — начало фазы 2
+  },
+};
+
+// =============================================
 // МЕНЮ: пункты выбираются пальцем (тап по пункту) или стрелками вверх-вниз и «Прыжком»
 // =============================================
 function createMenu() {
@@ -3123,7 +3477,7 @@ let dimImage = null;      // затемнение «сеточкой» (толь
 
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
 function canPause() {
-  return state === levelState || state === bossState;
+  return state === levelState || state === bossState || state === momState;
 }
 
 function autoPause() {
@@ -3133,7 +3487,7 @@ function autoPause() {
 function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
-    state === bossState ? 'НАЧАТЬ БОЙ ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА',
+    state === bossState || state === momState ? 'НАЧАТЬ БОЙ ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА',
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
     'ВЫЙТИ В ГЛАВНОЕ МЕНЮ',
   ];
@@ -3145,6 +3499,7 @@ function updatePause(input) {
   if (choice === 1) {
     paused = false;
     if (state === bossState) setState('boss', 'retry');
+    else if (state === momState) setState('mom', 'retry');
     else setState('level', 'lastCall');
   }
   if (choice === 2) setSound(!soundOn);
@@ -3210,7 +3565,7 @@ const levelSelectState = {
       // Как будто дошёл до калитки: Лера позади, телефоны «отзвонены»
       levelState.leraX = totalLength * 0.7;
       levelState.leraSpeed = levelCfg('leraSpeed') + 4 * levelCfg('leraSpeedUp');
-      setState('boss', 'intro');
+      setState(bossStateName(), 'intro');
     } else if (e.part > 0) {
       // Начать с нужной части: Лера немного позади, телефоны прошлых частей уже взяты
       const lp = levelParts[e.part];
@@ -3269,6 +3624,7 @@ const states = {
   levelWin: createSceneState('levelWin'),     // ПОБЕДА_УРОВНЯ
   inLevelScene: createSceneState(),           // СЦЕНКА ПОВЕРХ УРОВНЯ: звонок-отмазка, переход между частями
   boss: bossState,                            // БОСС: Вася и Настя
+  mom: momState,                              // БОСС УРОВНЯ 2: мама
   levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
 };
@@ -3282,8 +3638,8 @@ function setState(name, arg) {
   // Кнопка «Бросок» видна в бою с боссом и на уровнях с оружием, кнопка паузы — на уровне и в бою.
   // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
   document.body.classList.toggle('boss-fight', name === 'boss');
-  document.body.classList.toggle('armed', name === 'level' && weaponsOn());
-  document.body.classList.toggle('playing', name === 'level' || name === 'boss');
+  document.body.classList.toggle('armed', (name === 'level' || name === 'mom') && weaponsOn());
+  document.body.classList.toggle('playing', name === 'level' || name === 'boss' || name === 'mom');
 }
 
 // =============================================

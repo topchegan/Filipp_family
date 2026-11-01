@@ -170,6 +170,14 @@
     });
     addCard(l2Row, 16, 16, 6, 'Стрелка: едет велик', (g) => { g.fillStyle = '#73eff7'; g.fillRect(0, 0, 16, 16); drawWarnArrow(g, 8, 8, -1, 0); });
 
+    // Босс уровня 2: мама — сердечки и просьбы
+    const momRow = addRow('Босс уровня 2 (мама): сердечки и просьбы');
+    addCard(momRow, 11, 11, 6, 'Сердечко: поймай', (g) => drawLoveHeart(g, 2, 2, false));
+    addCard(momRow, 18, 16, 6, 'Большое сердце «ФОТО ИЗ ДЕТСТВА»', (g) => drawLoveHeart(g, 2, 2, true));
+    for (const [kind, label] of [['tap', 'кран'], ['toilet', 'унитаз'], ['bulb', 'лампочка'], ['tile', 'плитка']]) {
+      addCard(momRow, 18, 15, 6, 'Просьба: ' + label, (g) => { g.fillStyle = '#73eff7'; g.fillRect(0, 0, 18, 15); drawRequest(g, 2, 2, kind); });
+    }
+
     // Бой с близнецами: игрушки, тень падения, сердечки
     const bossRow = addRow('Босс: игрушки, тень, сердечки');
     addCard(bossRow, 12, 12, 6, 'Мяч', (g) => drawToy(g, 'ball', 2, 2));
