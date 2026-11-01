@@ -110,13 +110,16 @@
     // Мебель и крупные вещи уровня (в плитках по 8 пикселей). Над предметом — немного места
     // (на столе стоит чашка, над калиткой табличка).
     const furnItems = {};
-    for (const key in FURNITURE) furnItems[key] = { name: FURNITURE[key].name + ' (' + key + ', ' + FURNITURE[key].w + 'x' + FURNITURE[key].h + ')', w: FURNITURE[key].w * 8, h: FURNITURE[key].h * 8, paint: (g) => drawFurniture(g, FURNITURE[key], 2, 14) };
+    for (const key in FURNITURE) furnItems[key] = { name: FURNITURE[key].name + ' (' + key + ', ' + FURNITURE[key].w + 'x' + FURNITURE[key].h + ')', w: FURNITURE[key].w * 8, h: FURNITURE[key].h * 8, paint: (g) => drawFurniture(g, FURNITURE[key], 2, 18, 30) };
     furnItems.C = { name: 'Телефон-звонок (C)', w: 16, h: 16, paint: (g) => drawPhonePickup(g, 6, 16, 0) };
-    furnItems.E = { name: 'Калитка «ВЫХОД» (E, 4x4)', w: 32, h: 32, paint: (g) => drawGate(g, 2, 14) };
+    furnItems.E = { name: 'Калитка «ВЫХОД» (E, 4x4)', w: 32, h: 32, paint: (g) => drawGate(g, 2, 18) };
+    furnItems.N1 = { name: 'Выход из части: наверх (N, 3x4)', w: 24, h: 32, paint: (g) => drawPartExit(g, 2, 18, 'stairs', 0) };
+    furnItems.N2 = { name: 'Выход из части: окно (N на фоне windowEnd)', w: 24, h: 32, paint: (g) => drawPartExit(g, 2, 18, 'window', 0) };
+    furnItems.L = { name: 'Лера с досками (L, 2x3) — картинка', w: 76, h: 24, paint: (g) => drawLeraWithBoards(g, 30, 18, 0, true) };
     const furnRow = addRow('Предметы на уровне (все твёрдые, тёмный контур — где можно стоять)');
     for (const key in furnItems) {
       const it = furnItems[key];
-      addCard(furnRow, it.w + 4, it.h + 14, 6, it.name, (g) => it.paint(g));
+      addCard(furnRow, it.w + 4, it.h + 18, 6, it.name, (g) => it.paint(g));
     }
 
     // Минивэн крупно, рядом Филипп — сравнить рост. Внизу полоска земли.
@@ -137,7 +140,7 @@
       addCard(lvlRow, 240, 120, 3, bg.name + ' (' + key + ')', (g) => {
         bg.draw(g, 0, 0);
         for (let c = 0; c < 30; c++) drawSolidTile(g, c * 8, 112, bg.tile, true, 14);
-        for (let c = 2; c < 6; c++) drawShelfTile(g, c * 8, 80, bg.shelf, c === 2, c === 5);
+        for (let c = 2; c < 6; c++) drawShelfTile(g, c * 8, 80, bg.shelf || ['#ef7d57', '#b13e53'], c === 2, c === 5, bg.shelfLook);
       });
     }
 

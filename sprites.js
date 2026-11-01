@@ -970,14 +970,384 @@ const FURNITURE = {
   },
 };
 
+// =============================================
+// НОВЫЕ ПРЕДМЕТЫ УРОВНЯ 1 «Утро. Побег из дома»
+// =============================================
+// Строчные буквы — тоже предметы (заглавных не хватило). Буквы k v n t m g b s
+// оставлены для персонажей. t в draw — счётчик времени для анимации (дым, барабан).
+Object.assign(FURNITURE, {
+  // Стиральная машина: окошко с крутящимся бельём
+  M: {
+    name: 'Стиральная машина', w: 3, h: 3,
+    draw(g, x, y, t) {
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x, y, 24, 24);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y, 24, 5);                      // панель
+      g.fillRect(x + 21, y + 5, 3, 19);             // тень сбоку
+      g.fillStyle = '#38b764';
+      g.fillRect(x + 3, y + 1, 5, 2);               // экранчик
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 17, y + 1, 3, 3);              // ручка
+      pixelCircle(g, x + 11, y + 14, 7, '#566c86'); // дверца
+      pixelCircle(g, x + 11, y + 14, 5, '#73eff7'); // стекло
+      const a = (t || 0) / 8;                       // бельё крутится
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 11 + Math.round(Math.cos(a) * 3), y + 14 + Math.round(Math.sin(a) * 3), 2, 2);
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x + 11 - Math.round(Math.cos(a) * 3), y + 14 - Math.round(Math.sin(a) * 3), 2, 2);
+    },
+  },
+
+  // Плетёная корзина, сверху куча белья
+  K: {
+    name: 'Корзина с бельём', w: 2, h: 2,
+    draw(g, x, y) {
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 1, y + 5, 14, 11);             // корзина
+      g.fillStyle = '#b13e53';
+      for (let j = 7; j < 16; j += 3) g.fillRect(x + 1, y + j, 14, 1);  // плетение
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x + 1, y + 1, 7, 4);               // бельё
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + 7, y, 6, 5);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 12, y + 2, 3, 3);
+    },
+  },
+
+  // Швабры в вёдрах
+  G: {
+    name: 'Швабры с вёдрами', w: 3, h: 4,
+    parts: [
+      { x: 0, y: 20, w: 24, h: 12 },                // вёдра
+      { x: 3, y: 0,  w: 18, h: 20 },                // ручки швабр
+    ],
+    draw(g, x, y) {
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 6, y + 1, 2, 22);              // ручки
+      g.fillRect(x + 16, y + 3, 2, 20);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 4, y, 6, 3);                   // щётка
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x + 1, y + 20, 10, 12);            // синее ведро
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 13, y + 20, 10, 12);           // красное ведро
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + 1, y + 21, 10, 1);             // вода
+      g.fillRect(x + 13, y + 21, 10, 1);
+    },
+  },
+
+  // Стеллаж с банками закаток
+  J: {
+    name: 'Полка с банками', w: 3, h: 4,
+    draw(g, x, y) {
+      g.fillStyle = '#5d275d';
+      g.fillRect(x, y, 24, 32);                     // задняя стенка
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y, 2, 32);                      // стойки
+      g.fillRect(x + 22, y, 2, 32);
+      const colors = ['#38b764', '#b13e53', '#ef7d57', '#ffcd75'];
+      for (let r = 0; r < 3; r++) {
+        g.fillStyle = '#ef7d57';
+        g.fillRect(x, y + 9 + r * 10, 24, 2);       // полки
+        for (let i = 0; i < 3; i++) {
+          g.fillStyle = colors[(r + i) % 4];
+          g.fillRect(x + 3 + i * 6, y + 3 + r * 10, 5, 6);   // банка
+          g.fillStyle = '#94b0c2';
+          g.fillRect(x + 3 + i * 6, y + 2 + r * 10, 5, 1);   // крышка
+        }
+      }
+    },
+  },
+
+  // Лестница наверх: 8 ступенек по 12x8 пикселей, перила.
+  // Каждая ступенька — твёрдая до самого пола, на неё запрыгивают как на платформу.
+  I: {
+    name: 'Лестница', w: 12, h: 8,
+    parts: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({ x: i * 12, y: 64 - (i + 1) * 8, w: 12, h: (i + 1) * 8 })),
+    draw(g, x, y) {
+      for (let i = 0; i < 8; i++) {
+        const sx = x + i * 12, sy = y + 64 - (i + 1) * 8;
+        g.fillStyle = '#b13e53';
+        g.fillRect(sx, sy, 12, (i + 1) * 8);        // ступенька
+        g.fillStyle = '#ef7d57';
+        g.fillRect(sx, sy, 12, 2);                  // проступь
+        g.fillStyle = '#5d275d';
+        g.fillRect(sx, sy + 7, 12, 1);
+      }
+      // Перила: балясины и поручень над ступеньками
+      g.fillStyle = '#ffcd75';
+      for (let i = 0; i < 8; i++) g.fillRect(x + i * 12 + 9, y + 64 - (i + 1) * 8 - 14, 1, 14);
+      pixelLine(g, x + 4, y + 64 - 8 - 16, x + 95, y - 16, '#ffcd75', 2);
+    },
+  },
+
+  // Телевизор с приставкой: на экране игра, на тумбе приставка и джойстик
+  R: {
+    name: 'Приставка с телевизором', w: 5, h: 4,
+    parts: [
+      { x: 4, y: 0,  w: 32, h: 16 },
+      { x: 0, y: 16, w: 40, h: 16 },
+    ],
+    draw(g, x, y, t) {
+      g.fillStyle = '#333c57';
+      g.fillRect(x, y + 16, 40, 16);                // тумба
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 4, y, 32, 16);                 // телевизор
+      g.fillStyle = '#41a6f6';
+      g.fillRect(x + 6, y + 2, 28, 12);             // экран: небо
+      g.fillStyle = '#38b764';
+      g.fillRect(x + 6, y + 11, 28, 3);             // земля
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 8 + Math.floor((t || 0) / 10) % 20, y + 8, 3, 3);   // бегущий герой
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 6, y + 19, 16, 5);             // приставка
+      g.fillStyle = '#38b764';
+      g.fillRect(x + 8, y + 21, 2, 1);              // лампочка
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 26, y + 20, 8, 4);             // джойстик
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 31, y + 21, 1, 1);
+    },
+  },
+
+  // Кукольный домик: крыша, окошки, дверь
+  d: {
+    name: 'Кукольный домик', w: 4, h: 4,
+    parts: [
+      { x: 4, y: 2,  w: 24, h: 10 },                // крыша
+      { x: 0, y: 12, w: 32, h: 20 },                // домик
+    ],
+    draw(g, x, y) {
+      g.fillStyle = '#b13e53';
+      for (let i = 0; i < 10; i++) g.fillRect(x + 15 - i - 1, y + 2 + i, 4 + i * 2, 1);   // крыша
+      g.fillRect(x + 4, y + 10, 24, 2);
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x, y + 12, 32, 20);                // стены
+      g.fillStyle = '#73eff7';
+      g.fillRect(x + 4, y + 15, 7, 6);              // окна
+      g.fillRect(x + 21, y + 15, 7, 6);
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 13, y + 20, 6, 12);            // дверь
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 17, y + 26, 1, 1);
+    },
+  },
+
+  // Два маленьких стульчика
+  c: {
+    name: 'Стульчики', w: 3, h: 2,
+    parts: [
+      { x: 0,  y: 7, w: 24, h: 9 },                 // сиденья
+      { x: 0,  y: 0, w: 3,  h: 7 },                 // спинка левого
+      { x: 21, y: 0, w: 3,  h: 7 },                 // спинка правого
+    ],
+    draw(g, x, y) {
+      g.fillStyle = '#38b764';
+      g.fillRect(x, y, 3, 10);                      // зелёный стульчик
+      g.fillRect(x, y + 7, 11, 3);
+      g.fillRect(x + 1, y + 10, 2, 6);
+      g.fillRect(x + 8, y + 10, 2, 6);
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x + 21, y, 3, 10);                 // синий стульчик
+      g.fillRect(x + 13, y + 7, 11, 3);
+      g.fillRect(x + 14, y + 10, 2, 6);
+      g.fillRect(x + 21, y + 10, 2, 6);
+    },
+  },
+
+  // Сарай: дощатые стены, крыша-навес, дверь и окошко. На крышу можно залезть
+  h: {
+    name: 'Сарай', w: 8, h: 6,
+    parts: [{ x: 0, y: 4, w: 64, h: 44 }],
+    draw(g, x, y) {
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y + 10, 64, 38);                // стены
+      g.fillStyle = '#5d275d';
+      for (let i = 4; i < 64; i += 6) g.fillRect(x + i, y + 10, 1, 38);   // доски
+      g.fillStyle = '#333c57';
+      g.fillRect(x, y + 4, 64, 6);                  // крыша
+      g.fillStyle = '#566c86';
+      g.fillRect(x, y + 4, 64, 2);
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 8, y + 22, 16, 26);            // дверь
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 20, y + 34, 2, 2);             // ручка
+      g.fillStyle = '#29366f';
+      g.fillRect(x + 38, y + 18, 14, 10);           // окошко
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 44, y + 18, 2, 10);
+    },
+  },
+
+  // Батут: ПРУЖИНИТ. Приземлился сверху — подлетаешь очень высоко («БОЙНГ»)
+  j: {
+    name: 'Батут', w: 4, h: 2, bounce: true,
+    parts: [{ x: 0, y: 4, w: 32, h: 12 }],
+    draw(g, x, y) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 3, y + 7, 2, 9);               // ножки
+      g.fillRect(x + 27, y + 7, 2, 9);
+      g.fillRect(x + 15, y + 7, 2, 9);
+      g.fillStyle = '#3b5dc9';
+      g.fillRect(x, y + 4, 32, 3);                  // рама
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 3, y + 4, 26, 2);              // сетка
+      g.fillStyle = '#94b0c2';
+      for (let i = 3; i < 30; i += 4) g.fillRect(x + i, y + 6, 1, 1);   // пружины
+    },
+  },
+
+  // Мешки с цементом
+  p: {
+    name: 'Мешки цемента', w: 3, h: 2,
+    parts: [
+      { x: 0, y: 8, w: 24, h: 8 },
+      { x: 4, y: 0, w: 16, h: 8 },
+    ],
+    draw(g, x, y) {
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y + 8, 11, 8);                  // нижние мешки
+      g.fillRect(x + 12, y + 8, 12, 8);
+      g.fillRect(x + 4, y + 1, 16, 7);              // верхний
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 2, y + 11, 7, 1);              // надписи
+      g.fillRect(x + 14, y + 11, 7, 1);
+      g.fillRect(x + 7, y + 4, 10, 1);
+      g.fillRect(x + 11, y + 8, 1, 8);
+    },
+  },
+
+  // Бетономешалка: оранжевый барабан на подставке, колесо
+  r: {
+    name: 'Бетономешалка', w: 4, h: 3,
+    draw(g, x, y) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 4, y + 14, 3, 10);             // подставка
+      g.fillRect(x + 24, y + 14, 3, 10);
+      g.fillRect(x + 4, y + 14, 23, 2);
+      pixelCircle(g, x + 7, y + 20, 3, '#1a1c2c');  // колесо
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 6, y + 2, 20, 12);             // барабан
+      g.fillRect(x + 9, y, 14, 2);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 11, y + 2, 2, 12);             // полосы
+      g.fillRect(x + 19, y + 2, 2, 12);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 26, y + 4, 4, 7);              // горловина
+    },
+  },
+
+  // Стопка досок для пристройки
+  q: {
+    name: 'Доски', w: 4, h: 2,
+    draw(g, x, y) {
+      for (let i = 0; i < 4; i++) plank(g, x + (i % 2), y + i * 4, 32 - (i % 2), 4);
+    },
+  },
+
+  // Мангал: угли мерцают, сверху шампуры, из него идёт дымок
+  f: {
+    name: 'Мангал', w: 3, h: 2,
+    parts: [{ x: 0, y: 4, w: 24, h: 12 }],
+    draw(g, x, y, t) {
+      const tt = t || 0;
+      g.fillStyle = '#333c57';
+      g.fillRect(x + 2, y + 10, 2, 6);              // ножки
+      g.fillRect(x + 20, y + 10, 2, 6);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x, y + 4, 24, 7);                  // короб
+      for (let i = 0; i < 10; i++) {                // угли
+        g.fillStyle = (i + Math.floor(tt / 6)) % 3 === 0 ? '#ef7d57' : '#b13e53';
+        g.fillRect(x + 2 + i * 2, y + 5, 2, 2);
+      }
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x - 2, y + 3, 28, 1);              // шампуры
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 4, y + 2, 4, 2);               // мясо
+      g.fillRect(x + 14, y + 2, 4, 2);
+      // Дымок: три облачка поднимаются и тают
+      for (let k = 0; k < 3; k++) {
+        const p = ((tt + k * 20) % 60) / 60;        // от 0 до 1
+        const sx = x + 10 + Math.round(Math.sin(p * 6 + k) * 3);
+        const sy = y - Math.round(p * 24);
+        g.fillStyle = p < 0.6 ? '#94b0c2' : '#566c86';
+        g.fillRect(sx, sy, 3, 2);
+        g.fillRect(sx + 1, sy - 1, 1, 1);
+      }
+    },
+  },
+
+  // Высокий дощатый забор: просто так не перепрыгнуть, только с батута
+  z: {
+    name: 'Высокий забор', w: 1, h: 9,
+    draw(g, x, y) {
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x, y + 2, 8, 70);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 4, y + 2, 1, 70);              // щель между досками
+      g.fillRect(x, y + 20, 8, 2);                  // поперечины
+      g.fillRect(x, y + 54, 8, 2);
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 1, y, 2, 2);                   // острые верхушки
+      g.fillRect(x + 5, y, 2, 2);
+    },
+  },
+});
+
+// Лера с досками у входной двери (символ L). Просто картинка, не враг и не препятствие.
+// say = true — над ней надпись «Я ТЕБЯ ЖДУ!»
+function drawLeraWithBoards(g, x, y, t, say) {
+  const anim = SPRITES.lera.anims.idle;
+  const frame = anim.frames[Math.floor(t / anim.speed) % anim.frames.length];
+  drawSprite(g, frame, x, y + 1, true);             // смотрит влево, к Филиппу
+  pixelLine(g, x - 6, y + 17, x + 18, y + 9, '#ef7d57', 2);   // доски под мышкой
+  pixelLine(g, x - 6, y + 19, x + 18, y + 11, '#b13e53', 1);
+  if (say) {
+    const tw = textWidth('Я ТЕБЯ ЖДУ!');
+    const bx = x + 8 - Math.round(tw / 2) - 3;
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(bx, y - 14, tw + 6, 11);             // облачко
+    g.fillRect(x + 6, y - 3, 3, 2);                 // хвостик
+    drawText(g, 'Я ТЕБЯ ЖДУ!', bx + 3, y - 12, '#b13e53');
+  }
+}
+
+// Выход из части уровня (символ N), 3x4 плитки. look: 'window' — открытое окно, иначе — проход наверх
+function drawPartExit(g, x, y, look, t) {
+  if (look === 'window') {
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(x, y, 24, 30);                       // рама
+    g.fillStyle = '#41a6f6';
+    g.fillRect(x + 2, y + 2, 20, 26);               // небо за окном
+    g.fillStyle = '#73eff7';
+    g.fillRect(x + 4, y + 6, 8, 3);                 // облако
+    g.fillStyle = '#f4f4f4';                         // простыня, привязанная к раме
+    g.fillRect(x + 14, y + 20, 3, 12);
+    g.fillRect(x + 13, y + 20, 5, 2);
+  } else {
+    g.fillStyle = '#ffcd75';
+    g.fillRect(x, y, 24, 32);                       // светлый проём
+    g.fillStyle = '#1a1c2c';
+    g.fillRect(x + 3, y + 3, 18, 29);
+    const bob = Math.floor(t / 15) % 2;             // стрелка вверх покачивается
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(x + 11, y + 12 + bob, 2, 10);
+    g.fillRect(x + 9, y + 14 + bob, 6, 1);
+    g.fillRect(x + 10, y + 13 + bob, 4, 1);
+  }
+}
+
 // Твёрдые части предмета (если не заданы — весь прямоугольник)
 function furnitureParts(def) {
   return def.parts || [{ x: 0, y: 0, w: def.w * 8, h: def.h * 8 }];
 }
 
 // Рисует предмет и тёмный контур по краю его твёрдых частей
-function drawFurniture(g, def, x, y) {
-  def.draw(g, x, y);
+function drawFurniture(g, def, x, y, t) {
+  def.draw(g, x, y, t || 0);
   if (def.ownOutline) return;                       // у картинки свой контур
   g.fillStyle = '#1a1c2c';
   for (const p of furnitureParts(def)) {
@@ -1037,139 +1407,291 @@ function drawGate(g, x, y) {
 // tile  — цвета плитки # на этом фоне: fill — основа, seam — швы, top — верхний край
 // shelf — цвета полки «-»: доска и её нижняя кромка
 // draw(g, x, y) — рисует фон; x, y — левый верхний угол экрана. Пол — на высоте y + 112.
-const LEVEL_BACKGROUNDS = {
-  livingRoom: {
-    name: 'Гостиная',
-    tile: { fill: '#b13e53', seam: '#5d275d', top: '#ef7d57' },   // паркет
-    shelf: ['#ef7d57', '#b13e53'],
+const LEVEL_BACKGROUNDS = {};
+
+// Утренний свет: косой луч из окна вниз-вправо, нарисован «через пиксель» (сеточкой) — мягко
+function drawMorningLight(g, x, y, fromX, fromY, color) {
+  g.fillStyle = color;
+  for (let row = fromY; row < 112; row++) {
+    const left = fromX + Math.round((row - fromY) * 0.7);
+    for (let i = 0; i < 34; i++) {
+      if ((i + row) % 2 === 0) g.fillRect(x + left + i, y + row, 1, 1);
+    }
+  }
+}
+
+// Окно с утренним солнцем: рама, стекло, солнце, по бокам шторы (если есть цвет шторы)
+function drawRoomWindow(g, x, y, wx, curtain) {
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x + wx, y + 10, 40, 36);
+  g.fillStyle = '#3b5dc9';
+  g.fillRect(x + wx + 2, y + 12, 36, 32);
+  pixelCircle(g, x + wx + 28, y + 21, 5, '#ef7d57');   // утреннее солнце
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x + wx + 19, y + 12, 2, 32);
+  g.fillRect(x + wx + 2, y + 27, 36, 2);
+  if (curtain) {
+    g.fillStyle = curtain;
+    g.fillRect(x + wx - 7, y + 8, 7, 44);
+    g.fillRect(x + wx + 40, y + 8, 7, 44);
+  }
+}
+
+// Рамка-картина на стене
+function drawFrame(g, x, y, w, h, frame, inside) {
+  g.fillStyle = frame;
+  g.fillRect(x, y, w, h);
+  g.fillStyle = inside;
+  g.fillRect(x + 2, y + 2, w - 4, h - 4);
+}
+
+// «Конструктор комнаты». spec:
+//   name, tile (цвета пола #), shelf (цвета полок), wall (цвет стены),
+//   pattern: 'stripes' | 'tiles' | 'stars' | 'planks' | 'dots' | 'wainscot', pat — цвет узора,
+//   window — где окно по x (или нет), curtain — цвет штор, light — цвет утреннего луча,
+//   decor(g, x, y) — свои картины, двери, надписи
+function room(spec) {
+  return {
+    name: spec.name, tile: spec.tile, shelf: spec.shelf || ['#ef7d57', '#b13e53'], shelfLook: spec.shelfLook,
     draw(g, x, y) {
-      g.fillStyle = '#566c86';
-      g.fillRect(x, y, 240, 120);                   // обои в полоску
-      g.fillStyle = '#333c57';
-      for (let i = 6; i < 240; i += 12) g.fillRect(x + i, y, 1, 112);
-      g.fillRect(x, y + 109, 240, 3);               // плинтус
-      // Окно с утренним солнцем и шторами
-      g.fillStyle = '#94b0c2';
-      g.fillRect(x + 40, y + 10, 46, 40);
-      g.fillStyle = '#3b5dc9';
-      g.fillRect(x + 42, y + 12, 42, 36);
-      pixelCircle(g, x + 72, y + 22, 6, '#ef7d57');
-      g.fillStyle = '#94b0c2';
-      g.fillRect(x + 62, y + 12, 2, 36);
-      g.fillRect(x + 42, y + 29, 42, 2);
-      g.fillStyle = '#5d275d';
-      g.fillRect(x + 32, y + 8, 8, 46);
-      g.fillRect(x + 86, y + 8, 8, 46);
-      g.fillStyle = '#333c57';
-      g.fillRect(x + 30, y + 6, 66, 2);             // карниз
-      // Картина
-      g.fillStyle = '#333c57';
-      g.fillRect(x + 150, y + 22, 30, 22);
-      g.fillStyle = '#257179';
-      g.fillRect(x + 152, y + 24, 26, 18);
-      g.fillStyle = '#29366f';
+      g.fillStyle = spec.wall;
+      g.fillRect(x, y, 240, 120);
+      g.fillStyle = spec.pat;
+      if (spec.pattern === 'stripes') for (let i = 6; i < 240; i += 12) g.fillRect(x + i, y, 1, 112);
+      if (spec.pattern === 'planks') for (let i = 4; i < 240; i += 10) g.fillRect(x + i, y, 1, 112);
+      if (spec.pattern === 'tiles') {
+        for (let i = 0; i < 240; i += 10) g.fillRect(x + i, y, 1, 112);
+        for (let j = 0; j < 112; j += 10) g.fillRect(x, y + j, 240, 1);
+      }
+      if (spec.pattern === 'dots') {
+        for (let j = 6; j < 110; j += 12) for (let i = (j % 24 === 6 ? 4 : 10); i < 240; i += 12) g.fillRect(x + i, y + j, 2, 2);
+      }
+      if (spec.pattern === 'stars') {
+        for (let j = 6; j < 110; j += 16) for (let i = (j % 32 === 6 ? 4 : 12); i < 240; i += 16) {
+          g.fillRect(x + i, y + j + 1, 3, 1);
+          g.fillRect(x + i + 1, y + j, 1, 3);
+        }
+      }
+      if (spec.pattern === 'wainscot') {
+        g.fillRect(x, y + 70, 240, 42);             // нижняя панель стены
+        g.fillStyle = spec.wall;
+        for (let i = 10; i < 240; i += 30) g.fillRect(x + i, y + 76, 20, 30);
+      }
+      if (spec.window !== undefined) {
+        if (spec.light) drawMorningLight(g, x, y, spec.window + 6, 46, spec.light);
+        drawRoomWindow(g, x, y, spec.window, spec.curtain);
+      }
+      if (spec.decor) spec.decor(g, x, y);
+    },
+  };
+}
+
+// Тёплый дом: полы и стены разных комнат
+const FLOOR_PARQUET = { fill: '#b13e53', seam: '#5d275d', top: '#ef7d57' };
+const FLOOR_KITCHEN = { fill: '#94b0c2', seam: '#566c86', top: '#f4f4f4' };
+const FLOOR_BATH    = { fill: '#3b5dc9', seam: '#29366f', top: '#73eff7' };
+const FLOOR_PANTRY  = { fill: '#5d275d', seam: '#1a1c2c', top: '#b13e53' };
+const FLOOR_HALL    = { fill: '#566c86', seam: '#333c57', top: '#94b0c2' };
+const FLOOR_BEDROOM = { fill: '#ef7d57', seam: '#b13e53', top: '#ffcd75' };
+const FLOOR_KIRILL  = { fill: '#257179', seam: '#29366f', top: '#73eff7' };
+const FLOOR_TWINS   = { fill: '#38b764', seam: '#257179', top: '#a7f070' };
+const GROUND        = { fill: '#257179', seam: '#29366f', top: '#38b764' };
+
+Object.assign(LEVEL_BACKGROUNDS, {
+  // ---------- ЧАСТЬ 1: ПЕРВЫЙ ЭТАЖ ----------
+  livingRoom: room({ name: 'Гостиная', tile: FLOOR_PARQUET, wall: '#566c86', pattern: 'stripes', pat: '#333c57',
+    window: 40, curtain: '#5d275d', light: '#94b0c2',
+    decor(g, x, y) {
+      drawFrame(g, x + 150, y + 22, 30, 22, '#333c57', '#257179');
       pixelLine(g, x + 152, y + 40, x + 163, y + 30, '#29366f', 2);
       pixelLine(g, x + 163, y + 30, x + 176, y + 40, '#29366f', 2);
-    },
-  },
-
-  kitchen: {
-    name: 'Кухня',
-    tile: { fill: '#94b0c2', seam: '#566c86', top: '#f4f4f4' },   // плитка на полу
-    shelf: ['#ef7d57', '#b13e53'],
-    draw(g, x, y) {
-      g.fillStyle = '#257179';
-      g.fillRect(x, y, 240, 120);                   // крашеная стена
+    } }),
+  kitchen: room({ name: 'Кухня', tile: FLOOR_KITCHEN, wall: '#257179', pattern: 'none',
+    window: 40, light: '#38b764',
+    decor(g, x, y) {
       g.fillStyle = '#566c86';
       g.fillRect(x, y + 64, 240, 48);               // кафельный фартук
       g.fillStyle = '#333c57';
       for (let i = 0; i < 240; i += 8) g.fillRect(x + i, y + 64, 1, 48);
       for (let j = 64; j < 112; j += 8) g.fillRect(x, y + j, 240, 1);
-      // Окно
-      g.fillStyle = '#94b0c2';
-      g.fillRect(x + 38, y + 14, 36, 32);
-      g.fillStyle = '#3b5dc9';
-      g.fillRect(x + 40, y + 16, 32, 28);
-      g.fillStyle = '#94b0c2';
-      g.fillRect(x + 55, y + 16, 2, 28);
-      // Часы на стене
-      pixelCircle(g, x + 200, y + 24, 6, '#94b0c2');
+      pixelCircle(g, x + 200, y + 24, 6, '#94b0c2');   // часы
       g.fillStyle = '#333c57';
       g.fillRect(x + 200, y + 19, 1, 6);
       g.fillRect(x + 200, y + 24, 4, 1);
-    },
-  },
-
-  kidsRoom: {
-    name: 'Детская',
-    tile: { fill: '#38b764', seam: '#257179', top: '#a7f070' },   // зелёный ковёр
-    shelf: ['#ef7d57', '#b13e53'],
-    draw(g, x, y) {
-      g.fillStyle = '#29366f';
-      g.fillRect(x, y, 240, 120);                   // тёмно-синие обои со звёздочками
-      g.fillStyle = '#3b5dc9';
-      for (let j = 6; j < 110; j += 16) {
-        for (let i = (j % 32 === 6 ? 4 : 12); i < 240; i += 16) {
-          g.fillRect(x + i, y + j + 1, 3, 1);
-          g.fillRect(x + i + 1, y + j, 1, 3);
-        }
-      }
-      // Детский рисунок на стене: домик и солнце
-      g.fillStyle = '#566c86';
-      g.fillRect(x + 112, y + 26, 30, 22);
-      g.fillStyle = '#ef7d57';
-      g.fillRect(x + 133, y + 29, 5, 5);
-      g.fillStyle = '#5d275d';
-      g.fillRect(x + 118, y + 38, 10, 8);
-      pixelLine(g, x + 116, y + 38, x + 123, y + 32, '#5d275d', 1);
-      pixelLine(g, x + 123, y + 32, x + 130, y + 38, '#5d275d', 1);
-    },
-  },
-
-  hall: {
-    name: 'Прихожая',
-    tile: { fill: '#566c86', seam: '#333c57', top: '#94b0c2' },   // плитка
-    shelf: ['#ef7d57', '#b13e53'],
-    draw(g, x, y) {
+    } }),
+  dining: room({ name: 'Кухня: обеденная зона', tile: FLOOR_KITCHEN, wall: '#257179', pattern: 'dots', pat: '#29366f',
+    window: 150, light: '#38b764',
+    decor(g, x, y) {
+      drawFrame(g, x + 40, y + 24, 26, 20, '#333c57', '#566c86');   // натюрморт
+      pixelCircle(g, x + 53, y + 36, 4, '#5d275d');
       g.fillStyle = '#333c57';
-      g.fillRect(x, y, 240, 120);                   // обои
-      g.fillStyle = '#29366f';
-      for (let i = 4; i < 240; i += 10) g.fillRect(x + i, y, 2, 112);
-      // Зеркало
+      g.fillRect(x + 100, y, 2, 30);                // лампа над столом
+      g.fillRect(x + 94, y + 30, 14, 4);
+    } }),
+  bathroom: room({ name: 'Ванная', tile: FLOOR_BATH, wall: '#29366f', pattern: 'tiles', pat: '#3b5dc9',
+    shelfLook: 'laundry',
+    decor(g, x, y) {
+      drawFrame(g, x + 30, y + 20, 22, 28, '#566c86', '#3b5dc9');   // зеркало
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 190, y + 14, 26, 20);          // матовое окошко
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 192, y + 16, 22, 16);
+      drawMorningLight(g, x, y, 186, 34, '#3b5dc9');
+    } }),
+  pantry: room({ name: 'Кладовка', tile: FLOOR_PANTRY, wall: '#333c57', pattern: 'planks', pat: '#1a1c2c',
+    decor(g, x, y) {
+      // Лампочка под потолком и мягкий свет от неё
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 119, y, 1, 14);
+      pixelCircle(g, x + 119, y + 17, 3, '#ffcd75');
+      g.fillStyle = '#566c86';
+      for (let row = 24; row < 112; row++) {
+        const half = Math.round((row - 24) * 0.6);
+        for (let i = -half; i <= half; i++) if ((i + row) % 3 === 0) g.fillRect(x + 119 + i, y + row, 1, 1);
+      }
+    } }),
+  hall: room({ name: 'Прихожая', tile: FLOOR_HALL, wall: '#333c57', pattern: 'stripes', pat: '#29366f',
+    window: 170, light: '#566c86',
+    decor(g, x, y) {
+      drawFrame(g, x + 60, y + 40, 18, 30, '#5d275d', '#3b5dc9');   // зеркало
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 62, y + 42, 2, 6);
+    } }),
+  stairsHall: room({ name: 'Прихожая у лестницы', tile: FLOOR_HALL, wall: '#333c57', pattern: 'stripes', pat: '#29366f',
+    decor(g, x, y) {
+      // Входная дверь внизу справа — туда не пройти, там Лера
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 214, y + 70, 24, 42);
       g.fillStyle = '#5d275d';
-      g.fillRect(x + 100, y + 40, 18, 30);
+      g.fillRect(x + 217, y + 73, 18, 39);
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 219, y + 92, 2, 2);
+      // Окно над лестницей
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 60, y + 6, 26, 22);
       g.fillStyle = '#3b5dc9';
-      g.fillRect(x + 102, y + 42, 14, 26);
-      g.fillStyle = '#566c86';
-      g.fillRect(x + 104, y + 44, 2, 6);
-      // Открытая входная дверь (под стеной справа): за ней видно улицу
-      g.fillStyle = '#566c86';
-      g.fillRect(x + 204, y + 78, 28, 34);          // наличник
-      g.fillStyle = '#3b5dc9';
-      g.fillRect(x + 207, y + 81, 22, 31);          // проём на улицу
-      g.fillStyle = '#257179';
-      g.fillRect(x + 207, y + 104, 22, 8);          // трава за дверью
-    },
-  },
+      g.fillRect(x + 62, y + 8, 22, 18);
+    } }),
 
-  yard: {
-    name: 'Двор',
-    tile: { fill: '#257179', seam: '#29366f', top: '#38b764' },   // земля с травой
-    shelf: ['#ef7d57', '#b13e53'],
+  // ---------- ЧАСТЬ 2: ВТОРОЙ ЭТАЖ ----------
+  bedroom: room({ name: 'Спальня', tile: FLOOR_BEDROOM, wall: '#5d275d', pattern: 'dots', pat: '#333c57',
+    window: 110, curtain: '#333c57', light: '#b13e53',
+    decor(g, x, y) {
+      drawFrame(g, x + 30, y + 20, 34, 24, '#333c57', '#566c86');   // свадебное фото
+      pixelCircle(g, x + 42, y + 30, 3, '#ffcd75');
+      pixelCircle(g, x + 52, y + 30, 3, '#ffcd75');
+    } }),
+  corridor: room({ name: 'Коридор', tile: FLOOR_PARQUET, wall: '#29366f', pattern: 'wainscot', pat: '#333c57',
+    decor(g, x, y) {
+      drawFrame(g, x + 40, y + 24, 20, 26, '#566c86', '#257179');
+      drawFrame(g, x + 150, y + 30, 28, 20, '#566c86', '#5d275d');
+      for (const lx of [100, 210]) {                // лампы на потолке
+        g.fillStyle = '#566c86';
+        g.fillRect(x + lx - 5, y, 10, 3);
+        g.fillStyle = '#ffcd75';
+        g.fillRect(x + lx - 2, y + 3, 4, 2);
+      }
+    } }),
+  kirillRoom: room({ name: 'Комната Кирилла', tile: FLOOR_KIRILL, wall: '#333c57', pattern: 'stripes', pat: '#29366f',
+    window: 170, light: '#566c86',
+    decor(g, x, y) {
+      drawFrame(g, x + 20, y + 16, 26, 34, '#566c86', '#29366f');   // плакат: машина
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 25, y + 34, 16, 5);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 27, y + 39, 3, 3);
+      g.fillRect(x + 36, y + 39, 3, 3);
+      drawFrame(g, x + 60, y + 20, 30, 22, '#566c86', '#257179');   // плакат: футбол
+      pixelCircle(g, x + 75, y + 31, 5, '#94b0c2');
+      drawFrame(g, x + 104, y + 14, 22, 30, '#566c86', '#5d275d');  // плакат: рокер
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 113, y + 20, 4, 4);
+    } }),
+  twinsRoom: room({ name: 'Комната Васи и Насти', tile: FLOOR_TWINS, wall: '#29366f', pattern: 'stars', pat: '#3b5dc9',
+    window: 180, curtain: '#5d275d', light: '#3b5dc9',
+    decor(g, x, y) {
+      // Гирлянда-флажки
+      for (let i = 0; i < 16; i++) {
+        g.fillStyle = ['#b13e53', '#3b5dc9', '#38b764', '#ef7d57'][i % 4];
+        const fx = x + 10 + i * 10, fy = y + 8 + Math.round(Math.sin(i / 2.5) * 3);
+        g.fillRect(fx, fy, 5, 3);
+        g.fillRect(fx + 1, fy + 3, 3, 1);
+      }
+      drawFrame(g, x + 60, y + 30, 30, 22, '#566c86', '#5d275d');   // детский рисунок
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x + 80, y + 33, 5, 5);
+    } }),
+  windowEnd: room({ name: 'Коридор: окно', tile: FLOOR_PARQUET, wall: '#29366f', pattern: 'wainscot', pat: '#333c57',
+    decor(g, x, y) {
+      drawFrame(g, x + 40, y + 26, 22, 22, '#566c86', '#257179');
+      drawMorningLight(g, x, y, 190, 40, '#3b5dc9');   // свет из окна в конце коридора
+    } }),
+
+  // ---------- ЧАСТЬ 3: ДВОР ----------
+  yardHouse: { name: 'Двор у дома', tile: GROUND, shelf: ['#ef7d57', '#b13e53'],
     draw(g, x, y) {
       drawYardSky(g, x, y);
-    },
-  },
-
-  yardGate: {
-    name: 'Двор у калитки',
-    tile: { fill: '#257179', seam: '#29366f', top: '#38b764' },
-    shelf: ['#ef7d57', '#b13e53'],
+      // Стена дома, окно второго этажа и простыня, по которой спустился Филипп
+      g.fillStyle = '#566c86';
+      g.fillRect(x, y, 44, 112);
+      g.fillStyle = '#333c57';
+      for (let j = 4; j < 112; j += 6) g.fillRect(x, y + j, 44, 1);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 10, y + 10, 24, 26);
+      g.fillStyle = '#29366f';
+      g.fillRect(x + 12, y + 12, 20, 22);
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + 24, y + 34, 3, 78);            // простыня
+      for (let j = 50; j < 112; j += 18) g.fillRect(x + 23, y + j, 5, 3);   // узлы
+    } },
+  yardSwing: { name: 'Двор: качели', tile: GROUND, draw(g, x, y) { drawYardSky(g, x, y); drawTree(g, x + 40, y); } },
+  yardTrampoline: { name: 'Двор: батут', tile: GROUND, draw(g, x, y) { drawYardSky(g, x, y); } },
+  extension: { name: 'Пристройка', tile: GROUND, shelf: ['#ef7d57', '#b13e53'],
     draw(g, x, y) {
       drawYardSky(g, x, y);
-    },
-  },
-};
+      // Каркас из досок на заднем плане (стоять можно только на балках «-» из карты)
+      g.fillStyle = '#5d275d';
+      for (const px of [20, 80, 140, 200]) g.fillRect(x + px, y + 30, 4, 82);
+      g.fillRect(x + 20, y + 30, 184, 3);
+      pixelLine(g, x + 20, y + 30, x + 112, y + 6, '#5d275d', 2);
+      pixelLine(g, x + 112, y + 6, x + 204, y + 30, '#5d275d', 2);
+      // Табличка-шутка
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 46, y + 10, 148, 13);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 46, y + 22, 148, 1);
+      drawText(g, 'ПРИСТРОЙКА. ЖДЁТ ФИЛИППА', x + 49, y + 13, '#5d275d');
+    } },
+  extension2: { name: 'Пристройка: стройматериалы', tile: GROUND, shelf: ['#ef7d57', '#b13e53'],
+    draw(g, x, y) {
+      drawYardSky(g, x, y);
+      g.fillStyle = '#5d275d';
+      for (const px of [10, 70]) g.fillRect(x + px, y + 30, 4, 82);
+      g.fillRect(x, y + 30, 74, 3);
+    } },
+  bbq: { name: 'Двор: мангал', tile: GROUND, draw(g, x, y) { drawYardSky(g, x, y); drawTree(g, x + 170, y); } },
+  yard: { name: 'Двор: машина', tile: GROUND, draw(g, x, y) { drawYardSky(g, x, y); } },
+  yardFlowers: { name: 'Двор: клумбы', tile: GROUND,
+    draw(g, x, y) {
+      drawYardSky(g, x, y);
+      for (let i = 20; i < 220; i += 14) {          // цветы вдоль забора
+        g.fillStyle = '#257179';
+        g.fillRect(x + i + 2, y + 104, 1, 8);
+        g.fillStyle = ['#b13e53', '#ffcd75', '#f4f4f4'][(i / 14) % 3];
+        g.fillRect(x + i + 1, y + 102, 3, 3);
+      }
+    } },
+  yardGate: { name: 'Двор у калитки', tile: GROUND, draw(g, x, y) { drawYardSky(g, x, y); } },
+});
+
+// Дерево на заднем плане (приглушённое)
+function drawTree(g, x, y) {
+  g.fillStyle = '#29366f';
+  g.fillRect(x + 14, y + 50, 6, 62);                // ствол
+  pixelCircle(g, x + 17, y + 40, 18, '#257179');    // крона
+  pixelCircle(g, x + 8, y + 50, 10, '#257179');
+  pixelCircle(g, x + 28, y + 48, 11, '#257179');
+}
 
 // Небо, облака и забор вдали — общие для двора (приглушённые)
 function drawYardSky(g, x, y) {
@@ -1201,7 +1723,18 @@ function drawSolidTile(g, x, y, style, topOpen, row) {
 
 // Рисует одну плитку полки «-»: доска, а под краями полки — металлические кронштейны.
 // leftEnd / rightEnd — это крайняя плитка полки слева / справа
-function drawShelfTile(g, x, y, colors, leftEnd, rightEnd) {
+function drawShelfTile(g, x, y, colors, leftEnd, rightEnd, look) {
+  if (look === 'laundry') {
+    // Верёвка с бельём: стоять можно на верёвке, бельё висит вниз
+    g.fillStyle = '#94b0c2';
+    g.fillRect(x, y, 8, 1);
+    g.fillStyle = ['#f4f4f4', '#b13e53', '#38b764', '#ef7d57'][(x >> 3) & 3];
+    g.fillRect(x + 1, y + 1, 6, 6);                 // носок, майка, полотенце...
+    g.fillStyle = '#1a1c2c';
+    g.fillRect(x + 3, y, 1, 2);                     // прищепка
+    if (leftEnd || rightEnd) { g.fillStyle = '#566c86'; g.fillRect(x + (leftEnd ? 0 : 7), y - 2, 1, 4); }
+    return;
+  }
   g.fillStyle = colors[0];
   g.fillRect(x, y, 8, 3);                           // доска
   g.fillStyle = colors[1];
@@ -1218,6 +1751,45 @@ function drawShelfTile(g, x, y, colors, leftEnd, rightEnd) {
     g.fillRect(x + 3, y + 4, 2, 2);
   }
 }
+
+// =============================================
+// КАРТИНКИ ДЛЯ СЦЕНОК (шаг type: 'picture' в scenes.js)
+// =============================================
+// draw(g, p, t): p — от 0 до 1, сколько прошло времени картинки; t — счётчик для анимации
+const PICTURES = {
+  // Филипп спускается по связанным простыням из окна второго этажа
+  sheetDescent(g, p, t) {
+    g.fillStyle = '#41a6f6';
+    g.fillRect(0, 0, 240, 136);                     // небо
+    g.fillStyle = '#73eff7';
+    g.fillRect(170, 18, 26, 4);
+    g.fillStyle = '#94b0c2';
+    g.fillRect(40, 0, 140, 120);                    // стена дома
+    g.fillStyle = '#566c86';
+    for (let j = 4; j < 120; j += 6) g.fillRect(40, j, 140, 1);   // сайдинг
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(92, 14, 36, 34);                     // открытое окно второго этажа
+    g.fillStyle = '#29366f';
+    g.fillRect(95, 17, 30, 28);
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(92, 48, 36, 3);                      // подоконник
+    g.fillStyle = '#29366f';
+    g.fillRect(70, 72, 30, 30);                     // окно первого этажа
+    g.fillStyle = '#38b764';
+    g.fillRect(0, 120, 240, 16);                    // трава
+    g.fillStyle = '#a7f070';
+    g.fillRect(0, 120, 240, 1);
+    // Верёвка из простыней с узлами
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(114, 48, 4, 74);
+    for (let j = 62; j < 120; j += 16) g.fillRect(112, j, 8, 3);
+    // Филипп съезжает вниз
+    const fy = Math.round(28 + p * 72);
+    const frame = SPRITES.filipp.anims.fall.frames[0];
+    drawSprite(g, frame, 106, fy, false);
+    if (Math.floor(t / 8) % 2 === 0) drawText(g, 'ВЖ-Ж-Ж!', 132, fy + 4, '#1a1c2c');
+  },
+};
 
 // Силуэт: та же картинка, но залитая одним цветом (для титульного экрана)
 function makeSilhouette(frame, color) {
