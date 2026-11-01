@@ -156,13 +156,13 @@
     addCard(bossRow, 24, 9, 6, 'Сердечки: целое и погасшее', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 24, 9); drawHeart(g, 4, 2, true); drawHeart(g, 14, 2, false); });
 
     // Минивэн крупно, рядом Филипп — сравнить рост. Внизу полоска земли.
-    const vanRow = addRow('Минивэн (A, 10x4) и Филипп для сравнения роста');
+    const vanRow = addRow('Минивэн (minivan, 10x4) и Филипп для сравнения роста');
     addCard(vanRow, 110, 40, 6, 'Минивэн на домкрате и Филипп', (g) => {
       g.fillStyle = '#41a6f6';
       g.fillRect(0, 0, 110, 40);                         // небо
       g.fillStyle = '#38b764';
       g.fillRect(0, 36, 110, 4);                         // трава
-      drawFurniture(g, FURNITURE.A, 26, 4);              // минивэн стоит на земле (низ на y = 36)
+      drawFurniture(g, FURNITURE.minivan, 26, 4);              // минивэн стоит на земле (низ на y = 36)
       g.drawImage(SPRITES.filipp.anims.idle.frames[0], 4, 12);   // Филипп 16x24, ноги на земле
     });
 

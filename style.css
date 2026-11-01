@@ -80,3 +80,30 @@ html, body {
 body.boss-fight .btn.throw {
   display: flex;
 }
+
+/* Пауза — маленькая кнопка в правом верхнем углу. Видна только на уровне и в бою (класс playing) */
+.btn.pause {
+  top: calc(12px + env(safe-area-inset-top));
+  bottom: auto;
+  right: 12px;
+  width: 60px;
+  height: 60px;
+  font-size: 28px;
+  border-radius: 16px;
+  display: none;
+}
+body.playing .btn.pause {
+  display: flex;
+}
+/* Значок ⏸ — две полоски (рисуем сами, чтобы на любом устройстве выглядело одинаково) */
+.btn.pause::before,
+.btn.pause::after {
+  content: '';
+  width: 8px;
+  height: 26px;
+  margin: 0 4px;
+  background: #f4f4f4;
+  border-radius: 2px;
+  pointer-events: none;
+}
+

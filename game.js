@@ -19,6 +19,9 @@
 // Расстояния — в пикселях уровня (один экран = 240 пикселей).
 // Скорости — в пикселях за один шаг игры (шагов 60 в секунду).
 const CONFIG = {
+  // ----- Для тестов -----
+  DEBUG_MENU: true,          // true — на титульном экране есть «ВЫБОР УРОВНЯ». Когда игра готова — поставить false
+
   // ----- Лера -----
   leraHeadStart: 3,          // фора: сколько секунд Лера стоит на месте в начале уровня и после «ЕЩЁ РАЗ»
   leraSpeed: 0.8,            // скорость Леры по шкале. Для сравнения: Филипп бежит со скоростью до 1.5
@@ -31,7 +34,7 @@ const CONFIG = {
   playerMaxSpeed: 1.5,       // максимальная скорость бега
   playerAccel: 0.15,         // разгон: чем больше, тем быстрее набирает скорость
   playerFriction: 0.2,       // торможение, когда кнопки отпущены
-  jumpSpeed: 3,              // сила прыжка С МЕСТА (3 — примерно на 22 пикселя: 2 плитки и чуть больше)
+  jumpSpeed: 3.05,           // сила прыжка С МЕСТА (3.05 — на 23 пикселя; даже на нулевом кураже — на 2 плитки)
   jumpSpeedRun: 4,           // сила прыжка С РАЗБЕГА на полной скорости (4 — примерно на 40 пикселей: 5 плиток)
   trampolineSpeed: 5.1,      // сила подброса батута (5.1 — примерно на 8 плиток вверх)
   gravity: 0.2,              // сила тяжести
@@ -132,10 +135,18 @@ function unlockAudio() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
+// Звук включён? Настройку запоминаем в браузере между запусками (если браузер разрешает)
+let soundOn = true;
+try { soundOn = localStorage.getItem('filippSound') !== 'off'; } catch (e) { /* без памяти — просто со звуком */ }
+function setSound(on) {
+  soundOn = on;
+  try { localStorage.setItem('filippSound', on ? 'on' : 'off'); } catch (e) { /* не запомнили — не страшно */ }
+}
+
 // Один короткий звук квадратной волной (как на Денди).
 //   freq — высота в герцах, start — когда начать (секунды), dur — длительность
 function tone(freq, start, dur, volume) {
-  if (!audioCtx || audioCtx.state !== 'running') return;
+  if (!soundOn || !audioCtx || audioCtx.state !== 'running') return;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = 'square';
@@ -172,7 +183,7 @@ function pickupSound() {
 
 // Батут: «БОЙНГ» — звук быстро скользит снизу вверх
 function boingSound() {
-  if (!audioCtx || audioCtx.state !== 'running') return;
+  if (!soundOn || !audioCtx || audioCtx.state !== 'running') return;
   const t0 = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -245,6 +256,10 @@ let taps = [];
 let jumpHit = false;
 // То же для кнопки «Бросок» (бой с боссом)
 let throwHit = false;
+// Пауза (кнопка ⏸, P, Esc), выбор в меню (стрелки вверх-вниз), подтверждение (Прыжок, Z, пробел, Enter)
+let pauseHit = false;
+let menuMove = 0;
+let confirmHit = false;
 
 // Какая клавиша за что отвечает
 const keyMap = {
@@ -258,6 +273,12 @@ const keyMap = {
 
 window.addEventListener('keydown', (e) => {
   unlockAudio();
+  if (!e.repeat) {
+    if (e.code === 'KeyP' || e.code === 'Escape') pauseHit = true;
+    if (e.code === 'ArrowUp') menuMove -= 1;
+    if (e.code === 'ArrowDown') menuMove += 1;
+    if (e.code === 'Enter' || e.code === 'KeyZ' || e.code === 'Space') confirmHit = true;
+  }
   const action = keyMap[e.code];
   if (action) {
     if (action === 'jump' && !e.repeat) jumpHit = true; // repeat — это автоповтор при удержании
@@ -300,8 +321,11 @@ function updateTouches(e) {
     for (const t of e.changedTouches) {
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const btn = el && el.dataset ? el.dataset.btn : undefined;
-      if (btn === 'jump') jumpHit = true;
+      if (btn === 'jump') { jumpHit = true; confirmHit = true; }
       else if (btn === 'throw') throwHit = true;
+      else if (btn === 'pause') pauseHit = true;
+      else if (btn === 'left') menuMove -= 1;       // в меню ← и → двигают выбор
+      else if (btn === 'right') menuMove += 1;
       else if (!btn) taps.push(toGameCoords(t.clientX, t.clientY));
     }
   }
@@ -315,8 +339,13 @@ function updateTouches(e) {
 // Клик мышкой (на компьютере) — тоже касание экрана
 window.addEventListener('mousedown', (e) => {
   unlockAudio();
+  if (e.target && e.target.dataset && e.target.dataset.btn === 'pause') { pauseHit = true; return; }
   taps.push(toGameCoords(e.clientX, e.clientY));
 });
+
+// Автопауза: переключился на другое приложение или вкладку — игра сама встаёт на паузу
+document.addEventListener('visibilitychange', () => { if (document.hidden) autoPause(); });
+window.addEventListener('blur', () => autoPause());
 
 // Запрещаем жесты масштабирования в Safari
 document.addEventListener('gesturestart', (e) => e.preventDefault());
@@ -352,6 +381,7 @@ function drawLine(x0, y0, x1, y1, color) { pixelLine(ctx, x0, y0, x1, y1, color)
 // =============================================
 const titleState = {
   timer: 0,
+  menu: createMenu(),   // «НАЧАТЬ ИГРУ» / «ВЫБОР УРОВНЯ» (только с CONFIG.DEBUG_MENU)
   silhouette: null,
 
   enter() {
@@ -364,8 +394,16 @@ const titleState = {
 
   update(input) {
     this.timer++;
-    // Любое касание или «Прыжок» — начинаем. Звук уже разрешён этим же касанием.
-    if (input.pressed) setState('cutscene');
+    // Для тестов — меню из двух пунктов. Иначе любое касание или «Прыжок» — начинаем.
+    // Звук уже разрешён этим же касанием.
+    if (CONFIG.DEBUG_MENU) {
+      const choice = menuUpdate(this.menu, 2, input);
+      if (choice === 0) { loadLevel(0); setState('cutscene'); }
+      if (choice === 1) setState('levelSelect');
+    } else if (input.pressed) {
+      loadLevel(0);
+      setState('cutscene');
+    }
   },
 
   draw() {
@@ -391,8 +429,10 @@ const titleState = {
     drawTextCenteredShadow('ВСЕМ ЧТО-ТО НАДО', 120, 14, '#f4f4f4', '#1a1c2c', 2);
     drawTextCenteredShadow('ОТ ФИЛИППА', 120, 33, '#ffcd75', '#b13e53', 2);
 
-    // Мигающая надпись: полсекунды видна, полсекунды нет
-    if (Math.floor(this.timer / 30) % 2 === 0) {
+    if (CONFIG.DEBUG_MENU) {
+      drawMenu(this.menu, ['НАЧАТЬ ИГРУ', 'ВЫБОР УРОВНЯ'], 120, 115, 11);
+    } else if (Math.floor(this.timer / 30) % 2 === 0) {
+      // Мигающая надпись: полсекунды видна, полсекунды нет
       drawTextCenteredShadow('НАЖМИ, ЧТОБЫ НАЧАТЬ', 120, 120, '#f4f4f4', '#1a1c2c');
     }
     drawVersion();
@@ -765,15 +805,32 @@ const ROWS = 15;           // плиток в высоту (без HUD)
 const HUD_H = 16;          // высота HUD сверху (2 ряда плиток)
 const SCREEN_W = COLS * TILE;  // 240 — ширина одного экрана
 
-// Символы карты, которые игра знает. Буквы «скоро» пока ничего не делают.
-//   N — выход из части (лестница наверх, окно), L — Лера с досками (картинка)
-//   b — пиво, k — Кирилл, t — Туся, w — пылесос, l — лего, i — грабли
-//   v — Вася, n — Настя (только на арене босса), x — сигареты, u — кофе
-const MAP_SYMBOLS = '.#-PCENLbktwlivnxu' + Object.keys(FURNITURE).join('');
-const MAP_SOON = 'mgs';
+// ЛЕГЕНДА КАРТЫ — из двух уровней:
+// 1) ОБЩИЕ символы — одинаковые во всех уровнях (их нельзя занимать в легенде уровня):
+//    . пусто, # пол или стена, - полка, и ещё эти:
+const COMMON_SYMBOLS = {
+  P: 'start',    // старт части
+  C: 'phone',    // телефон-звонок
+  E: 'gate',     // калитка «ВЫХОД» — финиш уровня
+  N: 'exit',     // выход в следующую часть
+  b: 'beer',     // пиво
+  x: 'cig',      // сигареты
+  u: 'coffee',   // кофе
+};
+// 2) СВОИ символы у каждого уровня — в levels.js, поле legend: буква → что это.
+//    «Что это» — имя предмета из FURNITURE (sofa, table...) или одна из особых вещей:
+const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'rake', 'lera'];
 
-// Размеры особых предметов в плитках (символ — левый нижний угол)
-const SPECIAL_SIZES = { E: { w: 4, h: 4 }, N: { w: 3, h: 4 }, L: { w: 2, h: 3 } };
+// Размеры особых вещей в плитках (символ — левый нижний угол)
+const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 } };
+
+// Легенда текущего уровня (буква → что это). Ставится в buildLevel
+let levelLegend = {};
+
+// Что означает символ карты: сначала общие символы, потом легенда уровня
+function symbolThing(ch) {
+  return COMMON_SYMBOLS[ch] || levelLegend[ch];
+}
 
 let levelParts = [];     // все части уровня
 let partIndex = 0;       // в какой части сейчас Филипп
@@ -799,6 +856,17 @@ function buildLevel(data) {
     errors.push('В LEVELS.JS НЕТ АРЕНЫ БОССА (BOSS).');
     return;
   }
+  // Легенда уровня: каждая буква — известный предмет или особая вещь, и не общий символ
+  levelLegend = data.legend || {};
+  for (const ch in levelLegend) {
+    const thing = levelLegend[ch];
+    if (COMMON_SYMBOLS[ch] || '.#-'.indexOf(ch) !== -1) {
+      errors.push('ЛЕГЕНДА: БУКВА «' + ch + '» — ОБЩИЙ СИМВОЛ, ЕЁ НЕЛЬЗЯ ЗАНИМАТЬ.');
+    } else if (!FURNITURE[thing] && SPECIAL_THINGS.indexOf(thing) === -1) {
+      errors.push('ЛЕГЕНДА: БУКВА «' + ch + '» — НЕИЗВЕСТНАЯ ВЕЩЬ «' + thing + '».');
+    }
+  }
+  if (errors.length > 0) return;
   // 1) Проверяем каждый экран каждой части и арену: фон, 15 строк по 30 символов, известные символы
   const toCheck = data.parts.concat([{ screens: [data.boss], arena: true }]);
   toCheck.forEach((part, pi) => {
@@ -821,7 +889,7 @@ function buildLevel(data) {
         }
         for (let c = 0; c < row.length; c++) {
           const ch = row[c];
-          if (MAP_SYMBOLS.indexOf(ch) === -1 && MAP_SOON.indexOf(ch) === -1) {
+          if ('.#-'.indexOf(ch) === -1 && !symbolThing(ch)) {
             errors.push(n + ', СТРОКА ' + (r + 1) + ', СИМВОЛ ' + (c + 1) + ': НЕИЗВЕСТНЫЙ ЗНАК «' + ch + '».');
           }
         }
@@ -893,27 +961,25 @@ function buildPart(part, pi, isLast, isArena) {
         if (ch === '#') lp.solids.push({ x: tileX(c), y: tileY(r), w: len * TILE, h: TILE });
         else lp.tops.push({ x: tileX(c), y: tileY(r), w: len * TILE });
       }
-      if (ch === 'P') {
+      const thing = symbolThing(ch);
+      if (thing === 'start') {
         starts++;
         lp.start = { x: tileX(c) - 1, y: tileY(r + 1) - player.h };
         continue;
       }
-      if (ch === 'C') {
+      if (thing === 'phone') {
         // Телефон висит над полом плитки: низ телефона на 3 пикселя выше пола
         lp.phones.push({ x: tileX(c), y: tileY(r + 1) - 14 });
         continue;
       }
-      if (ch === 'b') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
-      if (ch === 'x') { lp.boosts.push({ kind: 'cig', x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
-      if (ch === 'u') { lp.boosts.push({ kind: 'coffee', x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
-      if (ch === 'k') { lp.spawns.push({ type: 'kirill', x: tileX(c), y: tileY(r + 1) }); continue; }
-      if (ch === 't') { lp.spawns.push({ type: 'cat', x: tileX(c), y: tileY(r + 1) }); continue; }
-      if (ch === 'w') { lp.spawns.push({ type: 'vacuum', x: tileX(c), y: tileY(r + 1) }); continue; }
-      if (ch === 'v' || ch === 'n') { lp.twins.push({ name: ch === 'v' ? 'vasya' : 'nastya', x: tileX(c), y: tileY(r + 1) }); continue; }
-      if (ch === 'l') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
-      if (ch === 'i') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
+      if (thing === 'beer') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
+      if (thing === 'cig' || thing === 'coffee') { lp.boosts.push({ kind: thing, x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
+      if (thing === 'kirill' || thing === 'cat' || thing === 'vacuum') { lp.spawns.push({ type: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'lego') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
+      if (thing === 'rake') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
-      const size = FURNITURE[ch] || SPECIAL_SIZES[ch];
+      const size = FURNITURE[thing] || SPECIAL_SIZES[thing];
       if (!size) continue;
       if (r - size.h + 1 < 0) {
         errors.push(where + ': ПРЕДМЕТ «' + ch + '» НЕ ВЛЕЗАЕТ ПО ВЫСОТЕ. ОПУСТИ ЕГО НИЖЕ.');
@@ -925,13 +991,13 @@ function buildPart(part, pi, isLast, isArena) {
       }
       const x = tileX(c);
       const y = tileY(r + 1) - size.h * TILE;   // верх предмета
-      if (ch === 'E') { gates++; lp.gate = { x: x, y: y }; continue; }
-      if (ch === 'N') { exits++; lp.exit = { x: x, y: y }; continue; }
-      if (ch === 'L') { lp.npcs.push({ x: x, y: y }); continue; }
+      if (thing === 'gate') { gates++; lp.gate = { x: x, y: y }; continue; }
+      if (thing === 'exit') { exits++; lp.exit = { x: x, y: y }; continue; }
+      if (thing === 'lera') { lp.npcs.push({ x: x, y: y }); continue; }
       // Предмет целиком твёрдый: каждая его часть — препятствие
-      const def = FURNITURE[ch];
+      const def = FURNITURE[thing];
       lp.furniture.push({ def: def, x: x, y: y });
-      if (ch === 'I') lp.stairs.push(x);
+      if (thing === 'stairs') lp.stairs.push(x);
       for (const p of furnitureParts(def)) {
         lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce, lie: !!def.lie });
         if (def.hot) lp.hot.push({ x: x + p.x - 1, y: y + p.y - 1, w: p.w + 2, h: p.h + 1 });
@@ -2287,6 +2353,168 @@ const bossState = {
 };
 
 // =============================================
+// МЕНЮ: пункты выбираются пальцем (тап по пункту) или стрелками вверх-вниз и «Прыжком»
+// =============================================
+function createMenu() {
+  return { index: 0, rects: [] };
+}
+
+// Возвращает номер выбранного пункта или -1, если ничего не выбрали
+function menuUpdate(menu, count, input) {
+  if (input.menuMove) menu.index = ((menu.index + input.menuMove) % count + count) % count;
+  for (const t of input.taps) {
+    const i = menu.rects.findIndex((r) => r && t.x >= r.x && t.x < r.x + r.w && t.y >= r.y && t.y < r.y + r.h);
+    if (i !== -1) { menu.index = i; return i; }
+  }
+  if (input.confirm) return menu.index;
+  return -1;
+}
+
+// Рисует пункты столбиком по центру. Выбранный — жёлтый, со стрелками > <
+function drawMenu(menu, items, cx, y0, step, first) {
+  menu.rects = [];
+  const from = first || 0;
+  items.forEach((text, i) => {
+    if (i < from) return;
+    const y = y0 + (i - from) * step;
+    if (y > H - 8) return;
+    const w = textWidth(text);
+    const sel = i === menu.index;
+    if (sel) {
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(Math.round(cx - w / 2) - 10, y - 2, w + 20, 11);
+      drawText(ctx, '>', Math.round(cx - w / 2) - 8, y, '#ffcd75');
+      drawText(ctx, '<', Math.round(cx + w / 2) + 3, y, '#ffcd75');
+    }
+    drawTextCentered(ctx, text, cx, y, sel ? '#ffcd75' : '#f4f4f4');
+    menu.rects[i] = { x: cx - w / 2 - 12, y: y - 3, w: w + 24, h: step };   // зона для пальца
+  });
+}
+
+// =============================================
+// ПАУЗА — поверх замершей игры. Пока пауза, игра не обновляется: стоит всё
+// =============================================
+let paused = false;
+const pauseMenu = createMenu();
+let dimImage = null;      // затемнение «сеточкой» (только цвет палитры), готовим один раз
+
+// Можно ставить на паузу только на уровне и в бою (не в сценках)
+function canPause() {
+  return state === levelState || state === bossState;
+}
+
+function autoPause() {
+  if (canPause()) { paused = true; pauseMenu.index = 0; }
+}
+
+function pauseItems() {
+  return [
+    'ПРОДОЛЖИТЬ',
+    state === bossState ? 'НАЧАТЬ БОЙ ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА',
+    'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
+    'ВЫЙТИ В ГЛАВНОЕ МЕНЮ',
+  ];
+}
+
+function updatePause(input) {
+  const choice = menuUpdate(pauseMenu, 4, input);
+  if (choice === 0) paused = false;
+  if (choice === 1) {
+    paused = false;
+    if (state === bossState) setState('boss', 'retry');
+    else setState('level', 'lastCall');
+  }
+  if (choice === 2) setSound(!soundOn);
+  if (choice === 3) { paused = false; setState('title'); }
+}
+
+function drawPause() {
+  if (!dimImage) {
+    dimImage = document.createElement('canvas');
+    dimImage.width = W; dimImage.height = H;
+    const g = dimImage.getContext('2d');
+    g.fillStyle = '#1a1c2c';
+    for (let y = 0; y < H; y++) for (let x = (y % 2); x < W; x += 2) g.fillRect(x, y, 1, 1);
+  }
+  ctx.drawImage(dimImage, 0, 0);
+  drawBox(30, 30, 180, 80);
+  drawTextCentered(ctx, 'ПАУЗА', 120, 37, '#ffcd75', 2);
+  drawMenu(pauseMenu, pauseItems(), 120, 60, 12);
+}
+
+// =============================================
+// ЭКРАН: ВЫБОР УРОВНЯ (только для тестов, если CONFIG.DEBUG_MENU = true)
+// =============================================
+// Список строится сам из levels.js: для каждого уровня — все его части и босс.
+let currentLevelIndex = 0;
+
+// Собрать нужный уровень (если сейчас собран другой)
+function loadLevel(li) {
+  if (li === currentLevelIndex && levelParts.length) return;
+  buildLevel(LEVELS[li]);
+  currentLevelIndex = li;
+  level = levelParts[0];
+}
+
+const levelSelectState = {
+  menu: createMenu(),
+  entries: [],    // что запустить: {level, part} или {level, boss: true}, или назад
+  labels: [],
+  enter() {
+    this.entries = [];
+    this.labels = [];
+    LEVELS.forEach((lv, li) => {
+      lv.parts.forEach((part, pi) => {
+        this.entries.push({ level: li, part: pi });
+        this.labels.push('УРОВЕНЬ ' + (li + 1) + ' — ЧАСТЬ ' + (pi + 1) + ': ' + (part.name || '').toUpperCase());
+      });
+      if (lv.boss) {
+        this.entries.push({ level: li, boss: true });
+        this.labels.push('УРОВЕНЬ ' + (li + 1) + ' — БОСС: ' + (lv.boss.name || '').toUpperCase());
+      }
+    });
+    this.entries.push({ back: true });
+    this.labels.push('НАЗАД');
+    this.menu.index = 0;
+  },
+  update(input) {
+    const choice = menuUpdate(this.menu, this.entries.length, input);
+    if (choice === -1) return;
+    const e = this.entries[choice];
+    if (e.back) { setState('title'); return; }
+    loadLevel(e.level);
+    setState('level');                              // всё с чистого листа
+    if (e.boss) {
+      // Как будто дошёл до калитки: Лера позади, телефоны «отзвонены»
+      levelState.leraX = totalLength * 0.7;
+      levelState.leraSpeed = CONFIG.leraSpeed + 4 * CONFIG.leraSpeedUp;
+      setState('boss', 'intro');
+    } else if (e.part > 0) {
+      // Начать с нужной части: Лера немного позади, телефоны прошлых частей уже взяты
+      const lp = levelParts[e.part];
+      const s = levelState.saved;
+      s.part = e.part;
+      s.x = lp.start.x;
+      s.y = lp.start.y;
+      s.leraX = Math.max(0, lp.offset - 300);
+      s.taken = levelParts.map((p, i) => p.phones.map(() => i < e.part));
+      setState('level', 'lastCall');
+    }
+  },
+  draw() {
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, H);
+    drawTextCentered(ctx, 'ВЫБОР УРОВНЯ', 120, 6, '#ffcd75', 2);
+    drawText(ctx, 'ТОЛЬКО ДЛЯ ТЕСТОВ', 4, H - 9, '#566c86');
+    // Если пунктов много — список прокручивается за выбранным
+    const visible = 8;
+    const first = Math.max(0, Math.min(this.menu.index - visible + 1, this.labels.length - visible));
+    drawMenu(this.menu, this.labels, 120, 30, 12, first);
+    drawVersion();
+  },
+};
+
+// =============================================
 // ЭКРАН ОШИБКИ: в карте или в файле что-то не так
 // =============================================
 const errorState = {
@@ -2319,14 +2547,16 @@ const states = {
   levelWin: createSceneState('levelWin'),     // ПОБЕДА_УРОВНЯ
   inLevelScene: createSceneState(),           // СЦЕНКА ПОВЕРХ УРОВНЯ: звонок-отмазка, переход между частями
   boss: bossState,                            // БОСС: Вася и Настя
+  levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
 };
 let state = null;
 
 // Включить экран. arg — дополнительные данные (например, «продолжить с места последнего звонка»)
 function setState(name, arg) {
-  // Кнопка «Бросок» видна только в бою с боссом
+  // Кнопка «Бросок» видна только в бою с боссом, кнопка паузы — на уровне и в бою
   document.body.classList.toggle('boss-fight', name === 'boss');
+  document.body.classList.toggle('playing', name === 'level' || name === 'boss');
   state = states[name];
   state.enter(arg);
 }
@@ -2349,10 +2579,26 @@ function update() {
   const input = {
     jumpPressed: jumpPressed,
     throwPressed: throwPressed,
+    menuMove: menuMove,                             // стрелки вверх-вниз в меню
+    confirm: confirmHit,                            // «Прыжок», Z, пробел, Enter — выбрать пункт
     taps: taps,                                     // касания экрана
     pressed: jumpPressed || taps.length > 0,        // любое «нажатие»
   };
   taps = [];
+  menuMove = 0;
+  confirmHit = false;
+
+  // Пауза: ⏸, P или Esc
+  if (pauseHit) {
+    pauseHit = false;
+    if (paused) paused = false;
+    else if (canPause()) { paused = true; pauseMenu.index = 0; }
+  }
+  if (paused && !canPause()) paused = false;        // на всякий случай: пауза бывает только в игре
+  if (paused) {
+    updatePause(input);                             // на паузе игра не обновляется — стоит всё
+    return;
+  }
 
   state.update(input);
 }
@@ -2374,6 +2620,7 @@ function loop(now) {
     accumulator -= STEP;
   }
   state.draw();
+  if (paused) drawPause();
   requestAnimationFrame(loop);
 }
 
@@ -2386,7 +2633,15 @@ for (const e of window.LOAD_ERRORS || []) {
 if (typeof LEVELS === 'undefined') {
   if (LEVEL_ERRORS.length === 0) LEVEL_ERRORS.push('ФАЙЛ LEVELS.JS НЕ ЗАГРУЗИЛСЯ.');
 } else if (LEVEL_ERRORS.length === 0) {
-  buildLevel(LEVELS[0]);
+  // Проверяем все уровни (с конца), а собранным оставляем первый
+  for (let li = LEVELS.length - 1; li >= 0; li--) {
+    const before = LEVEL_ERRORS.length;
+    buildLevel(LEVELS[li]);
+    if (LEVELS.length > 1) {
+      for (let k = before; k < LEVEL_ERRORS.length; k++) LEVEL_ERRORS[k] = 'УРОВЕНЬ ' + (li + 1) + ': ' + LEVEL_ERRORS[k];
+    }
+  }
+  currentLevelIndex = 0;
   if (LEVEL_ERRORS.length === 0) level = levelParts[0];
 }
 
