@@ -21,7 +21,7 @@
 const CONFIG = {
   // ----- Лера -----
   leraHeadStart: 3,          // фора: сколько секунд Лера стоит на месте в начале уровня и после «ЕЩЁ РАЗ»
-  leraSpeed: 0.78,           // скорость Леры по шкале. Для сравнения: Филипп бежит со скоростью до 1.5
+  leraSpeed: 0.8,            // скорость Леры по шкале. Для сравнения: Филипп бежит со скоростью до 1.5
   leraSpeedUp: 0.1,          // на сколько Лера ускоряется после каждого звонка-отмазки
   callPushBack: 200,         // на сколько Леру отбрасывает назад после звонка-отмазки (240 = один экран)
   callPause: 0.5,            // пауза в секундах между касанием телефона и разговором
@@ -36,6 +36,21 @@ const CONFIG = {
   trampolineSpeed: 5.1,      // сила подброса батута (5.1 — примерно на 8 плиток вверх)
   gravity: 0.2,              // сила тяжести
   maxFall: 4,                // максимальная скорость падения
+
+  // ----- Жизни (кружки пива) -----
+  startLives: 3,             // сколько кружек в начале уровня и после «ЕЩЁ РАЗ»
+  maxLives: 5,               // больше этого кружек не бывает
+  invulnSeconds: 1.5,        // после удара Филипп столько секунд мигает и неуязвим
+
+  // ----- Враги и ловушки -----
+  kirillSpeed: 0.5,          // Кирилл ходит туда-сюда
+  kirillChaseSpeed: 1.1,     // Кирилл бежит к папе «КУПИ ИГРУ!»
+  kirillSitSeconds: 3,       // сколько секунд Кирилл сидит обиженный, если на него запрыгнуть
+  catSpeed: 0.35,            // Туся гуляет
+  catDashSpeed: 2.0,         // Туся бросается под ноги
+  tripSeconds: 1.2,          // сколько секунд Филипп лежит, споткнувшись о Тусю
+  vacuumSpeed: 0.6,          // скорость пылесоса
+  dazeSeconds: 1,            // сколько секунд Филипп оглушён пылесосом
 
   // ----- Часы -----
   clockStartHour: 9,         // время на часах в начале уровня: часы...
@@ -136,6 +151,32 @@ function boingSound() {
   gain.connect(audioCtx.destination);
   osc.start(t0);
   osc.stop(t0 + 0.3);
+}
+
+// Удар: «ой» — короткий звук вниз
+function hurtSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(400, t0, 0.06, 0.08);
+  tone(250, t0 + 0.06, 0.1, 0.08);
+}
+
+// Пиво: «бульк» — два коротких звука
+function gulpSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(300, t0, 0.05, 0.07);
+  tone(500, t0 + 0.07, 0.05, 0.07);
+  tone(380, t0 + 0.14, 0.07, 0.07);
+}
+
+// Туся: «мяу» — вверх и вниз
+function meowSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(700, t0, 0.06, 0.05);
+  tone(900, t0 + 0.06, 0.08, 0.05);
+  tone(600, t0 + 0.14, 0.1, 0.05);
 }
 
 // Стук молотка: короткий низкий «тук»
@@ -685,8 +726,9 @@ const SCREEN_W = COLS * TILE;  // 240 — ширина одного экрана
 
 // Символы карты, которые игра знает. Буквы «скоро» пока ничего не делают.
 //   N — выход из части (лестница наверх, окно), L — Лера с досками (картинка)
-const MAP_SYMBOLS = '.#-PCENL' + Object.keys(FURNITURE).join('');
-const MAP_SOON = 'kvntmgbs';
+//   b — пиво, k — Кирилл, t — Туся, w — пылесос, l — лего, i — грабли
+const MAP_SYMBOLS = '.#-PCENLbktwli' + Object.keys(FURNITURE).join('');
+const MAP_SOON = 'vnmgs';
 
 // Размеры особых предметов в плитках (символ — левый нижний угол)
 const SPECIAL_SIZES = { E: { w: 4, h: 4 }, N: { w: 3, h: 4 }, L: { w: 2, h: 3 } };
@@ -770,6 +812,13 @@ function buildPart(part, pi, isLast) {
     stairs: [],        // где стоят лестницы (для надписи Леры)
     phones: [],        // телефоны-звонки {x, y}
     npcs: [],          // Лера с досками {x, y, triggerX}
+    beers: [],         // пиво {x, y}
+    spawns: [],        // где появляются враги {type, x, y} (y — где ноги)
+    lego: [],          // россыпи лего {x, y, w, h}
+    rakes: [],         // грабли {x, y, w, h}
+    puddles: [],       // лужи {x, y, w, h}: скользко
+    hot: [],           // горячий верх мангала {x, y, w, h}
+    swings: [],        // качели {x, y}: сиденье раскачивается
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
     start: null,       // старт Филиппа {x, y}
@@ -800,6 +849,12 @@ function buildPart(part, pi, isLast) {
         lp.phones.push({ x: tileX(c), y: tileY(r + 1) - 14 });
         continue;
       }
+      if (ch === 'b') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
+      if (ch === 'k') { lp.spawns.push({ type: 'kirill', x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (ch === 't') { lp.spawns.push({ type: 'cat', x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (ch === 'w') { lp.spawns.push({ type: 'vacuum', x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (ch === 'l') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
+      if (ch === 'i') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
       const size = FURNITURE[ch] || SPECIAL_SIZES[ch];
       if (!size) continue;
@@ -822,7 +877,10 @@ function buildPart(part, pi, isLast) {
       if (ch === 'I') lp.stairs.push(x);
       for (const p of furnitureParts(def)) {
         lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce });
+        if (def.hot) lp.hot.push({ x: x + p.x - 1, y: y + p.y - 1, w: p.w + 2, h: p.h + 1 });
       }
+      if (def.puddle) lp.puddles.push({ x: x + def.puddle.x, y: y + def.puddle.y, w: def.puddle.w, h: def.puddle.h });
+      if (def.swing) lp.swings.push({ x: x, y: y });
     }
   }
   if (starts === 0) errors.push(pn + ': НЕТ СТАРТА P. ПОСТАВЬ ОДНУ БУКВУ P.');
@@ -854,6 +912,9 @@ const player = {
   vx: 0, vy: 0,    // скорость по x и y
   onGround: false, // стоит ли на земле
   bouncing: false, // летит вверх после батута (тогда отпущенный прыжок не обрезает полёт)
+  stun: 0,         // сколько шагов не слушается кнопок (споткнулся, оглушён, отлетел)
+  stunKind: '',    // 'trip' — лежит, 'daze' — звёздочки над головой, 'knock' — отлетел
+  standingOn: null,// пылесос, на котором едет
   facing: 1,       // куда смотрит: 1 — вправо, -1 — влево
   anim: 'idle',    // текущая анимация
   animTime: 0,     // сколько шагов идёт текущая анимация
@@ -905,6 +966,67 @@ function takeFromBag(name, list) {
   return bag.splice(Math.floor(Math.random() * bag.length), 1)[0];
 }
 
+// =============================================
+// ВРАГИ: создание и движение
+// =============================================
+// Размеры хитбоксов врагов. Картинка рисуется по центру хитбокса, ноги — по низу.
+const ENEMY_SIZES = {
+  kirill: { w: 8,  h: 18 },
+  cat:    { w: 10, h: 7 },
+  vacuum: { w: 16, h: 7 },
+};
+
+// Новый враг из точки появления на карте
+function makeEnemy(sp) {
+  const size = ENEMY_SIZES[sp.type];
+  return {
+    type: sp.type, w: size.w, h: size.h,
+    x: sp.x + (8 - size.w) / 2, y: sp.y - size.h,   // ноги на полу плитки
+    homeX: sp.x, vx: 0, vy: 0, dir: -1,             // сначала идёт влево — навстречу Филиппу
+    state: 'walk', timer: Math.floor(Math.random() * 120), cool: 0, onGround: false,
+  };
+}
+
+// Есть ли под точкой опора (пол, предмет или полка)
+function hasGround(x, y) {
+  const probe = { x: x, y: y, w: 1, h: 2 };
+  return level.solids.some((s) => overlaps(probe, s)) ||
+         level.tops.some((t) => x >= t.x && x < t.x + t.w && y >= t.y - 1 && y <= t.y + 2);
+}
+
+// Двигаем врага: гравитация, стены, края. avoidEdges — разворачиваться у края, а не падать
+function moveEnemy(e, avoidEdges) {
+  e.vy = Math.min(CONFIG.maxFall, e.vy + CONFIG.gravity);
+  // по X
+  const oldX = e.x;
+  e.x += e.vx;
+  let blocked = e.x < 0 || e.x + e.w > level.width;
+  for (const s of level.solids) if (overlaps(e, s)) blocked = true;
+  if (!blocked && avoidEdges && e.onGround) {
+    const footX = e.vx > 0 ? e.x + e.w : e.x - 1;
+    if (!hasGround(footX, e.y + e.h)) blocked = true;
+  }
+  if (blocked) { e.x = oldX; e.dir = -e.dir; e.vx = 0; }
+  // по Y
+  const oldBottom = e.y + e.h;
+  e.y += e.vy;
+  e.onGround = false;
+  for (const s of level.solids) {
+    if (overlaps(e, s)) {
+      if (e.vy > 0) { e.y = s.y - e.h; e.onGround = true; }
+      else e.y = s.y + s.h;
+      e.vy = 0;
+    }
+  }
+  if (e.vy >= 0) {
+    for (const t of level.tops) {
+      if (oldBottom <= t.y && e.y + e.h >= t.y && e.x + e.w > t.x && e.x < t.x + t.w) {
+        e.y = t.y - e.h; e.vy = 0; e.onGround = true;
+      }
+    }
+  }
+}
+
 // Копия списка «какие телефоны взяты» по всем частям
 function copyTaken(taken) {
   return taken.map((list) => list.slice());
@@ -923,6 +1045,12 @@ const levelState = {
   tick: 0,           // счётчик для анимаций
   boingTimer: 0,     // сколько ещё показывать надпись «БОЙНГ!»
   boingX: 0, boingY: 0,
+  lives: 3,          // кружки пива = жизни
+  invuln: 0,         // сколько шагов ещё мигает и неуязвим после удара
+  beersTaken: [],    // для каждой части: какое пиво уже выпито (true/false)
+  enemies: [],       // враги текущей части: Кирилл, Туся, пылесос
+  popups: [],        // всплывающие надписи «АЙ!», «МЯУ!», «+1»
+  swingCool: 0,      // пауза после удара сиденьем качелей
 
   // mode:
   //   'resume'   — вернуться после разговора по телефону: ничего не сбрасываем
@@ -935,13 +1063,15 @@ const levelState = {
       partIndex++;
       level = levelParts[partIndex];
       this.placePlayer(level.start.x, level.start.y);
+      this.resetPart();
       this.alarm = false;
       return;
     }
     if (mode !== 'lastCall' || !this.saved) {
       this.saved = { part: 0, x: levelParts[0].start.x, y: levelParts[0].start.y, leraX: 0,
                      leraSpeed: CONFIG.leraSpeed, clockSteps: 0,
-                     taken: levelParts.map((p) => p.phones.map(() => false)) };
+                     taken: levelParts.map((p) => p.phones.map(() => false)),
+                     beersTaken: levelParts.map((p) => p.beers.map(() => false)) };
     }
     // Восстанавливаем всё как было на старте или в момент последнего звонка
     partIndex = this.saved.part;
@@ -950,11 +1080,46 @@ const levelState = {
     this.leraX = this.saved.leraX;
     this.leraSpeed = this.saved.leraSpeed;
     this.taken = copyTaken(this.saved.taken);
+    this.beersTaken = copyTaken(this.saved.beersTaken);
+    this.lives = CONFIG.startLives;                   // «ЕЩЁ РАЗ» — снова 3 кружки
+    this.invuln = 0;
+    this.resetPart();
     clockSteps = this.saved.clockSteps;
     this.waitSteps = CONFIG.leraHeadStart * 60;    // фора в шагах
     this.alarm = false;
     this.alarmTimer = 0;
     this.ringing = -1;
+  },
+
+  // Враги и ловушки текущей части — в начальное положение
+  resetPart() {
+    this.enemies = level.spawns.map((sp) => makeEnemy(sp));
+    for (const r of level.rakes) r.timer = 0;
+    this.popups = [];
+    this.swingCool = 0;
+    player.stun = 0;
+    player.standingOn = null;
+  },
+
+  // Всплывающая надпись над точкой x, y
+  popup(text, x, y) {
+    this.popups.push({ text: text, x: x, y: y, t: 0 });
+  },
+
+  // Удар: минус кружка, отброс, мигание. srcX — откуда пришёл удар (чтобы отбросить в другую сторону)
+  hurt(text, srcX) {
+    if (this.invuln > 0) return;
+    this.lives--;
+    this.invuln = Math.round(CONFIG.invulnSeconds * 60);
+    const cx = player.x + player.w / 2;
+    const dir = srcX === undefined ? -player.facing : (cx < srcX ? -1 : 1);
+    player.vx = dir * 2;
+    player.vy = -2.5;
+    player.onGround = false;
+    player.stun = 15;                    // чуть-чуть не слушается кнопок — отлетает
+    player.stunKind = 'knock';
+    hurtSound();
+    this.popup(text, cx, player.y - 4);
   },
 
   // Ставим Филиппа в точку и сразу наводим туда камеру
@@ -983,6 +1148,19 @@ const levelState = {
 
     this.movePlayer(input);
     clockSteps++;
+    if (this.invuln > 0) this.invuln--;
+    if (this.swingCool > 0) this.swingCool--;
+
+    // --- Враги, ловушки, пиво ---
+    this.updateEnemies();
+    this.updateTraps();
+    this.popups = this.popups.filter((p) => ++p.t < 50);
+
+    // Кружки кончились — Лера догоняет
+    if (this.lives <= 0) {
+      setState('defeat');
+      return;
+    }
 
     // --- Телефоны: коснулся — звонок ---
     const taken = this.taken[partIndex];
@@ -1042,7 +1220,8 @@ const levelState = {
     // Тихо запоминаем место звонка: после поражения «ЕЩЁ РАЗ» начнётся отсюда
     const ph = level.phones[i];
     this.saved = { part: partIndex, x: ph.x - 1, y: ph.y + 14 - player.h, leraX: this.leraX,
-                   leraSpeed: this.leraSpeed, clockSteps: clockSteps, taken: copyTaken(this.taken) };
+                   leraSpeed: this.leraSpeed, clockSteps: clockSteps, taken: copyTaken(this.taken),
+                   beersTaken: copyTaken(this.beersTaken) };
     // Сценка разговора поверх замершего уровня
     setState('inLevelScene', {
       background: 'level',
@@ -1052,6 +1231,145 @@ const levelState = {
         { type: 'say', who: 'filipp', text: takeFromBag('excuses', CALL_EXCUSES) },
         { type: 'say', who: 'lera', text: takeFromBag('answers', CALL_ANSWERS) },
       ],
+    });
+  },
+
+  // Враги: Кирилл, Туся, пылесос
+  updateEnemies() {
+    const pcx = player.x + player.w / 2;
+    const pBottom = player.y + player.h;
+    for (const e of this.enemies) {
+      const ecx = e.x + e.w / 2;
+      const dx = pcx - ecx;
+      const sameRow = Math.abs(pBottom - (e.y + e.h)) < 16;   // Филипп примерно на том же полу
+      if (e.cool > 0) e.cool--;
+      e.timer++;
+
+      if (e.type === 'kirill') {
+        if (e.state === 'sit') {
+          e.vx = 0;
+          if (e.timer >= CONFIG.kirillSitSeconds * 60) { e.state = 'walk'; e.timer = 0; }
+        } else if (e.state === 'chase') {
+          e.dir = dx < 0 ? -1 : 1;
+          e.vx = e.dir * CONFIG.kirillChaseSpeed;
+          if (!sameRow || Math.abs(dx) > 110) { e.state = 'walk'; e.timer = 0; }
+        } else {
+          if (Math.abs(e.x - e.homeX) > 48) e.dir = e.x > e.homeX ? -1 : 1;   // ходит в своей зоне
+          e.vx = e.dir * CONFIG.kirillSpeed;
+          if (sameRow && Math.abs(dx) < 72) { e.state = 'chase'; e.timer = 0; }
+        }
+        moveEnemy(e, true);
+        // Касание: сверху — обиделся и сел, сбоку — минус кружка
+        if (e.state !== 'sit' && overlaps(player, e)) {
+          if (player.vy > 0 && pBottom - e.y < 10) {
+            e.state = 'sit'; e.timer = 0;
+            player.vy = -3.5;
+            this.popup('НУ ПА-А-АП!', ecx, e.y - 6);
+          } else {
+            this.hurt('АЙ!', ecx);
+          }
+        }
+      }
+
+      if (e.type === 'cat') {
+        const catAbove = e.y + e.h < pBottom - 16 && Math.abs(dx) < 50;   // Туся на крыше, Филипп внизу
+        if (e.state === 'dash') {
+          e.vx = e.dir * CONFIG.catDashSpeed;
+          if (e.timer > 150 || Math.abs(dx) > 130) { e.state = 'walk'; e.timer = 0; }
+        } else if (e.state === 'wash') {
+          e.vx = 0;
+          if (e.timer > 120) { e.state = 'walk'; e.timer = 0; }
+        } else {
+          e.vx = e.dir * CONFIG.catSpeed;
+          if (e.timer > 240) { e.state = 'wash'; e.timer = 0; }   // посидеть, умыться
+        }
+        if (e.state !== 'dash' && e.cool === 0 && ((sameRow && Math.abs(dx) < 60) || catAbove)) {
+          e.state = 'dash'; e.timer = 0;                  // бросается под ноги (с крыши — спрыгивает)
+          e.dir = dx < 0 ? -1 : 1;
+        }
+        moveEnemy(e, e.state !== 'dash');
+        if (e.cool === 0 && overlaps(player, e)) {
+          player.stun = Math.round(CONFIG.tripSeconds * 60);   // споткнулся и упал
+          player.stunKind = 'trip';
+          player.vx = 0;
+          meowSound();
+          this.popup('МЯУ!', ecx, e.y - 8);
+          e.cool = 150;
+          e.state = 'walk'; e.timer = 0;
+          e.dir = dx < 0 ? 1 : -1;                        // убегает в другую сторону
+        }
+      }
+
+      if (e.type === 'vacuum') {
+        const oldX = e.x;
+        e.vx = e.dir * CONFIG.vacuumSpeed;
+        moveEnemy(e, true);
+        // Филипп стоит сверху — катится вместе с пылесосом
+        if (player.standingOn === e) {
+          player.x += e.x - oldX;
+          player.y = e.y - player.h;
+        } else if (e.cool === 0 && overlaps(player, e)) {
+          player.stun = Math.round(CONFIG.dazeSeconds * 60);   // оглушён
+          player.stunKind = 'daze';
+          player.vx = dx < 0 ? -1.5 : 1.5;
+          hurtSound();
+          this.popup('БЗЗ!', ecx, e.y - 8);
+          e.cool = 70;
+        }
+      }
+    }
+  },
+
+  // Ловушки и пиво
+  updateTraps() {
+    const pcx = player.x + player.w / 2;
+    // Лего: наступил — «АЙ!», подпрыгивает от боли, минус кружка
+    for (const l of level.lego) {
+      if (player.onGround && overlaps(player, l)) {
+        this.hurt('АЙ!', undefined);
+        player.vx *= 0.3;
+        player.vy = -3;
+      }
+    }
+    // Грабли: наступил — встают и бьют по лбу «БАМ!», звёздочки
+    for (const r of level.rakes) {
+      if (r.timer > 0) r.timer--;
+      if (r.timer === 0 && player.onGround && overlaps(player, r)) {
+        r.timer = 60;
+        this.hurt('БАМ!', r.x + 20);
+        player.stun = 40;
+        player.stunKind = 'daze';
+      }
+    }
+    // Мангал: верх горячий
+    for (const h of level.hot) {
+      if (overlaps(player, h)) this.hurt('ГОРЯЧО!', h.x + h.w / 2);
+    }
+    // Качели: сиденье бьёт и отбрасывает (кружку не отнимает)
+    if (this.swingCool === 0) {
+      for (const s of level.swings) {
+        const seat = swingSeat(s.x, s.y, this.tick);
+        if (overlaps(player, seat)) {
+          player.vx = seat.swingDir * 2.5;
+          player.vy = -2;
+          player.onGround = false;
+          player.stun = 25;
+          player.stunKind = 'knock';
+          this.swingCool = 50;
+          hurtSound();
+          this.popup('ОЙ!', pcx, player.y - 4);
+        }
+      }
+    }
+    // Пиво: +1 кружка, «бульк»
+    const beers = this.beersTaken[partIndex];
+    level.beers.forEach((b, i) => {
+      if (!beers[i] && overlaps(player, { x: b.x, y: b.y, w: 8, h: 8 })) {
+        beers[i] = true;
+        this.lives = Math.min(CONFIG.maxLives, this.lives + 1);
+        gulpSound();
+        this.popup('+1', b.x + 4, b.y - 4);
+      }
     });
   },
 
@@ -1067,24 +1385,36 @@ const levelState = {
 
   // Бег, прыжки и столкновения Филиппа
   movePlayer(input) {
+    // Оглушён, споткнулся или отлетел — кнопки не слушаются
+    const stunned = player.stun > 0;
+    if (stunned) player.stun--;
+
     // Бег: разгон в сторону нажатой кнопки
     let dir = 0;
-    if (keys.left) dir -= 1;
-    if (keys.right) dir += 1;
+    if (!stunned) {
+      if (keys.left) dir -= 1;
+      if (keys.right) dir += 1;
+    }
+
+    // Лужа: очень скользко — разгоняться и тормозить почти невозможно
+    const feet = { x: player.x, y: player.y + player.h - 1, w: player.w, h: 2 };
+    const slippery = player.onGround && level.puddles.some((p) => overlaps(feet, p));
+    const accel = slippery ? 0.03 : CONFIG.playerAccel;
+    const friction = slippery ? 0.01 : CONFIG.playerFriction;
 
     if (dir !== 0) {
-      player.vx += dir * CONFIG.playerAccel;
+      player.vx += dir * accel;
       if (player.vx > CONFIG.playerMaxSpeed) player.vx = CONFIG.playerMaxSpeed;
       if (player.vx < -CONFIG.playerMaxSpeed) player.vx = -CONFIG.playerMaxSpeed;
     } else {
       // Торможение: плавно уменьшаем скорость до нуля
-      if (player.vx > 0) player.vx = Math.max(0, player.vx - CONFIG.playerFriction);
-      if (player.vx < 0) player.vx = Math.min(0, player.vx + CONFIG.playerFriction);
+      if (player.vx > 0) player.vx = Math.max(0, player.vx - friction);
+      if (player.vx < 0) player.vx = Math.min(0, player.vx + friction);
     }
 
     // Прыжок: только с земли и только в момент нажатия.
     // Чем быстрее бежит Филипп, тем выше прыжок: с места — jumpSpeed, с разбега — до jumpSpeedRun.
-    if (input.jumpPressed && player.onGround) {
+    if (input.jumpPressed && player.onGround && !stunned) {
       const run = Math.min(1, Math.abs(player.vx) / CONFIG.playerMaxSpeed);   // 0 — стоит, 1 — полный бег
       player.vy = -(CONFIG.jumpSpeed + (CONFIG.jumpSpeedRun - CONFIG.jumpSpeed) * run);
       player.onGround = false;
@@ -1143,8 +1473,19 @@ const levelState = {
     }
 
     // Тонкие платформы: ловят, только если падаем сверху.
-    // Если прыгаем снизу — пролетаем насквозь.
+    // Если прыгаем снизу — пролетаем насквозь. Пылесос сверху — тоже такая платформа (едет).
+    player.standingOn = null;
     if (player.vy >= 0) {
+      for (const e of this.enemies) {
+        if (e.type !== 'vacuum') continue;
+        const sideBySide = player.x + player.w > e.x && player.x < e.x + e.w;
+        if (oldBottom <= e.y + 1 && player.y + player.h >= e.y && sideBySide) {
+          player.y = e.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+          player.standingOn = e;
+        }
+      }
       for (const t of level.tops) {
         const above = oldBottom <= t.y;                     // ноги были выше полки
         const below = player.y + player.h >= t.y;            // а теперь на ней или ниже
@@ -1224,6 +1565,20 @@ const levelState = {
       drawLeraWithBoards(ctx, npc.x - cam, npc.y, this.tick, player.x + player.w >= npc.triggerX);
     }
 
+    // Ловушки: лего и грабли
+    for (const l of level.lego) drawLego(ctx, l.x - cam, l.y - 5);
+    for (const r of level.rakes) {
+      const lift = r.timer > 40 ? (60 - r.timer) / 20 : r.timer / 40;   // быстро встали, медленно легли
+      drawRake(ctx, r.x - cam, r.y - 4, Math.max(0, lift));
+    }
+    // Пиво, которое ещё не выпито (покачивается)
+    const beers = this.beersTaken[partIndex];
+    level.beers.forEach((b, i) => {
+      if (!beers[i]) drawBeer(ctx, b.x - cam, b.y + Math.round(Math.sin(this.tick / 12 + i) * 1.5));
+    });
+    // Враги
+    for (const e of this.enemies) this.drawEnemy(e, cam);
+
     // Телефоны, которые ещё не взяты. Звонящий сейчас — трясётся сильнее и «ДЗЫНЬ!»
     const taken = this.taken[partIndex];
     level.phones.forEach((ph, i) => {
@@ -1241,7 +1596,26 @@ const levelState = {
     const frameIndex = Math.floor(player.animTime / anim.speed) % anim.frames.length;
     const sx = Math.round(player.x) - SPRITE_OFFSET_X - cam;
     const sy = Math.round(player.y) - SPRITE_OFFSET_Y;
-    drawSprite(ctx, anim.frames[frameIndex], sx, sy, player.facing === -1);
+    const blinkOff = this.invuln > 0 && Math.floor(this.invuln / 4) % 2 === 1;   // мигает после удара
+    if (!blinkOff) {
+      if (player.stun > 0 && player.stunKind === 'trip') {
+        // Споткнулся о Тусю: лежит на полу (картинка повёрнута на бок)
+        ctx.save();
+        ctx.translate(sx + 8, sy + 24 - 8);
+        ctx.rotate(-Math.PI / 2 * player.facing);
+        ctx.drawImage(SPRITES.filipp.anims.idle.frames[0], -8, -12);
+        ctx.restore();
+      } else {
+        drawSprite(ctx, anim.frames[frameIndex], sx, sy, player.facing === -1);
+      }
+    }
+    // Оглушён — звёздочки над головой
+    if (player.stun > 0 && player.stunKind === 'daze') drawStars(ctx, sx + 8, sy - 3, this.tick);
+
+    // Всплывающие надписи («АЙ!», «МЯУ!», «+1»): поднимаются и исчезают
+    for (const p of this.popups) {
+      drawTextCenteredShadow(p.text, Math.round(p.x) - cam, Math.max(HUD_H + 2, Math.round(p.y - 10 - p.t / 3)), '#f4f4f4', '#b13e53');
+    }
 
     // Батут: надпись «БОЙНГ!» там, где Филипп оттолкнулся
     if (this.boingTimer > 0) {
@@ -1259,12 +1633,51 @@ const levelState = {
     this.drawHud();
   },
 
-  // HUD: полоска сверху (2 ряда плиток) — версия, часы, шкала гонки по всему уровню
+  // Рисуем одного врага. Картинка — по центру хитбокса, ноги — по низу
+  drawEnemy(e, cam) {
+    const ex = Math.round(e.x) - cam, ey = Math.round(e.y);
+    if (ex < -20 || ex > W + 20) return;
+    if (e.type === 'vacuum') {
+      drawVacuum(ctx, ex, ey - 1, this.tick);
+      return;
+    }
+    const spr = SPRITES[e.type === 'kirill' ? 'kirill' : 'tusya'];
+    let animName = 'walk';
+    if (e.type === 'kirill') animName = e.state === 'sit' ? 'sit' : (e.state === 'chase' ? 'run' : 'walk');
+    if (e.type === 'cat') animName = e.state === 'dash' ? 'dash' : (e.state === 'wash' ? 'wash' : 'walk');
+    const anim = spr.anims[animName];
+    const frame = anim.frames[Math.floor(this.tick / anim.speed) % anim.frames.length];
+    const fx = ex + Math.round((e.w - frame.width) / 2);
+    const fy = ey + e.h - frame.height;
+    // После броска Туся немного мигает: в это время она не мешает
+    if (e.type === 'cat' && e.cool > 0 && Math.floor(e.cool / 5) % 2 === 1) return;
+    drawSprite(ctx, frame, fx, fy, e.dir < 0);
+    // Облачко над Кириллом
+    if (e.type === 'kirill') {
+      let say = '';
+      if (e.state === 'chase') say = 'КУПИ ИГРУ!';
+      if (e.state === 'sit' && e.timer < 90) say = 'НУ ПА-А-АП!';
+      if (say) {
+        const tw = textWidth(say);
+        const bx = ex + 4 - Math.round(tw / 2) - 2;
+        const by = Math.max(HUD_H + 1, fy - 12);
+        ctx.fillStyle = '#f4f4f4';
+        ctx.fillRect(bx, by, tw + 4, 10);
+        drawText(ctx, say, bx + 2, by + 2, '#b13e53');
+      }
+    }
+  },
+
+  // HUD: полоска сверху (2 ряда плиток) — кружки-жизни, версия, часы, шкала гонки по всему уровню
   drawHud() {
     ctx.fillStyle = '#1a1c2c';
     ctx.fillRect(0, 0, W, HUD_H);
 
-    drawText(ctx, VERSION, 2, 1, '#94b0c2');
+    // Кружки пива: полные — жизни, пустые — потерянные (до 3, или больше, если набрал)
+    const slots = Math.max(CONFIG.startLives, this.lives);
+    for (let i = 0; i < slots; i++) drawBeer(ctx, 2 + i * 9, 0, i >= this.lives);
+
+    drawText(ctx, VERSION, W - 31 - 6 - textWidth(VERSION), 1, '#566c86');   // версия мелко и тускло, рядом с часами
     drawText(ctx, clockText(), W - 31, 1, '#ffcd75');
 
     // Шкала: при тревоге мигает красным

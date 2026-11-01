@@ -122,6 +122,15 @@
       addCard(furnRow, it.w + 4, it.h + 18, 6, it.name, (g) => it.paint(g));
     }
 
+    // Ловушки, пылесос и пиво
+    const trapRow = addRow('Ловушки, пылесос и пиво');
+    addCard(trapRow, 12, 12, 6, 'Лего (l)', (g) => drawLego(g, 2, 2));
+    addCard(trapRow, 30, 28, 6, 'Грабли (i): лежат и бьют', (g) => { g.fillStyle = '#38b764'; g.fillRect(0, 26, 30, 2); drawRake(g, 2, 18, 0); drawRake(g, 14, 18, 1); });
+    addCard(trapRow, 20, 12, 6, 'Пылесос (w)', (g) => drawVacuum(g, 2, 2, 0));
+    addCard(trapRow, 12, 12, 6, 'Пиво (b)', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 12, 12); drawBeer(g, 2, 2, false); });
+    addCard(trapRow, 12, 12, 6, 'Пустая кружка в HUD', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 12, 12); drawBeer(g, 2, 2, true); });
+    addCard(trapRow, 24, 14, 6, 'Звёздочки (оглушён)', (g) => drawStars(g, 12, 7, 0));
+
     // Минивэн крупно, рядом Филипп — сравнить рост. Внизу полоска земли.
     const vanRow = addRow('Минивэн (A, 10x4) и Филипп для сравнения роста');
     addCard(vanRow, 110, 40, 6, 'Минивэн на домкрате и Филипп', (g) => {
