@@ -2,14 +2,43 @@
 // «Всем что-то надо от Филиппа» — основной код игры
 // =============================================
 //
-// Игра состоит из «экранов» (состояний): ТИТУЛ → ЗАСТАВКА → УРОВЕНЬ.
+// Игра состоит из «экранов» (состояний):
+//   ТИТУЛ → ЗАСТАВКА → УРОВЕНЬ → ПОБЕДА_УРОВНЯ или ПОРАЖЕНИЕ (→ снова УРОВЕНЬ)
 // Каждый экран — объект с тремя функциями:
 //   enter()        — вызывается один раз, когда экран включается
 //   update(input)  — логика, 60 раз в секунду
 //   draw()         — рисование
 // Переключает экраны функция setState().
 
-const VERSION = 'v0.4';
+const VERSION = 'v0.5';
+
+// =============================================
+// НАСТРОЙКИ БАЛАНСА
+// =============================================
+// Все числа, от которых зависит сложность. Меняй их здесь.
+// Расстояния — в пикселях уровня (один экран = 240 пикселей).
+// Скорости — в пикселях за один шаг игры (шагов 60 в секунду).
+const CONFIG = {
+  // ----- Лера -----
+  leraHeadStart: 2,          // фора: сколько секунд Лера стоит на месте в начале уровня и после «ЕЩЁ РАЗ»
+  leraSpeed: 1.2,            // скорость Леры по шкале. Для сравнения: Филипп бежит со скоростью до 1.5
+  leraSpeedUp: 0.1,          // на сколько Лера ускоряется после каждого пройденного чекпоинта
+  checkpointPushBack: 200,   // на сколько Леру отбрасывает назад на чекпоинте (240 = один экран)
+  alarmDistance: 160,        // если Лера ближе этого расстояния — тревога: шкала мигает, звонит телефон
+
+  // ----- Филипп -----
+  playerMaxSpeed: 1.5,       // максимальная скорость бега
+  playerAccel: 0.15,         // разгон: чем больше, тем быстрее набирает скорость
+  playerFriction: 0.2,       // торможение, когда кнопки отпущены
+  jumpSpeed: 4,              // сила прыжка (4 — прыжок примерно на 40 пикселей вверх)
+  gravity: 0.2,              // сила тяжести
+  maxFall: 4,                // максимальная скорость падения
+
+  // ----- Часы -----
+  clockStartHour: 9,         // время на часах в начале уровня: часы...
+  clockStartMinute: 30,      // ...и минуты
+  secondsPerGameMinute: 1,   // сколько настоящих секунд длится одна игровая минута
+};
 
 // ---------- Холст ----------
 const W = 240;   // ширина игрового экрана в пикселях
@@ -71,6 +100,28 @@ function tone(freq, start, dur, volume) {
 function beep(freq) {
   if (!audioCtx) return;
   tone(freq, audioCtx.currentTime, 0.04, 0.05);
+}
+
+// Вибрация телефона: два низких жужжания «ж-ж… ж-ж»
+function vibrate() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(70, t0, 0.25, 0.08);
+  tone(70, t0 + 0.35, 0.25, 0.08);
+}
+
+// Сигнал чекпоинта: две ноты вверх «пи-ПИ»
+function checkpointSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(660, t0, 0.08, 0.06);
+  tone(990, t0 + 0.09, 0.12, 0.06);
+}
+
+// Стук молотка: короткий низкий «тук»
+function knockSound() {
+  if (!audioCtx) return;
+  tone(110, audioCtx.currentTime, 0.06, 0.1);
 }
 
 // Звонок телефона: «ДЗЫНЬ-ДЗЫНЬ» — две трели из быстро чередующихся нот
@@ -192,25 +243,9 @@ function drawVersion() {
   drawTextShadow(VERSION, 2, 2, '#f4f4f4', '#1a1c2c');
 }
 
-// Закрашенный пиксельный круг
-function fillCircle(cx, cy, r, color) {
-  ctx.fillStyle = color;
-  for (let y = -r; y <= r; y++) {
-    const half = Math.floor(Math.sqrt(r * r - y * y));
-    ctx.fillRect(cx - half, cy + y, half * 2 + 1, 1);
-  }
-}
-
-// Пиксельная линия от точки (x0, y0) до (x1, y1)
-function drawLine(x0, y0, x1, y1, color) {
-  ctx.fillStyle = color;
-  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
-  for (let i = 0; i <= steps; i++) {
-    const x = Math.round(x0 + (x1 - x0) * i / steps);
-    const y = Math.round(y0 + (y1 - y0) * i / steps);
-    ctx.fillRect(x, y, 1, 1);
-  }
-}
+// Круг и линия на главном холсте (сами функции — в sprites.js)
+function fillCircle(cx, cy, r, color) { pixelCircle(ctx, cx, cy, r, color); }
+function drawLine(x0, y0, x1, y1, color) { pixelLine(ctx, x0, y0, x1, y1, color); }
 
 // =============================================
 // ЭКРАН 1: ТИТУЛ
@@ -230,7 +265,7 @@ const titleState = {
   update(input) {
     this.timer++;
     // Любое касание или «Прыжок» — начинаем. Звук уже разрешён этим же касанием.
-    if (input.pressed) setState('cutscene', 'intro');
+    if (input.pressed) setState('cutscene');
   },
 
   draw() {
@@ -265,7 +300,7 @@ const titleState = {
 };
 
 // =============================================
-// ЭКРАН 2: ЗАСТАВКА (движок диалогов)
+// ЭКРАНЫ СО СЦЕНКАМИ: ЗАСТАВКА, ПОРАЖЕНИЕ, ПОБЕДА_УРОВНЯ (движок диалогов)
 // =============================================
 
 const FLOOR_Y = 86;        // на этой высоте стоят ноги персонажей на фоне
@@ -279,6 +314,13 @@ const TEXT_X = 46, TEXT_Y = 104;         // где начинается текс
 const TEXT_W = 180;                      // ширина текста — 30 букв в строке
 const TEXT_MAX_LINES = 3;                // в окно влезает 3 строки
 
+// Окно подписи внизу экрана и кнопка в нём (например «ЕЩЁ РАЗ»)
+const CAPTION = { x: 2, y: 104, w: 236, h: 30 };
+const CAPTION_BUTTON = { x: 184, y: 110, w: 48, h: 15 };
+
+// Кадр анимации «Молоток», в который молоток бьёт (считаем с нуля)
+const HAMMER_HIT_FRAME = 1;
+
 // Кнопка «ПРОПУСТИТЬ» в правом верхнем углу
 const SKIP = { x: 174, y: 2, w: 64, h: 11 };
 
@@ -287,218 +329,285 @@ function tapOnSkip(t) {
   return t.x >= SKIP.x - 6 && t.y <= SKIP.y + SKIP.h + 6;
 }
 
-const cutsceneState = {
-  scene: null,    // текущий сценарий из scenes.js
-  index: 0,       // номер текущего шага
-  step: null,     // сам текущий шаг
-  timer: 0,       // сколько шагов игры длится текущий шаг сценария
-  tick: 0,        // общий счётчик для анимаций
-  actors: {},     // кто стоит на фоне
-  lines: [],      // строки текущей реплики
-  fullText: '',   // все буквы реплики подряд
-  typed: 0,       // сколько букв уже напечатано
+// Движок сценок. Одна и та же «машина» работает для нескольких экранов:
+// ЗАСТАВКА, ПОРАЖЕНИЕ и ПОБЕДА_УРОВНЯ. Отличаются они только сценарием из scenes.js.
+// createSceneState('intro') создаёт экран, который по умолчанию играет сценарий intro.
+function createSceneState(defaultScene) {
+  return {
+    scene: null,    // текущий сценарий из scenes.js
+    index: 0,       // номер текущего шага
+    step: null,     // сам текущий шаг
+    timer: 0,       // сколько шагов игры длится текущий шаг сценария
+    tick: 0,        // общий счётчик для анимаций
+    actors: {},     // кто стоит на фоне
+    lines: [],      // строки текущей реплики
+    fullText: '',   // все буквы реплики подряд
+    typed: 0,       // сколько букв уже напечатано
+    titleText: '',  // текст титра (с подставленным временем)
 
-  enter(sceneName) {
-    this.scene = SCENES[sceneName];
-    this.tick = 0;
-    // Копируем персонажей из сценария, чтобы не испортить сам сценарий
-    this.actors = {};
-    for (const key in this.scene.actors) {
-      const a = this.scene.actors[key];
-      this.actors[key] = { x: a.x, visible: a.visible, facing: a.facing, blinking: false };
-    }
-    this.index = -1;
-    this.nextStep();
-  },
-
-  // Переходим к следующему шагу сценария
-  nextStep() {
-    this.index++;
-    if (this.index >= this.scene.steps.length) {
-      this.finish();
-      return;
-    }
-    const step = this.scene.steps[this.index];
-    this.step = step;
-    this.timer = 0;
-
-    if (step.type === 'say') {
-      this.lines = wrapText(step.text, TEXT_W);
-      this.fullText = this.lines.join('');
-      this.typed = 0;
-      if (this.lines.length > TEXT_MAX_LINES) {
-        console.warn('Реплика не влезает в окно, раздели её на две: ' + step.text);
+    enter(sceneName) {
+      this.scene = SCENES[sceneName || defaultScene];
+      this.tick = 0;
+      // Копируем персонажей из сценария, чтобы не испортить сам сценарий
+      this.actors = {};
+      const list = this.scene.actors || {};
+      for (const key in list) {
+        const a = list[key];
+        this.actors[key] = { x: a.x, visible: a.visible, facing: a.facing, blinking: false, anim: 'idle' };
       }
-    } else if (step.type === 'phone') {
-      phoneRing();
-    } else if (step.type === 'enter' || step.type === 'leave') {
-      const actor = this.actors[step.who];
-      actor.visible = true;
-      actor.blinking = true;
-    }
-  },
+      this.index = -1;
+      this.nextStep();
+    },
 
-  // Заставка закончилась — запускаем следующий экран
-  finish() {
-    setState(this.scene.next || 'level');
-  },
+    // Переходим к следующему шагу сценария
+    nextStep() {
+      this.index++;
+      if (this.index >= this.scene.steps.length) {
+        this.finish();
+        return;
+      }
+      const step = this.scene.steps[this.index];
+      this.step = step;
+      this.timer = 0;
 
-  update(input) {
-    this.tick++;
-    this.timer++;
-
-    // Кнопка «ПРОПУСТИТЬ»
-    if (input.taps.some(tapOnSkip)) {
-      this.finish();
-      return;
-    }
-    const pressed = input.pressed;
-    const step = this.step;
-
-    if (step.type === 'say') {
-      const speaker = SPEAKERS[step.who];
-      if (this.typed < this.fullText.length) {
-        // Текст ещё печатается
-        if (pressed) {
-          this.typed = this.fullText.length;          // показать целиком
-        } else if (this.timer % TYPE_SPEED === 0) {
-          const ch = this.fullText[this.typed];
-          this.typed++;
-          if (ch !== ' ') beep(speaker.pitch);        // писк на каждую букву
+      if (step.type === 'say') {
+        this.lines = wrapText(step.text, TEXT_W);
+        this.fullText = this.lines.join('');
+        this.typed = 0;
+        if (this.lines.length > TEXT_MAX_LINES) {
+          console.warn('Реплика не влезает в окно, раздели её на две: ' + step.text);
         }
-      } else if (pressed) {
-        this.nextStep();                              // допечатан — дальше
-      }
-    } else if (step.type === 'title') {
-      // Титр ждёт нажатия (первые 20 шагов нажатие не считаем, чтобы не пролистнуть случайно)
-      if (pressed && this.timer > 20) this.nextStep();
-    } else if (step.type === 'phone') {
-      // Телефон звонит полторы секунды или до нажатия
-      if (this.timer >= 100 || (pressed && this.timer > 20)) this.nextStep();
-    } else if (step.type === 'enter' || step.type === 'leave') {
-      // Персонаж мигает, потом остаётся или исчезает
-      if (this.timer >= BLINK_TIME) {
+      } else if (step.type === 'title') {
+        // {ВРЕМЯ} заменяем на время с игровых часов
+        this.titleText = step.text.replace('{ВРЕМЯ}', clockText());
+      } else if (step.type === 'phone') {
+        phoneRing();
+      } else if (step.type === 'enter' || step.type === 'leave') {
         const actor = this.actors[step.who];
-        actor.blinking = false;
-        if (step.type === 'leave') actor.visible = false;
+        actor.visible = true;
+        actor.blinking = true;
+      } else if (step.type === 'anim') {
+        // Персонаж меняет движение — и сразу следующий шаг
+        this.actors[step.who].anim = step.anim;
         this.nextStep();
       }
-    }
-  },
+    },
 
-  draw() {
-    const step = this.step;
+    // Сценка закончилась — запускаем следующий экран
+    finish() {
+      setState(this.scene.next || 'level', this.scene.nextArg);
+    },
 
-    if (step.type === 'title') {
-      this.drawTitleCard(step.text);
-    } else {
-      BACKGROUNDS[this.scene.background]();
-      this.drawActors();
-      if (step.type === 'phone') this.drawPhone();
-      if (step.type === 'say') this.drawDialog(step);
-    }
+    // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
+    showSkip() {
+      return !(this.step.type === 'caption' && this.step.button);
+    },
 
-    this.drawSkipButton();
-    drawVersion();
-  },
+    update(input) {
+      this.tick++;
+      this.timer++;
 
-  // Персонажи на фоне — обычными игровыми спрайтами
-  drawActors() {
-    for (const key in this.actors) {
-      const a = this.actors[key];
-      if (!a.visible) continue;
-      // Мигание: через каждые 4 шага персонаж то виден, то нет
-      if (a.blinking && Math.floor(this.timer / 4) % 2 === 1) continue;
-      const anim = SPRITES[key].anims.idle;
-      const frame = anim.frames[Math.floor(this.tick / anim.speed) % anim.frames.length];
-      drawSprite(ctx, frame, a.x, FLOOR_Y - frame.height, a.facing === 'left');
-    }
-  },
+      // Кнопка «ПРОПУСТИТЬ»
+      if (this.showSkip() && input.taps.some(tapOnSkip)) {
+        this.finish();
+        return;
+      }
+      const pressed = input.pressed;
+      const step = this.step;
 
-  // Звонящий телефон над Филиппом
-  drawPhone() {
-    const f = this.actors.filipp;
-    const shake = (this.timer >> 1) % 2;            // трясётся на 1 пиксель
-    const px = f.x + 14 + shake;
-    const py = FLOOR_Y - 40;
-    ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(px, py, 7, 11);                     // корпус
-    ctx.fillStyle = (this.timer >> 3) % 2 ? '#73eff7' : '#f4f4f4';
-    ctx.fillRect(px + 1, py + 1, 5, 7);              // мигающий экран
-    drawTextCenteredShadow('ДЗЫНЬ-ДЗЫНЬ!', 120 + shake, 18, '#ffcd75', '#1a1c2c', 2);
-  },
+      // Молоток: в момент удара — звук «тук»
+      for (const key in this.actors) {
+        const a = this.actors[key];
+        if (a.visible && a.anim === 'hammer' && this.tick % SPRITES[key].anims.hammer.speed === 0 &&
+            this.actorFrameIndex(key, a) === HAMMER_HIT_FRAME) {
+          knockSound();
+        }
+      }
 
-  // Окно диалога: рамка, портрет, имя, текст, стрелка
-  drawDialog(step) {
-    const speaker = SPEAKERS[step.who];
+      if (step.type === 'say') {
+        const speaker = SPEAKERS[step.who];
+        if (this.typed < this.fullText.length) {
+          // Текст ещё печатается
+          if (pressed) {
+            this.typed = this.fullText.length;          // показать целиком
+          } else if (this.timer % TYPE_SPEED === 0) {
+            const ch = this.fullText[this.typed];
+            this.typed++;
+            if (ch !== ' ') beep(speaker.pitch);        // писк на каждую букву
+          }
+        } else if (pressed) {
+          this.nextStep();                              // допечатан — дальше
+        }
+      } else if (step.type === 'title' || step.type === 'caption') {
+        // Ждём нажатия (первые 20 шагов нажатие не считаем, чтобы не пролистнуть случайно)
+        if (pressed && this.timer > 20) this.nextStep();
+      } else if (step.type === 'phone') {
+        // Телефон звонит полторы секунды или до нажатия
+        if (this.timer >= 100 || (pressed && this.timer > 20)) this.nextStep();
+      } else if (step.type === 'enter' || step.type === 'leave') {
+        // Персонаж мигает, потом остаётся или исчезает
+        if (this.timer >= BLINK_TIME) {
+          const actor = this.actors[step.who];
+          actor.blinking = false;
+          if (step.type === 'leave') actor.visible = false;
+          this.nextStep();
+        }
+      }
+    },
 
-    // Тёмный фон и рамка в 2 цвета
-    ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(BOX.x, BOX.y, BOX.w, BOX.h);
-    ctx.fillStyle = '#f4f4f4';                       // внешняя рамка — белая
-    ctx.fillRect(BOX.x, BOX.y, BOX.w, 1);
-    ctx.fillRect(BOX.x, BOX.y + BOX.h - 1, BOX.w, 1);
-    ctx.fillRect(BOX.x, BOX.y, 1, BOX.h);
-    ctx.fillRect(BOX.x + BOX.w - 1, BOX.y, 1, BOX.h);
-    ctx.fillStyle = '#3b5dc9';                       // внутренняя рамка — синяя
-    ctx.fillRect(BOX.x + 1, BOX.y + 1, BOX.w - 2, 1);
-    ctx.fillRect(BOX.x + 1, BOX.y + BOX.h - 2, BOX.w - 2, 1);
-    ctx.fillRect(BOX.x + 1, BOX.y + 1, 1, BOX.h - 2);
-    ctx.fillRect(BOX.x + BOX.w - 2, BOX.y + 1, 1, BOX.h - 2);
+    draw() {
+      const step = this.step;
 
-    // Портрет в рамке
-    ctx.fillStyle = '#94b0c2';
-    ctx.fillRect(PORTRAIT_X - 1, PORTRAIT_Y - 1, 34, 34);
-    ctx.fillStyle = '#333c57';
-    ctx.fillRect(PORTRAIT_X, PORTRAIT_Y, 32, 32);
-    ctx.drawImage(PORTRAITS[speaker.portrait].image, PORTRAIT_X, PORTRAIT_Y);
+      if (step.type === 'title') {
+        this.drawTitleCard(this.titleText);
+      } else {
+        BACKGROUNDS[this.scene.background](ctx);
+        this.drawActors();
+        if (step.type === 'phone') this.drawPhone();
+        if (step.type === 'say') this.drawDialog(step);
+        if (step.type === 'caption') this.drawCaption(step);
+      }
 
-    // Имя над текстом
-    drawText(ctx, step.name || speaker.name, TEXT_X, PORTRAIT_Y, '#ffcd75');
+      if (this.showSkip()) this.drawSkipButton();
+      drawVersion();
+    },
 
-    // Текст: показываем только напечатанные буквы
-    drawText(ctx, step.text, TEXT_X, TEXT_Y, '#f4f4f4', TEXT_W, { maxChars: this.typed });
+    // Какой кадр анимации сейчас у персонажа на фоне
+    actorFrameIndex(key, a) {
+      const anim = SPRITES[key].anims[a.anim];
+      return Math.floor(this.tick / anim.speed) % anim.frames.length;
+    },
 
-    // Реплика допечатана — мигает стрелка ▼
-    if (this.typed >= this.fullText.length && Math.floor(this.tick / 20) % 2 === 0) {
+    // Персонажи на фоне — обычными игровыми спрайтами
+    drawActors() {
+      for (const key in this.actors) {
+        const a = this.actors[key];
+        if (!a.visible) continue;
+        // Мигание: через каждые 4 шага персонаж то виден, то нет
+        if (a.blinking && Math.floor(this.timer / 4) % 2 === 1) continue;
+        const index = this.actorFrameIndex(key, a);
+        const frame = SPRITES[key].anims[a.anim].frames[index];
+        const y = FLOOR_Y - frame.height;
+        drawSprite(ctx, frame, a.x, y, a.facing === 'left');
+        // Удар молотком — надпись «ТУК-ТУК!» у молотка
+        if (a.anim === 'hammer' && index === HAMMER_HIT_FRAME) {
+          drawTextShadow('ТУК-ТУК!', a.x + 10, y - 10, '#f4f4f4', '#1a1c2c');
+        }
+      }
+    },
+
+    // Звонящий телефон над Филиппом
+    drawPhone() {
+      const f = this.actors.filipp;
+      const shake = (this.timer >> 1) % 2;            // трясётся на 1 пиксель
+      drawPhoneIcon(f.x + 14 + shake, FLOOR_Y - 40, this.timer);
+      drawTextCenteredShadow('ДЗЫНЬ-ДЗЫНЬ!', 120 + shake, 18, '#ffcd75', '#1a1c2c', 2);
+    },
+
+    // Окно диалога: рамка, портрет, имя, текст, стрелка
+    drawDialog(step) {
+      const speaker = SPEAKERS[step.who];
+      drawBox(BOX.x, BOX.y, BOX.w, BOX.h);
+
+      // Портрет в рамке
+      ctx.fillStyle = '#94b0c2';
+      ctx.fillRect(PORTRAIT_X - 1, PORTRAIT_Y - 1, 34, 34);
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(PORTRAIT_X, PORTRAIT_Y, 32, 32);
+      ctx.drawImage(PORTRAITS[speaker.portrait].image, PORTRAIT_X, PORTRAIT_Y);
+
+      // Имя над текстом
+      drawText(ctx, step.name || speaker.name, TEXT_X, PORTRAIT_Y, '#ffcd75');
+
+      // Текст: показываем только напечатанные буквы
+      drawText(ctx, step.text, TEXT_X, TEXT_Y, '#f4f4f4', TEXT_W, { maxChars: this.typed });
+
+      // Реплика допечатана — мигает стрелка ▼
+      if (this.typed >= this.fullText.length) this.drawArrow();
+    },
+
+    // Подпись внизу экрана и, если задана, кнопка (например «ЕЩЁ РАЗ»)
+    drawCaption(step) {
+      drawBox(CAPTION.x, CAPTION.y, CAPTION.w, CAPTION.h);
+      drawText(ctx, step.text, CAPTION.x + 6, CAPTION.y + 7, '#f4f4f4', step.button ? 168 : CAPTION.w - 12);
+      if (step.button) {
+        // Кнопка мигает рамкой, чтобы её заметили
+        const b = CAPTION_BUTTON;
+        ctx.fillStyle = Math.floor(this.tick / 20) % 2 === 0 ? '#ffcd75' : '#ef7d57';
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        ctx.fillStyle = '#1a1c2c';
+        ctx.fillRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2);
+        drawTextCentered(ctx, step.button, b.x + b.w / 2, b.y + 4, '#ffcd75');
+      } else if (this.timer > 20) {
+        this.drawArrow();
+      }
+    },
+
+    // Мигающая стрелка ▼ в правом нижнем углу
+    drawArrow() {
+      if (Math.floor(this.tick / 20) % 2 !== 0) return;
       ctx.fillStyle = '#f4f4f4';
       ctx.fillRect(228, 126, 5, 1);
       ctx.fillRect(229, 127, 3, 1);
       ctx.fillRect(230, 128, 1, 1);
-    }
-  },
+    },
 
-  // Титр на весь экран: часы и надпись
-  drawTitleCard(text) {
-    ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(0, 0, W, H);
+    // Титр на весь экран: часы и надпись (можно в несколько строк через \n)
+    drawTitleCard(text) {
+      ctx.fillStyle = '#1a1c2c';
+      ctx.fillRect(0, 0, W, H);
 
-    // Если в тексте есть время (например 09:30) — рисуем часы с этим временем
-    const time = text.match(/(\d{1,2}):(\d{2})/);
-    if (time) drawClock(120, 50, 16, Number(time[1]), Number(time[2]));
+      // Если в тексте есть время (например 09:30) — рисуем часы с этим временем
+      const time = text.match(/(\d{1,2}):(\d{2})/);
+      if (time) drawClock(120, 44, 16, Number(time[1]), Number(time[2]));
 
-    // Крупно, если влезает, иначе обычным размером
-    const scale = textWidth(text) * 2 <= W - 8 ? 2 : 1;
-    drawTextCentered(ctx, text, 120, 80, '#ffcd75', scale);
+      // Крупно, если самая длинная строка влезает, иначе обычным размером
+      const lines = text.split('\n');
+      const longest = Math.max(...lines.map((l) => textWidth(l)));
+      const scale = longest * 2 <= W - 8 ? 2 : 1;
+      const top = lines.length === 1 ? 76 : 70;
+      lines.forEach((line, i) => {
+        drawTextCentered(ctx, line, 120, top + i * (LINE_STEP + 2) * scale, '#ffcd75', scale);
+      });
 
-    // Стрелка «дальше», когда можно нажимать
-    if (this.timer > 20 && Math.floor(this.tick / 20) % 2 === 0) {
-      ctx.fillStyle = '#f4f4f4';
-      ctx.fillRect(228, 126, 5, 1);
-      ctx.fillRect(229, 127, 3, 1);
-      ctx.fillRect(230, 128, 1, 1);
-    }
-  },
+      // Стрелка «дальше», когда можно нажимать
+      if (this.timer > 20) this.drawArrow();
+    },
 
-  // Маленькая кнопка «ПРОПУСТИТЬ»
-  drawSkipButton() {
-    ctx.fillStyle = '#94b0c2';
-    ctx.fillRect(SKIP.x, SKIP.y, SKIP.w, SKIP.h);
-    ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(SKIP.x + 1, SKIP.y + 1, SKIP.w - 2, SKIP.h - 2);
-    drawText(ctx, 'ПРОПУСТИТЬ', SKIP.x + 3, SKIP.y + 2, '#f4f4f4');
-  },
-};
+    // Маленькая кнопка «ПРОПУСТИТЬ»
+    drawSkipButton() {
+      ctx.fillStyle = '#94b0c2';
+      ctx.fillRect(SKIP.x, SKIP.y, SKIP.w, SKIP.h);
+      ctx.fillStyle = '#1a1c2c';
+      ctx.fillRect(SKIP.x + 1, SKIP.y + 1, SKIP.w - 2, SKIP.h - 2);
+      drawText(ctx, 'ПРОПУСТИТЬ', SKIP.x + 3, SKIP.y + 2, '#f4f4f4');
+    },
+  };
+}
+
+// Окно с тёмным фоном и рамкой в 2 цвета (для диалогов и подписей)
+function drawBox(x, y, w, h) {
+  ctx.fillStyle = '#1a1c2c';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#f4f4f4';                       // внешняя рамка — белая
+  ctx.fillRect(x, y, w, 1);
+  ctx.fillRect(x, y + h - 1, w, 1);
+  ctx.fillRect(x, y, 1, h);
+  ctx.fillRect(x + w - 1, y, 1, h);
+  ctx.fillStyle = '#3b5dc9';                       // внутренняя рамка — синяя
+  ctx.fillRect(x + 1, y + 1, w - 2, 1);
+  ctx.fillRect(x + 1, y + h - 2, w - 2, 1);
+  ctx.fillRect(x + 1, y + 1, 1, h - 2);
+  ctx.fillRect(x + w - 2, y + 1, 1, h - 2);
+}
+
+// Телефон 7x11 с мигающим экраном
+function drawPhoneIcon(x, y, timer) {
+  ctx.fillStyle = '#1a1c2c';
+  ctx.fillRect(x, y, 7, 11);                       // корпус
+  ctx.fillStyle = (timer >> 3) % 2 ? '#73eff7' : '#f4f4f4';
+  ctx.fillRect(x + 1, y + 1, 5, 7);                // мигающий экран
+}
 
 // Часы: круг-циферблат, отметки 12, 3, 6, 9 и две стрелки
 function drawClock(cx, cy, r, hours, minutes) {
@@ -517,101 +626,48 @@ function drawClock(cx, cy, r, hours, minutes) {
 }
 
 // =============================================
-// ФОНЫ ДЛЯ ЗАСТАВОК
+// ЭКРАН 3: УРОВЕНЬ (гонка с Лерой)
 // =============================================
-const BACKGROUNDS = {
-  // Гостиная утром: окно с солнцем, диван, телевизор
-  livingRoom() {
-    // Стена в полоску
-    ctx.fillStyle = '#94b0c2';
-    ctx.fillRect(0, 0, W, 66);
-    ctx.fillStyle = '#73eff7';
-    for (let x = 6; x < W; x += 12) ctx.fillRect(x, 0, 1, 66);
-    // Плинтус
-    ctx.fillStyle = '#f4f4f4';
-    ctx.fillRect(0, 66, W, 3);
+const LEVEL_W = 1440;  // ширина уровня — 6 экранов
+const FLOOR_TOP = 120; // верх пола
 
-    // Пол из досок
-    ctx.fillStyle = '#b13e53';
-    ctx.fillRect(0, 69, W, H - 69);
-    ctx.fillStyle = '#5d275d';
-    for (let y = 75; y < H; y += 6) {
-      ctx.fillRect(0, y, W, 1);                          // швы между рядами досок
-      for (let x = (y % 12 === 3 ? 0 : 20); x < W; x += 40) ctx.fillRect(x, y - 5, 1, 5);
-    }
-    // Солнечное пятно на полу от окна
-    ctx.fillStyle = '#ef7d57';
-    for (let i = 0; i < 14; i++) ctx.fillRect(96 + i, 70 + i, 50, 1);
-
-    // Окно: штора, рама, небо, солнце, облако
-    ctx.fillStyle = '#333c57';
-    ctx.fillRect(86, 6, 68, 2);                          // карниз
-    ctx.fillStyle = '#f4f4f4';
-    ctx.fillRect(96, 10, 48, 42);                        // рама
-    ctx.fillStyle = '#41a6f6';
-    ctx.fillRect(98, 12, 44, 38);                        // небо
-    fillCircle(130, 22, 6, '#ffcd75');                   // солнце
-    ctx.fillStyle = '#f4f4f4';
-    ctx.fillRect(104, 34, 12, 3);                        // облако
-    ctx.fillRect(107, 32, 6, 2);
-    ctx.fillRect(98, 30, 44, 2);                         // перекладина рамы
-    ctx.fillRect(119, 12, 2, 38);
-    ctx.fillStyle = '#b13e53';
-    ctx.fillRect(88, 8, 8, 50);                          // шторы
-    ctx.fillRect(144, 8, 8, 50);
-    ctx.fillStyle = '#5d275d';
-    ctx.fillRect(91, 8, 1, 50);
-    ctx.fillRect(148, 8, 1, 50);
-
-    // Диван
-    ctx.fillStyle = '#257179';
-    ctx.fillRect(8, 42, 52, 26);                         // спинка и сиденье
-    ctx.fillStyle = '#38b764';
-    ctx.fillRect(12, 45, 21, 13);                        // подушки
-    ctx.fillRect(35, 45, 21, 13);
-    ctx.fillStyle = '#257179';
-    ctx.fillRect(4, 50, 8, 18);                          // подлокотники
-    ctx.fillRect(56, 50, 8, 18);
-    ctx.fillStyle = '#a7f070';
-    ctx.fillRect(12, 58, 44, 2);                         // край сиденья
-    ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(6, 68, 3, 3);                           // ножки
-    ctx.fillRect(59, 68, 3, 3);
-
-    // Телевизор на тумбе
-    ctx.fillStyle = '#333c57';
-    ctx.fillRect(176, 54, 56, 18);                       // тумба
-    ctx.fillStyle = '#566c86';
-    ctx.fillRect(178, 58, 24, 1);
-    ctx.fillRect(206, 58, 24, 1);
-    ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(182, 26, 44, 28);                       // корпус
-    ctx.fillRect(200, 52, 8, 2);                         // ножка
-    ctx.fillStyle = '#29366f';
-    ctx.fillRect(184, 28, 40, 22);                       // экран
-    ctx.fillStyle = '#3b5dc9';
-    for (let i = 0; i < 8; i++) ctx.fillRect(190 + i, 30 + i, 3, 1); // блик
-  },
-};
-
-// =============================================
-// ЭКРАН 3: УРОВЕНЬ
-// =============================================
-const LEVEL_W = 720;   // ширина уровня — 3 экрана
-
-// Пол и платформы: x, y — левый верхний угол, w, h — ширина и высота.
+// Пол, ящики и платформы: x, y — левый верхний угол, w, h — ширина и высота.
 // Низ платформы должен быть выше 98, иначе Филипп (рост 22) упрётся в неё головой.
+// Ящик стоит на полу (его низ = 120). Через ящик выше 40 не перепрыгнуть — нужна ступенька.
 const solids = [
-  { x: 0,   y: 120, w: LEVEL_W, h: 16 },  // пол
-  { x: 60,  y: 88,  w: 40, h: 6 },
-  { x: 130, y: 76,  w: 36, h: 6 },
-  { x: 200, y: 56,  w: 44, h: 6 },
-  { x: 290, y: 88,  w: 50, h: 6 },
-  { x: 380, y: 66,  w: 32, h: 6 },
-  { x: 450, y: 44,  w: 40, h: 6 },
-  { x: 540, y: 84,  w: 56, h: 6 },
-  { x: 630, y: 88,  w: 40, h: 6 },
+  { x: 0,    y: 120, w: LEVEL_W, h: 16 },  // пол
+  // --- экран 1 ---
+  { x: 150,  y: 104, w: 16, h: 16 },       // низкий ящик
+  { x: 200,  y: 88,  w: 40, h: 6 },
+  // --- экран 2 ---
+  { x: 260,  y: 70,  w: 36, h: 6 },
+  { x: 330,  y: 96,  w: 20, h: 24 },       // ящик повыше
+  { x: 390,  y: 80,  w: 40, h: 6 },
+  // чекпоинт 1 на x = 480
+  // --- экран 3 ---
+  { x: 560,  y: 88,  w: 16, h: 32 },       // высокий ящик
+  { x: 620,  y: 76,  w: 40, h: 6 },
+  { x: 690,  y: 56,  w: 44, h: 6 },
+  // --- экран 4 ---
+  { x: 780,  y: 96,  w: 20, h: 24 },       // ступенька вплотную...
+  { x: 800,  y: 72,  w: 16, h: 48 },       // ...к стене, которую сразу не перепрыгнуть
+  { x: 860,  y: 84,  w: 40, h: 6 },
+  // чекпоинт 2 на x = 960
+  // --- экран 5 ---
+  { x: 1040, y: 104, w: 16, h: 16 },
+  { x: 1090, y: 88,  w: 16, h: 32 },
+  { x: 1150, y: 80,  w: 40, h: 6 },
+  // --- экран 6 ---
+  { x: 1220, y: 60,  w: 40, h: 6 },
+  { x: 1300, y: 96,  w: 20, h: 24 },
 ];
+
+// Чекпоинты — дверные проёмы с ковриком. x — левый край проёма.
+const CHECKPOINT_XS = [480, 960];
+const DOOR_W = 22, DOOR_H = 32;
+
+// Калитка «ВЫХОД» — финиш. Добежал до неё — уровень пройден.
+const GATE = { x: 1400, w: 32 };
 
 // x, y, w, h — это ХИТБОКС: невидимая рамка, по которой считаются столкновения.
 // Она меньше картинки 16x24 и примерно совпадает с телом.
@@ -630,15 +686,19 @@ const player = {
 const SPRITE_OFFSET_X = 3;
 const SPRITE_OFFSET_Y = 2;
 
-// Настройки движения (подбираются на глаз)
-const ACCEL = 0.15;      // разгон за один шаг
-const FRICTION = 0.2;    // торможение, когда кнопки отпущены
-const MAX_SPEED = 1.5;   // максимальная скорость бега
-const GRAVITY = 0.2;     // сила тяжести
-const JUMP_SPEED = 4;    // начальная скорость прыжка
-const MAX_FALL = 4;      // максимальная скорость падения
-
 let cameraX = 0;
+
+// Игровые часы: сколько шагов игры прошло с начала уровня
+let clockSteps = 0;
+
+// Время на игровых часах строкой, например «09:47»
+function clockText() {
+  const total = CONFIG.clockStartHour * 60 + CONFIG.clockStartMinute +
+                Math.floor(clockSteps / (60 * CONFIG.secondsPerGameMinute));
+  const hh = Math.floor(total / 60) % 24;
+  const mm = total % 60;
+  return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+}
 
 // Пересекаются ли два прямоугольника
 function overlaps(a, b) {
@@ -646,37 +706,110 @@ function overlaps(a, b) {
          a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
+// Шкала прогресса в HUD: где на ней точка уровня x
+const BAR = { x: 6, y: 14, w: 228, h: 3 };
+function barX(levelX) {
+  const part = Math.max(0, Math.min(1, levelX / GATE.x));
+  return Math.round(BAR.x + part * BAR.w);
+}
+
 const levelState = {
-  // Ставим героя в начало уровня
-  enter() {
-    player.x = 20; player.y = 98;
+  leraX: 0,          // где Лера на уровне (её иконка на шкале)
+  leraSpeed: 0,      // её текущая скорость
+  waitSteps: 0,      // сколько шагов ещё длится фора
+  passed: [],        // какие чекпоинты уже пройдены (true/false)
+  saved: null,       // что запомнили на последнем чекпоинте — оттуда «ЕЩЁ РАЗ»
+  alarm: false,      // Лера близко?
+  alarmTimer: 0,     // для мигания и вибрации
+
+  // mode = 'checkpoint' — продолжить с последнего чекпоинта, иначе — с начала
+  enter(mode) {
+    if (mode !== 'checkpoint' || !this.saved) {
+      this.passed = CHECKPOINT_XS.map(() => false);
+      this.saved = { x: 20, leraX: 0, leraSpeed: CONFIG.leraSpeed, clockSteps: 0 };
+    }
+    // Восстанавливаем всё как было на старте или на чекпоинте
+    player.x = this.saved.x;
+    player.y = FLOOR_TOP - player.h;
     player.vx = 0; player.vy = 0;
     player.onGround = false;
     player.facing = 1;
     player.anim = 'idle';
     player.animTime = 0;
-    cameraX = 0;
+    this.leraX = this.saved.leraX;
+    this.leraSpeed = this.saved.leraSpeed;
+    clockSteps = this.saved.clockSteps;
+    this.waitSteps = CONFIG.leraHeadStart * 60;    // фора в шагах
+    this.alarm = false;
+    this.alarmTimer = 0;
+    // Камера сразу на герое, без плавного подъезда
+    cameraX = Math.max(0, Math.min(LEVEL_W - W, player.x + player.w / 2 - W / 2));
   },
 
   update(input) {
+    this.movePlayer(input);
+    clockSteps++;
+
+    // --- Чекпоинты ---
+    CHECKPOINT_XS.forEach((cx, i) => {
+      if (!this.passed[i] && player.x + player.w / 2 >= cx + DOOR_W / 2) {
+        this.passed[i] = true;
+        checkpointSound();
+        // Лера отлетает назад и немного ускоряется
+        this.leraX = Math.max(0, this.leraX - CONFIG.checkpointPushBack);
+        this.leraSpeed += CONFIG.leraSpeedUp;
+        // Запоминаем, откуда начинать после поражения
+        this.saved = { x: cx + 6, leraX: this.leraX, leraSpeed: this.leraSpeed, clockSteps: clockSteps };
+      }
+    });
+
+    // --- Финиш ---
+    if (player.x + player.w >= GATE.x + 4) {
+      setState('levelWin');
+      return;
+    }
+
+    // --- Лера едет по шкале ---
+    if (this.waitSteps > 0) this.waitSteps--;         // ещё фора — стоит на месте
+    else this.leraX += this.leraSpeed;
+
+    // Догнала — поражение
+    if (this.leraX >= player.x) {
+      setState('defeat');
+      return;
+    }
+
+    // Близко — тревога: мигание шкалы и вибрация телефона раз в секунду.
+    // Пока идёт фора, тревоги нет.
+    const wasAlarm = this.alarm;
+    this.alarm = this.waitSteps === 0 && player.x - this.leraX < CONFIG.alarmDistance;
+    if (this.alarm) {
+      if (!wasAlarm) this.alarmTimer = 0;
+      if (this.alarmTimer % 60 === 0) vibrate();
+      this.alarmTimer++;
+    }
+  },
+
+  // Бег, прыжки и столкновения Филиппа
+  movePlayer(input) {
     // Бег: разгон в сторону нажатой кнопки
     let dir = 0;
     if (keys.left) dir -= 1;
     if (keys.right) dir += 1;
 
     if (dir !== 0) {
-      player.vx += dir * ACCEL;
-      if (player.vx > MAX_SPEED) player.vx = MAX_SPEED;
-      if (player.vx < -MAX_SPEED) player.vx = -MAX_SPEED;
+      player.vx += dir * CONFIG.playerAccel;
+      if (player.vx > CONFIG.playerMaxSpeed) player.vx = CONFIG.playerMaxSpeed;
+      if (player.vx < -CONFIG.playerMaxSpeed) player.vx = -CONFIG.playerMaxSpeed;
     } else {
       // Торможение: плавно уменьшаем скорость до нуля
-      if (player.vx > 0) player.vx = Math.max(0, player.vx - FRICTION);
-      if (player.vx < 0) player.vx = Math.min(0, player.vx + FRICTION);
+      if (player.vx > 0) player.vx = Math.max(0, player.vx - CONFIG.playerFriction);
+      if (player.vx < 0) player.vx = Math.min(0, player.vx + CONFIG.playerFriction);
     }
 
     // Прыжок: только с земли и только в момент нажатия
     if (input.jumpPressed && player.onGround) {
-      player.vy = -JUMP_SPEED;
+      player.vy = -CONFIG.jumpSpeed;
       player.onGround = false;
     }
     // Отпустили прыжок, пока летим вверх — прыжок получается ниже
@@ -685,8 +818,8 @@ const levelState = {
     }
 
     // Гравитация
-    player.vy += GRAVITY;
-    if (player.vy > MAX_FALL) player.vy = MAX_FALL;
+    player.vy += CONFIG.gravity;
+    if (player.vy > CONFIG.maxFall) player.vy = CONFIG.maxFall;
 
     // Двигаем по X и выталкиваем из стен
     player.x += player.vx;
@@ -745,7 +878,13 @@ const levelState = {
     ctx.fillStyle = '#41a6f6';
     ctx.fillRect(0, 0, W, H);
 
-    // Пол и платформы
+    // Дверные проёмы-чекпоинты (позади героя)
+    CHECKPOINT_XS.forEach((cx, i) => this.drawDoor(cx - cam, this.passed[i]));
+
+    // Калитка «ВЫХОД»
+    this.drawGate(GATE.x - cam);
+
+    // Пол, ящики и платформы
     ctx.fillStyle = '#566c86';
     for (const s of solids) {
       ctx.fillRect(s.x - cam, s.y, s.w, s.h);
@@ -754,15 +893,75 @@ const levelState = {
     // Филипп: берём нужный кадр текущей анимации
     const anim = SPRITES.filipp.anims[player.anim];
     const frameIndex = Math.floor(player.animTime / anim.speed) % anim.frames.length;
-    drawSprite(
-      ctx,
-      anim.frames[frameIndex],
-      Math.round(player.x) - SPRITE_OFFSET_X - cam,
-      Math.round(player.y) - SPRITE_OFFSET_Y,
-      player.facing === -1   // смотрит влево — отражаем картинку
-    );
+    const sx = Math.round(player.x) - SPRITE_OFFSET_X - cam;
+    const sy = Math.round(player.y) - SPRITE_OFFSET_Y;
+    drawSprite(ctx, anim.frames[frameIndex], sx, sy, player.facing === -1);
 
-    drawVersion();
+    // Тревога: над Филиппом звонит телефон «ТЫ ГДЕ?!»
+    if (this.alarm) {
+      const shake = (this.alarmTimer >> 1) % 2;
+      drawPhoneIcon(sx + 4 + shake, sy - 14, this.alarmTimer);
+      const textY = Math.max(24, sy - 24);          // не залезаем на HUD
+      drawTextCenteredShadow('ТЫ ГДЕ?!', sx + 8 + shake, textY, '#ffcd75', '#1a1c2c');
+    }
+
+    this.drawHud();
+  },
+
+  // Дверной проём с ковриком. lit = пройден (подсвечен)
+  drawDoor(x, lit) {
+    const y = FLOOR_TOP - DOOR_H;
+    ctx.fillStyle = lit ? '#ffcd75' : '#333c57';    // наличник
+    ctx.fillRect(x, y, DOOR_W, DOOR_H);
+    ctx.fillStyle = lit ? '#73eff7' : '#29366f';    // проём: тёмный, после прохождения — светлый
+    ctx.fillRect(x + 3, y + 3, DOOR_W - 6, DOOR_H - 3);
+    ctx.fillStyle = lit ? '#a7f070' : '#b13e53';    // коврик
+    ctx.fillRect(x - 2, FLOOR_TOP - 2, DOOR_W + 4, 2);
+  },
+
+  // Калитка с табличкой «ВЫХОД»
+  drawGate(x) {
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fillRect(x, 82, 4, 38);                     // левый столб
+    ctx.fillRect(x + GATE.w - 4, 82, 4, 38);        // правый столб
+    ctx.fillStyle = '#ef7d57';
+    for (let i = 6; i < GATE.w - 5; i += 4) ctx.fillRect(x + i, 92, 2, 28); // штакетник
+    ctx.fillRect(x + 4, 96, GATE.w - 8, 2);         // перекладины
+    ctx.fillRect(x + 4, 110, GATE.w - 8, 2);
+    ctx.fillStyle = '#38b764';                      // табличка
+    ctx.fillRect(x - 2, 70, GATE.w + 4, 11);
+    drawText(ctx, 'ВЫХОД', x + 2, 72, '#f4f4f4');
+  },
+
+  // HUD: полоска сверху — версия, часы, шкала гонки с иконками
+  drawHud() {
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, 21);
+    ctx.fillStyle = '#333c57';
+    ctx.fillRect(0, 21, W, 1);
+
+    drawText(ctx, VERSION, 2, 2, '#94b0c2');
+    drawText(ctx, clockText(), W - 31, 2, '#ffcd75');
+
+    // Шкала: при тревоге мигает красным
+    const blinkRed = this.alarm && Math.floor(this.alarmTimer / 8) % 2 === 0;
+    ctx.fillStyle = blinkRed ? '#b13e53' : '#566c86';
+    ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
+
+    // Отметки чекпоинтов: жёлтые, пройденные — зелёные
+    CHECKPOINT_XS.forEach((cx, i) => {
+      ctx.fillStyle = this.passed[i] ? '#a7f070' : '#ffcd75';
+      ctx.fillRect(barX(cx + DOOR_W / 2), BAR.y - 3, 1, BAR.h + 6);
+    });
+    // Отметка финиша — флажок
+    const fx = barX(GATE.x);
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fillRect(fx, BAR.y - 5, 1, BAR.h + 8);
+    ctx.fillRect(fx - 3, BAR.y - 5, 3, 3);
+
+    // Иконки-головы: Лера рисуется поверх Филиппа, когда догоняет
+    ctx.drawImage(ICONS.filipp.image, barX(player.x + player.w / 2) - 4, BAR.y - 3);
+    ctx.drawImage(ICONS.lera.image, barX(this.leraX) - 4, BAR.y - 3);
   },
 };
 
@@ -770,13 +969,15 @@ const levelState = {
 // ПЕРЕКЛЮЧАТЕЛЬ ЭКРАНОВ
 // =============================================
 const states = {
-  title: titleState,
-  cutscene: cutsceneState,
-  level: levelState,
+  title: titleState,                          // ТИТУЛ
+  cutscene: createSceneState('intro'),        // ЗАСТАВКА (завязка)
+  level: levelState,                          // УРОВЕНЬ
+  defeat: createSceneState('defeat'),         // ПОРАЖЕНИЕ
+  levelWin: createSceneState('levelWin'),     // ПОБЕДА_УРОВНЯ
 };
 let state = null;
 
-// Включить экран. arg — дополнительные данные (например, имя заставки)
+// Включить экран. arg — дополнительные данные (например, «продолжить с чекпоинта»)
 function setState(name, arg) {
   state = states[name];
   state.enter(arg);

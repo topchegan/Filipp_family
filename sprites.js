@@ -158,6 +158,37 @@ function joinParts(head, body, legs) {
   return head.concat(body, legs);
 }
 
+// Филипп с молотком (для сценки поражения). Кадр 1 — замах, кадр 2 — удар.
+// Молоток: головка e (серая) в контуре 0, ручка 3. Левая рука спрятана — работает правая.
+const F_HAMMER_UP = [
+  '......000000.000',
+  '.....00044440ee0', // головка молотка над головой
+  '.....0f044440ee0',
+  '.....00444440000',
+  '.....00344040.3.', // ручка
+  '.....0434444403.',
+  '.....04444430440', // кисть держит ручку
+  '......044444040.', // рука поднята
+  '.......033304...',
+  '.....0ccccc440..',
+  '.....0cccccc0...',
+  '.....0cccccc0...',
+  '.....0ccccccc0..',
+  '.....0cccccccd0.',
+  '.....0cccccccd0.',
+  '.....0cccccdd0..',
+].concat(F_BODY.slice(7), F_LEGS_STAND);  // шорты и ноги как у стоящего
+
+const F_HAMMER_DOWN = F_HEAD.concat([
+  '.....04cccc40...',
+  '.....0ccccc440.0', // рука вытянута вперёд
+  '.....0cccccc044e', // кисть и головка молотка справа
+  '.....0ccccccc0.e',
+  '.....0cccccccd00',
+  '.....0cccccccd0.',
+  '.....0cccccdd0..',
+], F_BODY.slice(7), F_LEGS_STAND);
+
 // Сами анимации Филиппа.
 // frames — список кадров, speed — сколько шагов игры держится один кадр.
 const FILIPP_ANIMS = {
@@ -188,6 +219,12 @@ const FILIPP_ANIMS = {
     name: 'Падение',
     speed: 60,
     frames: [joinParts(F_HEAD, F_BODY_ARM_BACK, F_LEGS_FALL)],
+  },
+  // Стучит молотком. Кадр 2 (номер 1) — удар: в этот момент игра пишет «ТУК-ТУК» и стучит.
+  hammer: {
+    name: 'Молоток',
+    speed: 15,
+    frames: [F_HAMMER_UP, F_HAMMER_DOWN],
   },
 };
 
@@ -354,6 +391,33 @@ const PORTRAIT_LERA = [
 ];
 
 // =============================================
+// ИКОНКИ-ГОЛОВЫ 8x8 для шкалы гонки
+// =============================================
+// Филипп: лысина с бликом (c), тёмные волосы по бокам (f)
+const ICON_FILIPP = [
+  '..0000..',
+  '.0c4440.',
+  '0f4444f0',
+  '04044040',
+  '04444440',
+  '04433440',
+  '.044440.',
+  '..0000..',
+];
+
+// Лера: каштановые волосы (1, пряди 2) до плеч, красные губы
+const ICON_LERA = [
+  '..0000..',
+  '.012110.',
+  '01144110',
+  '01044010',
+  '01444410',
+  '01422410',
+  '01244210',
+  '.010010.',
+];
+
+// =============================================
 // Превращаем пиксельные карты в картинки
 // =============================================
 
@@ -404,6 +468,171 @@ const PORTRAITS = {
   filipp: { name: 'Филипп', image: makeFrame(PORTRAIT_FILIPP, 32, 32, 'Портрет Филиппа') },
   sanya:  { name: 'Саня',   image: makeFrame(PORTRAIT_SANYA, 32, 32, 'Портрет Сани') },
   lera:   { name: 'Лера',   image: makeFrame(PORTRAIT_LERA, 32, 32, 'Портрет Леры') },
+};
+
+// Иконки 8x8 для шкалы гонки
+const ICONS = {
+  filipp: { name: 'Филипп', image: makeFrame(ICON_FILIPP, 8, 8, 'Иконка Филиппа') },
+  lera:   { name: 'Лера',   image: makeFrame(ICON_LERA, 8, 8, 'Иконка Леры') },
+};
+
+// =============================================
+// ФОНЫ ДЛЯ ЗАСТАВОК (240x136)
+// =============================================
+// Фоны рисуем кодом из прямоугольников. g — холст, на котором рисовать
+// (в игре — главный экран, в витрине — её холст).
+
+// Закрашенный пиксельный круг
+function pixelCircle(g, cx, cy, r, color) {
+  g.fillStyle = color;
+  for (let y = -r; y <= r; y++) {
+    const half = Math.floor(Math.sqrt(r * r - y * y));
+    g.fillRect(cx - half, cy + y, half * 2 + 1, 1);
+  }
+}
+
+// Пиксельная линия от точки (x0, y0) до (x1, y1). thick — толщина (по умолчанию 1)
+function pixelLine(g, x0, y0, x1, y1, color, thick) {
+  const t = thick || 1;
+  g.fillStyle = color;
+  const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+  for (let i = 0; i <= steps; i++) {
+    const x = Math.round(x0 + (x1 - x0) * i / steps);
+    const y = Math.round(y0 + (y1 - y0) * i / steps);
+    g.fillRect(x, y, t, t);
+  }
+}
+
+// Доска: светлое дерево #ef7d57 с тёмной кромкой #b13e53 снизу
+function plank(g, x, y, w, h) {
+  g.fillStyle = '#ef7d57';
+  g.fillRect(x, y, w, h);
+  g.fillStyle = '#b13e53';
+  g.fillRect(x, y + h - 1, w, 1);
+}
+
+const BACKGROUNDS = {
+  livingRoom(g) {
+    // Стена в полоску
+    g.fillStyle = '#94b0c2';
+    g.fillRect(0, 0, 240, 66);
+    g.fillStyle = '#73eff7';
+    for (let x = 6; x < 240; x += 12) g.fillRect(x, 0, 1, 66);
+    // Плинтус
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(0, 66, 240, 3);
+
+    // Пол из досок
+    g.fillStyle = '#b13e53';
+    g.fillRect(0, 69, 240, 136 - 69);
+    g.fillStyle = '#5d275d';
+    for (let y = 75; y < 136; y += 6) {
+      g.fillRect(0, y, 240, 1);                          // швы между рядами досок
+      for (let x = (y % 12 === 3 ? 0 : 20); x < 240; x += 40) g.fillRect(x, y - 5, 1, 5);
+    }
+    // Солнечное пятно на полу от окна
+    g.fillStyle = '#ef7d57';
+    for (let i = 0; i < 14; i++) g.fillRect(96 + i, 70 + i, 50, 1);
+
+    // Окно: штора, рама, небо, солнце, облако
+    g.fillStyle = '#333c57';
+    g.fillRect(86, 6, 68, 2);                          // карниз
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(96, 10, 48, 42);                        // рама
+    g.fillStyle = '#41a6f6';
+    g.fillRect(98, 12, 44, 38);                        // небо
+    pixelCircle(g, 130, 22, 6, '#ffcd75');                   // солнце
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(104, 34, 12, 3);                        // облако
+    g.fillRect(107, 32, 6, 2);
+    g.fillRect(98, 30, 44, 2);                         // перекладина рамы
+    g.fillRect(119, 12, 2, 38);
+    g.fillStyle = '#b13e53';
+    g.fillRect(88, 8, 8, 50);                          // шторы
+    g.fillRect(144, 8, 8, 50);
+    g.fillStyle = '#5d275d';
+    g.fillRect(91, 8, 1, 50);
+    g.fillRect(148, 8, 1, 50);
+
+    // Диван
+    g.fillStyle = '#257179';
+    g.fillRect(8, 42, 52, 26);                         // спинка и сиденье
+    g.fillStyle = '#38b764';
+    g.fillRect(12, 45, 21, 13);                        // подушки
+    g.fillRect(35, 45, 21, 13);
+    g.fillStyle = '#257179';
+    g.fillRect(4, 50, 8, 18);                          // подлокотники
+    g.fillRect(56, 50, 8, 18);
+    g.fillStyle = '#a7f070';
+    g.fillRect(12, 58, 44, 2);                         // край сиденья
+    g.fillStyle = '#1a1c2c';
+    g.fillRect(6, 68, 3, 3);                           // ножки
+    g.fillRect(59, 68, 3, 3);
+
+    // Телевизор на тумбе
+    g.fillStyle = '#333c57';
+    g.fillRect(176, 54, 56, 18);                       // тумба
+    g.fillStyle = '#566c86';
+    g.fillRect(178, 58, 24, 1);
+    g.fillRect(206, 58, 24, 1);
+    g.fillStyle = '#1a1c2c';
+    g.fillRect(182, 26, 44, 28);                       // корпус
+    g.fillRect(200, 52, 8, 2);                         // ножка
+    g.fillStyle = '#29366f';
+    g.fillRect(184, 28, 40, 22);                       // экран
+    g.fillStyle = '#3b5dc9';
+    for (let i = 0; i < 8; i++) g.fillRect(190 + i, 30 + i, 3, 1); // блик
+  },
+
+  // Двор у дома: недостроенная пристройка — каркас из досок, рядом стопка досок
+  extension(g) {
+    // Небо и облака
+    g.fillStyle = '#41a6f6';
+    g.fillRect(0, 0, 240, 86);
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(150, 14, 22, 4);
+    g.fillRect(155, 11, 10, 3);
+    g.fillRect(200, 26, 16, 3);
+
+    // Дом слева: крыша, стена, окно
+    g.fillStyle = '#b13e53';
+    for (let i = 0; i < 12; i++) g.fillRect(-2 + i * 2, 24 - i, 66 - i * 4, 1); // крыша треугольником
+    g.fillStyle = '#5d275d';
+    g.fillRect(-2, 24, 66, 2);
+    g.fillStyle = '#94b0c2';
+    g.fillRect(0, 26, 58, 60);                            // стена
+    g.fillStyle = '#566c86';
+    for (let y = 30; y < 86; y += 6) g.fillRect(0, y, 58, 1); // сайдинг
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(14, 38, 22, 20);                           // окно
+    g.fillStyle = '#29366f';
+    g.fillRect(16, 40, 18, 16);
+    g.fillStyle = '#f4f4f4';
+    g.fillRect(24, 40, 2, 16);
+
+    // Каркас пристройки: стропила от дома, верхняя балка, стойки, низ, укосина
+    pixelLine(g, 58, 24, 142, 36, '#ef7d57', 2);          // стропила
+    pixelLine(g, 58, 30, 126, 36, '#b13e53', 1);
+    plank(g, 58, 36, 86, 4);                              // верхняя балка
+    for (const x of [62, 100, 138]) {                     // стойки
+      g.fillStyle = '#ef7d57';
+      g.fillRect(x, 40, 4, 42);
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 3, 40, 1, 42);
+    }
+    plank(g, 58, 82, 86, 4);                              // нижняя обвязка
+    pixelLine(g, 67, 78, 98, 42, '#b13e53', 2);           // укосина
+
+    // Стопка досок на земле
+    for (let i = 0; i < 4; i++) plank(g, 196 + i, 74 + i * 3, 40 - i, 3);
+
+    // Трава
+    g.fillStyle = '#38b764';
+    g.fillRect(0, 86, 240, 50);
+    g.fillStyle = '#a7f070';
+    g.fillRect(0, 86, 240, 1);
+    for (let x = 3; x < 240; x += 9) g.fillRect(x, 90 + (x * 7) % 30, 1, 2); // травинки
+  },
 };
 
 // Силуэт: та же картинка, но залитая одним цветом (для титульного экрана)

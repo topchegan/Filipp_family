@@ -97,6 +97,43 @@
       prow.appendChild(card);
     }
 
+    // Иконки 8x8 для шкалы гонки
+    addStaticSection('Иконки для шкалы (8x8)', ICONS, 8, 8, ZOOM, (g, item) => g.drawImage(item.image, 0, 0));
+
+    // Фоны 240x136 — они большие, поэтому увеличиваем не в 6, а в 3 раза
+    const BG_NAMES = { livingRoom: 'Гостиная утром', extension: 'Двор с пристройкой' };
+    const bgItems = {};
+    for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
+    addStaticSection('Фоны (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
+      (g, item) => BACKGROUNDS[item.key](g));
+
+    // Раздел с картинками без анимации: заголовок и карточки с подписями
+    function addStaticSection(titleText, items, w, h, zoom, paint) {
+      const t = document.createElement('h2');
+      t.textContent = titleText;
+      list.appendChild(t);
+      const row = document.createElement('div');
+      row.className = 'row';
+      list.appendChild(row);
+      for (const key in items) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const cv = document.createElement('canvas');
+        cv.width = w;
+        cv.height = h;
+        cv.style.width = w * zoom + 'px';
+        cv.style.height = h * zoom + 'px';
+        cv.style.background = '#333c57';
+        paint(cv.getContext('2d'), items[key]);
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = items[key].name;
+        card.appendChild(cv);
+        card.appendChild(label);
+        row.appendChild(card);
+      }
+    }
+
     // Проигрываем все анимации по кругу, 60 шагов в секунду
     let tick = 0;
     let last = performance.now();
