@@ -42,6 +42,24 @@ const CONFIG = {
   maxLives: 5,               // больше этого кружек не бывает
   invulnSeconds: 1.5,        // после удара Филипп столько секунд мигает и неуязвим
 
+  // ----- Кураж и бустеры -----
+  courageDrainSeconds: 120,  // за сколько секунд кураж сам падает от полного до нуля
+  courageMinFactor: 0.7,     // скорость бега и прыжок при нулевом кураже (0.7 = 70%). Выше половины куража — 100%
+  courageLow: 0.25,          // меньше этого кураж мигает, Филипп зевает «ЭХ...»
+  cigCourage: 0.4,           // сколько куража дают сигареты (0.4 = +40%)
+  smokeSeconds: 2,           // сколько секунд за Филиппом тянется дымок
+  coffeeSeconds: 6,          // сколько секунд действует кофе
+  coffeeSpeedMul: 1.4,       // во сколько раз быстрее с кофе
+  coffeeCrashSeconds: 2,     // сколько секунд длится «отходняк» после кофе
+  coffeeCrashMul: 0.7,       // скорость во время «отходняка»
+  tipsySeconds: 8,           // сколько секунд действует «подпитие» от одного пива
+  tipsyDrift: 0.05,          // насколько сильно Филиппа тянет то влево, то вправо (за одно пиво)
+  tipsyBrake: 0.35,          // во сколько раз хуже тормозит подвыпивший (меньше — дольше тормозит)
+  tipsyJumpMul: 1.15,        // прыжок выше с пива (1.15 = на 15%)
+  tipsyThrowMul: 1.25,       // в бою с боссом бросок дальше с пива
+  sofaLieSeconds: 1,         // сколько секунд стоять на диване или шезлонге, чтобы лечь
+  sofaRefillSeconds: 3,      // за сколько секунд лёжа кураж восполняется от нуля до полного
+
   // ----- Враги и ловушки -----
   kirillSpeed: 0.5,          // Кирилл ходит туда-сюда
   kirillChaseSpeed: 1.1,     // Кирилл бежит к папе «КУПИ ИГРУ!»
@@ -750,8 +768,8 @@ const SCREEN_W = COLS * TILE;  // 240 — ширина одного экрана
 // Символы карты, которые игра знает. Буквы «скоро» пока ничего не делают.
 //   N — выход из части (лестница наверх, окно), L — Лера с досками (картинка)
 //   b — пиво, k — Кирилл, t — Туся, w — пылесос, l — лего, i — грабли
-//   v — Вася, n — Настя (только на арене босса)
-const MAP_SYMBOLS = '.#-PCENLbktwlivn' + Object.keys(FURNITURE).join('');
+//   v — Вася, n — Настя (только на арене босса), x — сигареты, u — кофе
+const MAP_SYMBOLS = '.#-PCENLbktwlivnxu' + Object.keys(FURNITURE).join('');
 const MAP_SOON = 'mgs';
 
 // Размеры особых предметов в плитках (символ — левый нижний угол)
@@ -847,6 +865,7 @@ function buildPart(part, pi, isLast, isArena) {
     phones: [],        // телефоны-звонки {x, y}
     npcs: [],          // Лера с досками {x, y, triggerX}
     beers: [],         // пиво {x, y}
+    boosts: [],        // бустеры {kind: 'cig' или 'coffee', x, y}
     spawns: [],        // где появляются враги {type, x, y} (y — где ноги)
     twins: [],         // арена босса: где стоят Вася и Настя {name, x, y}
     lego: [],          // россыпи лего {x, y, w, h}
@@ -885,6 +904,8 @@ function buildPart(part, pi, isLast, isArena) {
         continue;
       }
       if (ch === 'b') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
+      if (ch === 'x') { lp.boosts.push({ kind: 'cig', x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
+      if (ch === 'u') { lp.boosts.push({ kind: 'coffee', x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
       if (ch === 'k') { lp.spawns.push({ type: 'kirill', x: tileX(c), y: tileY(r + 1) }); continue; }
       if (ch === 't') { lp.spawns.push({ type: 'cat', x: tileX(c), y: tileY(r + 1) }); continue; }
       if (ch === 'w') { lp.spawns.push({ type: 'vacuum', x: tileX(c), y: tileY(r + 1) }); continue; }
@@ -912,7 +933,7 @@ function buildPart(part, pi, isLast, isArena) {
       lp.furniture.push({ def: def, x: x, y: y });
       if (ch === 'I') lp.stairs.push(x);
       for (const p of furnitureParts(def)) {
-        lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce });
+        lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce, lie: !!def.lie });
         if (def.hot) lp.hot.push({ x: x + p.x - 1, y: y + p.y - 1, w: p.w + 2, h: p.h + 1 });
       }
       if (def.puddle) lp.puddles.push({ x: x + def.puddle.x, y: y + def.puddle.y, w: def.puddle.w, h: def.puddle.h });
@@ -953,6 +974,7 @@ const player = {
   stun: 0,         // сколько шагов не слушается кнопок (споткнулся, оглушён, отлетел)
   stunKind: '',    // 'trip' — лежит, 'daze' — звёздочки над головой, 'knock' — отлетел
   standingOn: null,// пылесос, на котором едет
+  lying: false,    // лежит на диване или шезлонге (кураж восполняется)
   facing: 1,       // куда смотрит: 1 — вправо, -1 — влево
   anim: 'idle',    // текущая анимация
   animTime: 0,     // сколько шагов идёт текущая анимация
@@ -993,6 +1015,13 @@ function barX(globalX) {
 // Где Филипп на всём уровне (а не только в текущей части)
 function playerGlobalX() {
   return level.offset + player.x;
+}
+
+// Жёлтый силуэт кадра — для свечения от кофе (готовим один раз на каждый кадр)
+const glowCache = new Map();
+function glowOf(frame) {
+  if (!glowCache.has(frame)) glowCache.set(frame, makeSilhouette(frame, '#ffcd75'));
+  return glowCache.get(frame);
 }
 
 // Мешок для случайных фраз: берём случайную, пока все не кончатся, потом мешок наполняется снова.
@@ -1089,6 +1118,15 @@ const levelState = {
   enemies: [],       // враги текущей части: Кирилл, Туся, пылесос
   popups: [],        // всплывающие надписи «АЙ!», «МЯУ!», «+1»
   swingCool: 0,      // пауза после удара сиденьем качелей
+  boostsTaken: [],   // для каждой части: какие сигареты и кофе уже взяты
+  courage: 1,        // кураж: 1 — полный, 0 — пусто
+  coffee: 0,         // сколько шагов ещё действует кофе
+  coffeeCrash: 0,    // сколько шагов ещё длится «отходняк» после кофе
+  tipsy: 0,          // сколько шагов ещё действует «подпитие»
+  tipsyLevel: 0,     // насколько сильно: 1 — одно пиво, 2 — второе подряд...
+  smoke: 0,          // сколько шагов ещё тянется дымок после сигарет
+  smokeTrail: [],    // облачка дыма {x, y, t}
+  sofaIdle: 0,       // сколько шагов Филипп стоит неподвижно на диване
 
   // mode:
   //   'resume'   — вернуться после разговора по телефону: ничего не сбрасываем
@@ -1103,13 +1141,15 @@ const levelState = {
       this.placePlayer(level.start.x, level.start.y);
       this.resetPart();
       this.alarm = false;
+      player.lying = false;
       return;
     }
     if (mode !== 'lastCall' || !this.saved) {
       this.saved = { part: 0, x: levelParts[0].start.x, y: levelParts[0].start.y, leraX: 0,
                      leraSpeed: CONFIG.leraSpeed, clockSteps: 0,
                      taken: levelParts.map((p) => p.phones.map(() => false)),
-                     beersTaken: levelParts.map((p) => p.beers.map(() => false)) };
+                     beersTaken: levelParts.map((p) => p.beers.map(() => false)),
+                     boostsTaken: levelParts.map((p) => p.boosts.map(() => false)) };
     }
     // Восстанавливаем всё как было на старте или в момент последнего звонка
     partIndex = this.saved.part;
@@ -1119,7 +1159,9 @@ const levelState = {
     this.leraSpeed = this.saved.leraSpeed;
     this.taken = copyTaken(this.saved.taken);
     this.beersTaken = copyTaken(this.saved.beersTaken);
+    this.boostsTaken = copyTaken(this.saved.boostsTaken);
     this.lives = CONFIG.startLives;                   // «ЕЩЁ РАЗ» — снова 3 кружки
+    this.resetEffects();                              // и полный кураж, без кофе и пива
     this.invuln = 0;
     this.resetPart();
     clockSteps = this.saved.clockSteps;
@@ -1139,6 +1181,96 @@ const levelState = {
     player.standingOn = null;
   },
 
+  // Кураж полный, никаких кофе, пива и дыма
+  resetEffects() {
+    this.courage = 1;
+    this.coffee = 0;
+    this.coffeeCrash = 0;
+    this.tipsy = 0;
+    this.tipsyLevel = 0;
+    this.smoke = 0;
+    this.smokeTrail = [];
+    this.sofaIdle = 0;
+    player.lying = false;
+  },
+
+  // Множитель от куража: выше половины — 100%, ниже — плавно до courageMinFactor (70%) на нуле
+  courageFactor() {
+    if (this.courage >= 0.5) return 1;
+    return CONFIG.courageMinFactor + (1 - CONFIG.courageMinFactor) * (this.courage / 0.5);
+  },
+
+  // Множитель скорости бега: кураж, кофе, «отходняк»
+  speedFactor() {
+    let k = this.courageFactor();
+    if (this.coffee > 0) k *= CONFIG.coffeeSpeedMul;
+    else if (this.coffeeCrash > 0) k *= CONFIG.coffeeCrashMul;
+    return k;
+  },
+
+  // Множитель ВЫСОТЫ прыжка: кураж и подпитие
+  jumpFactor() {
+    let k = this.courageFactor();
+    if (this.tipsy > 0) k *= CONFIG.tipsyJumpMul;
+    return k;
+  },
+
+  // Каждый шаг игры: кураж убывает (или восполняется лёжа), идут таймеры кофе, пива, дыма
+  tickEffects() {
+    const step = 1 / 60;
+    if (player.lying) {
+      this.courage = Math.min(1, this.courage + step / CONFIG.sofaRefillSeconds);
+      if (this.tick % 90 === 0) this.popup('ХР-Р-Р...', player.x + 10, player.y + 8);
+    } else {
+      this.courage = Math.max(0, this.courage - step / CONFIG.courageDrainSeconds);
+      if (this.courage < CONFIG.courageLow && Math.random() < 1 / 420) this.popup('ЭХ...', player.x + 5, player.y - 2);
+    }
+    if (this.coffee > 0) {
+      this.coffee--;
+      if (this.coffee === 0) {
+        this.coffeeCrash = Math.round(CONFIG.coffeeCrashSeconds * 60);
+        this.popup('ЗЕ-Е-ЕВ...', player.x + 5, player.y - 2);
+      }
+    } else if (this.coffeeCrash > 0) {
+      this.coffeeCrash--;
+    }
+    if (this.tipsy > 0) {
+      this.tipsy--;
+      if (this.tipsy === 0) this.tipsyLevel = 0;
+      if (Math.random() < 1 / 200) this.popup('ИК!', player.x + 5, player.y - 2);
+    }
+    if (this.smoke > 0) {
+      this.smoke--;
+      if (this.smoke % 5 === 0) this.smokeTrail.push({ x: player.x + player.w / 2 - player.facing * 4, y: player.y + 6, t: 0 });
+    }
+    this.smokeTrail = this.smokeTrail.filter((p) => ++p.t < 40);
+  },
+
+  // Подобрал бустер: сигареты, кофе
+  takeBoost(kind, x, y) {
+    if (kind === 'cig') {
+      this.courage = Math.min(1, this.courage + CONFIG.cigCourage);
+      this.smoke = Math.round(CONFIG.smokeSeconds * 60);
+      this.popup('+КУРАЖ', x + 4, y - 2);
+    } else {
+      this.coffee = Math.round(CONFIG.coffeeSeconds * 60);
+      this.coffeeCrash = 0;
+      this.popup('КОФЕ!', x + 4, y - 2);
+    }
+    pickupSound();
+  },
+
+  // Выпил пиво: «подпитие». Второе подряд — сильнее и дольше
+  drinkBeer() {
+    if (this.tipsy > 0) {
+      this.tipsyLevel = Math.min(3, this.tipsyLevel + 1);
+      this.tipsy += Math.round(CONFIG.tipsySeconds * 60);
+    } else {
+      this.tipsyLevel = 1;
+      this.tipsy = Math.round(CONFIG.tipsySeconds * 60);
+    }
+  },
+
   // Всплывающая надпись над точкой x, y
   popup(text, x, y) {
     this.popups.push({ text: text, x: x, y: y, t: 0 });
@@ -1146,7 +1278,7 @@ const levelState = {
 
   // Удар: минус кружка, отброс, мигание. srcX — откуда пришёл удар (чтобы отбросить в другую сторону)
   hurt(text, srcX) {
-    if (this.invuln > 0) return;
+    if (this.invuln > 0 || this.coffee > 0) return;   // мигает после удара или пьёт кофе — неуязвим
     this.lives--;
     this.invuln = Math.round(CONFIG.invulnSeconds * 60);
     const cx = player.x + player.w / 2;
@@ -1186,6 +1318,7 @@ const levelState = {
 
     this.movePlayer(input);
     clockSteps++;
+    this.tickEffects();
     if (this.invuln > 0) this.invuln--;
     if (this.swingCool > 0) this.swingCool--;
 
@@ -1260,7 +1393,7 @@ const levelState = {
     const ph = level.phones[i];
     this.saved = { part: partIndex, x: ph.x - 1, y: ph.y + 14 - player.h, leraX: this.leraX,
                    leraSpeed: this.leraSpeed, clockSteps: clockSteps, taken: copyTaken(this.taken),
-                   beersTaken: copyTaken(this.beersTaken) };
+                   beersTaken: copyTaken(this.beersTaken), boostsTaken: copyTaken(this.boostsTaken) };
     // Сценка разговора поверх замершего уровня
     setState('inLevelScene', {
       background: 'level',
@@ -1327,7 +1460,7 @@ const levelState = {
           e.dir = dx < 0 ? -1 : 1;
         }
         moveEnemy(e, e.state !== 'dash');
-        if (e.cool === 0 && overlaps(player, e)) {
+        if (e.cool === 0 && this.coffee === 0 && overlaps(player, e)) {   // с кофе Туся не страшна
           player.stun = Math.round(CONFIG.tripSeconds * 60);   // споткнулся и упал
           player.stunKind = 'trip';
           player.vx = 0;
@@ -1347,7 +1480,7 @@ const levelState = {
         if (player.standingOn === e) {
           player.x += e.x - oldX;
           player.y = e.y - player.h;
-        } else if (e.cool === 0 && overlaps(player, e)) {
+        } else if (e.cool === 0 && this.coffee === 0 && overlaps(player, e)) {
           player.stun = Math.round(CONFIG.dazeSeconds * 60);   // оглушён
           player.stunKind = 'daze';
           player.vx = dx < 0 ? -1.5 : 1.5;
@@ -1364,7 +1497,7 @@ const levelState = {
     const pcx = player.x + player.w / 2;
     // Лего: наступил — «АЙ!», подпрыгивает от боли, минус кружка
     for (const l of level.lego) {
-      if (player.onGround && overlaps(player, l)) {
+      if (player.onGround && this.coffee === 0 && overlaps(player, l)) {
         this.hurt('АЙ!', undefined);
         player.vx *= 0.3;
         player.vy = -3;
@@ -1373,7 +1506,7 @@ const levelState = {
     // Грабли: наступил — встают и бьют по лбу «БАМ!», звёздочки
     for (const r of level.rakes) {
       if (r.timer > 0) r.timer--;
-      if (r.timer === 0 && player.onGround && overlaps(player, r)) {
+      if (r.timer === 0 && player.onGround && this.coffee === 0 && overlaps(player, r)) {
         r.timer = 60;
         this.hurt('БАМ!', r.x + 20);
         player.stun = 40;
@@ -1385,7 +1518,7 @@ const levelState = {
       if (overlaps(player, h)) this.hurt('ГОРЯЧО!', h.x + h.w / 2);
     }
     // Качели: сиденье бьёт и отбрасывает (кружку не отнимает)
-    if (this.swingCool === 0) {
+    if (this.swingCool === 0 && this.coffee === 0) {
       for (const s of level.swings) {
         const seat = swingSeat(s.x, s.y, this.tick);
         if (overlaps(player, seat)) {
@@ -1406,8 +1539,17 @@ const levelState = {
       if (!beers[i] && overlaps(player, { x: b.x, y: b.y, w: 8, h: 8 })) {
         beers[i] = true;
         this.lives = Math.min(CONFIG.maxLives, this.lives + 1);
+        this.drinkBeer();                             // и «подпитие» на несколько секунд
         gulpSound();
         this.popup('+1', b.x + 4, b.y - 4);
+      }
+    });
+    // Сигареты и кофе: подбираются на бегу, без остановки
+    const boosts = this.boostsTaken[partIndex];
+    level.boosts.forEach((b, i) => {
+      if (!boosts[i] && overlaps(player, { x: b.x - 1, y: b.y - 1, w: 10, h: 10 })) {
+        boosts[i] = true;
+        this.takeBoost(b.kind, b.x, b.y);
       }
     });
   },
@@ -1424,9 +1566,14 @@ const levelState = {
 
   // Бег, прыжки и столкновения Филиппа
   movePlayer(input) {
-    // Оглушён, споткнулся или отлетел — кнопки не слушаются
-    const stunned = player.stun > 0;
-    if (stunned) player.stun--;
+    // Лежит на диване: любая кнопка — встаёт
+    if (player.lying && (keys.left || keys.right || keys.jump || input.jumpPressed || input.throwPressed)) {
+      player.lying = false;
+      this.sofaIdle = 0;
+    }
+    // Оглушён, споткнулся, отлетел или лежит — кнопки не слушаются
+    const stunned = player.stun > 0 || player.lying;
+    if (player.stun > 0) player.stun--;
 
     // Бег: разгон в сторону нажатой кнопки
     let dir = 0;
@@ -1435,16 +1582,24 @@ const levelState = {
       if (keys.right) dir += 1;
     }
 
+    // Кураж, кофе и «отходняк» меняют скорость бега
+    const maxSpeed = CONFIG.playerMaxSpeed * this.speedFactor();
+
     // Лужа: очень скользко — разгоняться и тормозить почти невозможно
     const feet = { x: player.x, y: player.y + player.h - 1, w: player.w, h: 2 };
     const slippery = player.onGround && level.puddles.some((p) => overlaps(feet, p));
     const accel = slippery ? 0.03 : CONFIG.playerAccel;
-    const friction = slippery ? 0.01 : CONFIG.playerFriction;
+    let friction = slippery ? 0.01 : CONFIG.playerFriction;
+    // Подпитие: тормозит с запозданием, и его слегка тянет то влево, то вправо
+    if (this.tipsy > 0) {
+      friction *= CONFIG.tipsyBrake;
+      if (player.onGround && !stunned) player.vx += Math.sin(this.tick / 30) * CONFIG.tipsyDrift * this.tipsyLevel;
+    }
 
     if (dir !== 0) {
       player.vx += dir * accel;
-      if (player.vx > CONFIG.playerMaxSpeed) player.vx = CONFIG.playerMaxSpeed;
-      if (player.vx < -CONFIG.playerMaxSpeed) player.vx = -CONFIG.playerMaxSpeed;
+      if (player.vx > maxSpeed) player.vx = maxSpeed;
+      if (player.vx < -maxSpeed) player.vx = -maxSpeed;
     } else {
       // Торможение: плавно уменьшаем скорость до нуля
       if (player.vx > 0) player.vx = Math.max(0, player.vx - friction);
@@ -1453,9 +1608,10 @@ const levelState = {
 
     // Прыжок: только с земли и только в момент нажатия.
     // Чем быстрее бежит Филипп, тем выше прыжок: с места — jumpSpeed, с разбега — до jumpSpeedRun.
+    // Кураж и пиво меняют ВЫСОТУ прыжка (поэтому скорость прыжка — через квадратный корень).
     if (input.jumpPressed && player.onGround && !stunned) {
-      const run = Math.min(1, Math.abs(player.vx) / CONFIG.playerMaxSpeed);   // 0 — стоит, 1 — полный бег
-      player.vy = -(CONFIG.jumpSpeed + (CONFIG.jumpSpeedRun - CONFIG.jumpSpeed) * run);
+      const run = Math.min(1, Math.abs(player.vx) / maxSpeed);   // 0 — стоит, 1 — полный бег
+      player.vy = -(CONFIG.jumpSpeed + (CONFIG.jumpSpeedRun - CONFIG.jumpSpeed) * run) * Math.sqrt(this.jumpFactor());
       player.onGround = false;
     }
     // Отпустили прыжок, пока летим вверх — прыжок получается ниже.
@@ -1488,12 +1644,14 @@ const levelState = {
     player.y += player.vy;
     player.onGround = false;
     let bounced = false;
+    let standingOnSofa = false;
     for (const s of level.solids) {
       if (overlaps(player, s)) {
         if (player.vy > 0) {        // падали вниз — встали на платформу
           player.y = s.y - player.h;
           if (s.bounce) bounced = true;     // это батут — сейчас подбросит
           else player.onGround = true;
+          if (s.lie) standingOnSofa = true; // диван или шезлонг
         } else if (player.vy < 0) { // летели вверх — ударились головой
           player.y = s.y + s.h;
         }
@@ -1535,6 +1693,17 @@ const levelState = {
           player.onGround = true;
         }
       }
+    }
+
+    // Диван или шезлонг: постоял неподвижно — лёг. Лера при этом идёт!
+    if (standingOnSofa && !player.lying && dir === 0 && !keys.jump && Math.abs(player.vx) < 0.1 && player.stun === 0) {
+      this.sofaIdle++;
+      if (this.sofaIdle >= CONFIG.sofaLieSeconds * 60) {
+        player.lying = true;
+        this.popup('ХР-Р-Р...', player.x + 10, player.y + 8);
+      }
+    } else if (!player.lying) {
+      this.sofaIdle = 0;
     }
 
     // Куда смотрит герой: меняем только когда нажата кнопка
@@ -1615,6 +1784,13 @@ const levelState = {
     level.beers.forEach((b, i) => {
       if (!beers[i]) drawBeer(ctx, b.x - cam, b.y + Math.round(Math.sin(this.tick / 12 + i) * 1.5));
     });
+    // Сигареты и кофе
+    const boosts = this.boostsTaken[partIndex] || [];
+    level.boosts.forEach((b, i) => {
+      if (boosts[i]) return;
+      if (b.kind === 'cig') drawCigs(ctx, b.x - cam, b.y);
+      else drawCoffee(ctx, b.x - cam, b.y, this.tick);
+    });
     // Враги
     for (const e of this.enemies) this.drawEnemy(e, cam);
 
@@ -1636,8 +1812,15 @@ const levelState = {
     const sx = Math.round(player.x) - SPRITE_OFFSET_X - cam;
     const sy = Math.round(player.y) - SPRITE_OFFSET_Y;
     const blinkOff = this.invuln > 0 && Math.floor(this.invuln / 4) % 2 === 1;   // мигает после удара
+    // Дымок после сигарет тянется за Филиппом
+    for (const p of this.smokeTrail) drawSmokePuff(ctx, Math.round(p.x) - cam, Math.round(p.y - p.t / 4), p.t / 40);
+    // Кофе: Филипп светится — жёлтый силуэт вокруг картинки
+    if (this.coffee > 0 && !player.lying && Math.floor(this.tick / 6) % 3 !== 0) {
+      const glow = glowOf(anim.frames[frameIndex]);
+      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawSprite(ctx, glow, sx + ox, sy + oy, player.facing === -1);
+    }
     if (!blinkOff) {
-      if (player.stun > 0 && player.stunKind === 'trip') {
+      if (player.lying || (player.stun > 0 && player.stunKind === 'trip')) {
         // Споткнулся о Тусю: лежит на полу (картинка повёрнута на бок)
         ctx.save();
         ctx.translate(sx + 8, sy + 24 - 8);
@@ -1650,6 +1833,8 @@ const levelState = {
     }
     // Оглушён — звёздочки над головой
     if (player.stun > 0 && player.stunKind === 'daze') drawStars(ctx, sx + 8, sy - 3, this.tick);
+    // Кофе — пар над головой
+    if (this.coffee > 0 && !player.lying) drawSteam(ctx, sx + 8, sy - 2, this.tick);
 
     // Всплывающие надписи («АЙ!», «МЯУ!», «+1»): поднимаются и исчезают
     for (const p of this.popups) {
@@ -1718,6 +1903,30 @@ const levelState = {
     const slots = Math.max(CONFIG.startLives, this.lives);
     for (let i = 0; i < slots; i++) drawBeer(ctx, 2 + i * 9, 0, i >= this.lives);
 
+    // Шкала «КУРАЖ»: зелёная, ниже половины — жёлтая, ниже четверти — красная и мигает
+    const low = this.courage < CONFIG.courageLow;
+    if (!low || Math.floor(this.tick / 15) % 2 === 0) {
+      drawText(ctx, 'КУРАЖ', 50, 1, low ? '#b13e53' : '#94b0c2');
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(82, 3, 30, 3);
+      ctx.fillStyle = low ? '#b13e53' : (this.courage < 0.5 ? '#ffcd75' : '#a7f070');
+      ctx.fillRect(82, 3, Math.round(30 * this.courage), 3);
+    }
+
+    // Действующие эффекты: значок и убывающая полоска
+    let ex = 116;
+    const effect = (draw, part, color) => {
+      draw(ex);
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(ex + 9, 3, 16, 2);
+      ctx.fillStyle = color;
+      ctx.fillRect(ex + 9, 3, Math.max(1, Math.round(16 * part)), 2);
+      ex += 28;
+    };
+    if (this.coffee > 0) effect((x) => drawCoffee(ctx, x, 0, this.tick), this.coffee / (CONFIG.coffeeSeconds * 60), '#ffcd75');
+    else if (this.coffeeCrash > 0) effect((x) => drawCoffee(ctx, x, 0, 0), this.coffeeCrash / (CONFIG.coffeeCrashSeconds * 60), '#b13e53');
+    if (this.tipsy > 0) effect((x) => drawBeer(ctx, x, 0, false), Math.min(1, this.tipsy / (CONFIG.tipsySeconds * 60)), '#ffcd75');
+
     drawText(ctx, VERSION, W - 31 - 6 - textWidth(VERSION), 1, '#566c86');   // версия мелко и тускло, рядом с часами
     drawText(ctx, clockText(), W - 31, 1, '#ffcd75');
 
@@ -1784,6 +1993,7 @@ const bossState = {
       levelState.leraSpeed = this.saved.leraSpeed;
       clockSteps = this.saved.clockSteps;
       levelState.lives = CONFIG.startLives;          // снова 3 кружки
+      levelState.resetEffects();                     // и полный кураж
     }
     this.reset();
     if (mode === 'intro') {
@@ -1828,6 +2038,7 @@ const bossState = {
 
     levelState.movePlayer(input);
     clockSteps++;
+    levelState.tickEffects();
     if (levelState.invuln > 0) levelState.invuln--;
     levelState.popups = levelState.popups.filter((p) => ++p.t < 50);
 
@@ -1894,7 +2105,7 @@ const bossState = {
         gl.vx = gl.dir * speed;
         if (gl.onGround && Math.random() < CONFIG.girlJumpChance) gl.vy = -3.2;
         if (gl.timer > 7 * 60) this.nextRunner();      // долго не догнала — очередь сестры
-        if (player.stun === 0 && overlaps(player, gl)) {
+        if (player.stun === 0 && !player.lying && levelState.coffee === 0 && overlaps(player, gl)) {
           gl.state = 'hug'; gl.timer = 0;
           player.stun = Math.round(CONFIG.hugSeconds * 60);
           player.stunKind = 'hug';
@@ -1972,7 +2183,8 @@ const bossState = {
     if (input.throwPressed && this.carried.length > 0 && player.stunKind !== 'trip') {
       const kind = this.carried.pop();
       this.thrown.push({ kind: kind, x: player.x + player.w / 2 - 4, y: player.y + 10,   // из рук
-                         vx: player.facing * CONFIG.throwSpeed, vy: -CONFIG.throwLift });
+                         vx: player.facing * CONFIG.throwSpeed * (levelState.tipsy > 0 ? CONFIG.tipsyThrowMul : 1),
+                         vy: -CONFIG.throwLift });
     }
     for (const t of this.thrown) {
       t.vy += THROW_GRAVITY;
@@ -2069,8 +2281,8 @@ const bossState = {
         drawHeart(ctx, x0 + textWidth(label) + 4 + h * 7, HUD_H + 2, h < CONFIG.bossHitsToWin - gl.hits);
       }
     });
-    // Что Филипп несёт — рядом с кружками в HUD
-    this.carried.forEach((kind, i) => drawToy(ctx, kind, 52 + i * 9, 0));
+    // Что Филипп несёт — посередине строки со шкалами девочек
+    this.carried.forEach((kind, i) => drawToy(ctx, kind, W / 2 - 14 + i * 10, HUD_H));
   },
 };
 

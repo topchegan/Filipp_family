@@ -1966,6 +1966,102 @@ FURNITURE.a = {
 };
 
 
+// =============================================
+// БУСТЕРЫ (v0.11): сигареты, кофе, кофемашина, шезлонг
+// =============================================
+
+// На диване и шезлонге можно лечь: постоял 1 секунду — лёг, кураж восполняется
+FURNITURE.D.lie = true;
+
+// Шезлонг (символ e, 5x2): полосатая ткань, наклонная спинка. Твёрдый, на нём можно лечь
+FURNITURE.e = {
+  name: 'Шезлонг', w: 5, h: 2, lie: true,
+  parts: [{ x: 0, y: 6, w: 40, h: 10 }],
+  draw(g, x, y) {
+    g.fillStyle = '#ef7d57';
+    g.fillRect(x + 2, y + 12, 2, 4);                // ножки
+    g.fillRect(x + 36, y + 12, 2, 4);
+    g.fillRect(x + 18, y + 12, 2, 4);
+    for (let i = 0; i < 38; i++) {                  // полосатая ткань
+      g.fillStyle = Math.floor(i / 4) % 2 ? '#41a6f6' : '#f4f4f4';
+      g.fillRect(x + 1 + i, y + 8, 1, 4);
+    }
+    g.fillStyle = '#b13e53';
+    g.fillRect(x, y + 11, 40, 1);                   // рама
+    for (let i = 0; i < 6; i++) {                   // наклонная спинка слева
+      g.fillStyle = i % 2 ? '#41a6f6' : '#f4f4f4';
+      g.fillRect(x + 1 + i, y + 2 + i, 2, 6 - i);
+    }
+  },
+};
+
+// Кофемашина (символ y, 2x2): твёрдая, на неё можно встать. Рядом ставят кофе (символ u)
+FURNITURE.y = {
+  name: 'Кофемашина', w: 2, h: 2,
+  draw(g, x, y) {
+    g.fillStyle = '#333c57';
+    g.fillRect(x, y, 16, 16);                       // корпус
+    g.fillStyle = '#566c86';
+    g.fillRect(x + 2, y + 2, 12, 4);                // панель
+    g.fillStyle = '#b13e53';
+    g.fillRect(x + 3, y + 3, 2, 2);                 // кнопка
+    g.fillStyle = '#38b764';
+    g.fillRect(x + 9, y + 3, 3, 1);                 // экранчик
+    g.fillStyle = '#1a1c2c';
+    g.fillRect(x + 6, y + 6, 4, 2);                 // носик
+    g.fillStyle = '#566c86';
+    g.fillRect(x + 3, y + 13, 10, 1);               // подставка
+  },
+};
+
+// Чашка кофе 8x8 (символ u). t — для пара
+function drawCoffee(g, x, y, t) {
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 1, y + 3, 5, 5);                   // чашка
+  g.fillRect(x + 6, y + 4, 2, 1);                   // ручка
+  g.fillRect(x + 7, y + 4, 1, 3);
+  g.fillRect(x + 6, y + 6, 2, 1);
+  g.fillStyle = '#5d275d';
+  g.fillRect(x + 2, y + 3, 3, 1);                   // кофе
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x + 1, y + 7, 5, 1);                   // донышко
+  const k = Math.floor((t || 0) / 10) % 2;           // пар
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 2 + k, y, 1, 2);
+  g.fillRect(x + 4 - k, y + 1, 1, 1);
+}
+
+// Пачка сигарет 8x8 (символ x)
+function drawCigs(g, x, y) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y + 2, 8, 6);                       // контур
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 1, y + 3, 6, 4);                   // пачка
+  g.fillStyle = '#b13e53';
+  g.fillRect(x + 1, y + 5, 6, 1);                   // полоска
+  g.fillStyle = '#ffcd75';
+  g.fillRect(x + 2, y, 1, 3);                       // торчат сигареты с фильтром
+  g.fillRect(x + 4, y + 1, 1, 2);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 2, y, 1, 1);
+}
+
+// Дымок за Филиппом после сигарет: облачко, поднимается и тает (p от 0 до 1)
+function drawSmokePuff(g, x, y, p) {
+  g.fillStyle = p < 0.5 ? '#94b0c2' : '#566c86';
+  const r = 1 + Math.round(p * 2);
+  g.fillRect(x - r, y - r, r * 2, r * 2 - 1);
+}
+
+// Пар над головой, пока действует кофе
+function drawSteam(g, cx, y, t) {
+  g.fillStyle = '#f4f4f4';
+  for (let i = 0; i < 3; i++) {
+    const p = ((t + i * 12) % 36) / 36;
+    g.fillRect(cx - 3 + i * 3 + Math.round(Math.sin(p * 6 + i) * 1), y - Math.round(p * 8), 1, 2);
+  }
+}
+
 // Твёрдые части предмета (если не заданы — весь прямоугольник)
 function furnitureParts(def) {
   return def.parts || [{ x: 0, y: 0, w: def.w * 8, h: def.h * 8 }];

@@ -131,6 +131,22 @@
     addCard(trapRow, 12, 12, 6, 'Пустая кружка в HUD', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 12, 12); drawBeer(g, 2, 2, true); });
     addCard(trapRow, 24, 14, 6, 'Звёздочки (оглушён)', (g) => drawStars(g, 12, 7, 0));
 
+    // Бустеры и эффекты
+    const boostRow = addRow('Бустеры и эффекты');
+    addCard(boostRow, 12, 12, 6, 'Сигареты (x): +40% куража', (g) => drawCigs(g, 2, 2));
+    addCard(boostRow, 12, 12, 6, 'Кофе (u): быстрее и неуязвим', (g) => drawCoffee(g, 2, 2, 0));
+    addCard(boostRow, 24, 16, 6, 'Дымок после сигарет', (g) => { g.fillStyle = '#333c57'; g.fillRect(0, 0, 24, 16); drawSmokePuff(g, 5, 10, 0.1); drawSmokePuff(g, 12, 8, 0.4); drawSmokePuff(g, 19, 5, 0.8); });
+    addCard(boostRow, 24, 34, 6, 'Кофе: свечение и пар', (g) => {
+      const f = SPRITES.filipp.anims.idle.frames[0];
+      const glow = makeSilhouette(f, '#ffcd75');
+      for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) g.drawImage(glow, 4 + ox, 9 + oy);
+      g.drawImage(f, 4, 9);
+      drawSteam(g, 12, 8, 10);
+    });
+    addCard(boostRow, 30, 18, 6, 'Лежит на диване: «ХР-Р-Р...»', (g) => {
+      g.save(); g.translate(15, 9); g.rotate(-Math.PI / 2); g.drawImage(SPRITES.filipp.anims.idle.frames[0], -8, -12); g.restore();
+    });
+
     // Бой с близнецами: игрушки, тень падения, сердечки
     const bossRow = addRow('Босс: игрушки, тень, сердечки');
     addCard(bossRow, 12, 12, 6, 'Мяч', (g) => drawToy(g, 'ball', 2, 2));
