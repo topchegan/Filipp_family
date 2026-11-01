@@ -23,8 +23,10 @@
     <div class="btn jump" data-btn="jump">Прыжок</div>
   </div>
 
-  <!-- Сначала картинки, потом игра: game.js пользуется спрайтами -->
-  <script src="sprites.js"></script>
-  <script src="game.js"></script>
+  <!-- Порядок важен: game.js пользуется всеми файлами выше -->
+  <script src="font.js"></script>     <!-- пиксельный шрифт -->
+  <script src="sprites.js"></script>  <!-- картинки персонажей -->
+  <script src="scenes.js"></script>   <!-- сценарий заставок -->
+  <script src="game.js"></script>     <!-- сама игра -->
 </body>
 </html>

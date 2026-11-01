@@ -71,6 +71,32 @@
       }
     }
 
+    // Портреты для диалогов — картинки без анимации, на фоне как в окне диалога
+    const ptitle = document.createElement('h2');
+    ptitle.textContent = 'Портреты (32x32)';
+    list.appendChild(ptitle);
+    const prow = document.createElement('div');
+    prow.className = 'row';
+    list.appendChild(prow);
+    for (const key in PORTRAITS) {
+      const pr = PORTRAITS[key];
+      const card = document.createElement('div');
+      card.className = 'card';
+      const cv = document.createElement('canvas');
+      cv.width = 32;
+      cv.height = 32;
+      cv.style.width = 32 * ZOOM + 'px';
+      cv.style.height = 32 * ZOOM + 'px';
+      cv.style.background = '#333c57';
+      cv.getContext('2d').drawImage(pr.image, 0, 0);
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = pr.name;
+      card.appendChild(cv);
+      card.appendChild(label);
+      prow.appendChild(card);
+    }
+
     // Проигрываем все анимации по кругу, 60 шагов в секунду
     let tick = 0;
     let last = performance.now();
