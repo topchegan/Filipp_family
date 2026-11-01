@@ -21,16 +21,18 @@
 const CONFIG = {
   // ----- Лера -----
   leraHeadStart: 2,          // фора: сколько секунд Лера стоит на месте в начале уровня и после «ЕЩЁ РАЗ»
-  leraSpeed: 1.2,            // скорость Леры по шкале. Для сравнения: Филипп бежит со скоростью до 1.5
-  leraSpeedUp: 0.1,          // на сколько Лера ускоряется после каждого пройденного чекпоинта
-  checkpointPushBack: 200,   // на сколько Леру отбрасывает назад на чекпоинте (240 = один экран)
+  leraSpeed: 0.9,            // скорость Леры по шкале. Для сравнения: Филипп бежит со скоростью до 1.5
+  leraSpeedUp: 0.1,          // на сколько Лера ускоряется после каждого звонка-отмазки
+  callPushBack: 200,         // на сколько Леру отбрасывает назад после звонка-отмазки (240 = один экран)
+  callPause: 0.5,            // пауза в секундах между касанием телефона и разговором
   alarmDistance: 160,        // если Лера ближе этого расстояния — тревога: шкала мигает, звонит телефон
 
   // ----- Филипп -----
   playerMaxSpeed: 1.5,       // максимальная скорость бега
   playerAccel: 0.15,         // разгон: чем больше, тем быстрее набирает скорость
   playerFriction: 0.2,       // торможение, когда кнопки отпущены
-  jumpSpeed: 4,              // сила прыжка (4 — прыжок примерно на 40 пикселей вверх)
+  jumpSpeed: 3,              // сила прыжка С МЕСТА (3 — примерно на 22 пикселя: 2 плитки и чуть больше)
+  jumpSpeedRun: 4,           // сила прыжка С РАЗБЕГА на полной скорости (4 — примерно на 40 пикселей: 5 плиток)
   gravity: 0.2,              // сила тяжести
   maxFall: 4,                // максимальная скорость падения
 
@@ -110,8 +112,8 @@ function vibrate() {
   tone(70, t0 + 0.35, 0.25, 0.08);
 }
 
-// Сигнал чекпоинта: две ноты вверх «пи-ПИ»
-function checkpointSound() {
+// Сигнал «взял телефон»: две ноты вверх «пи-ПИ»
+function pickupSound() {
   if (!audioCtx) return;
   const t0 = audioCtx.currentTime;
   tone(660, t0, 0.08, 0.06);
@@ -330,8 +332,9 @@ function tapOnSkip(t) {
 }
 
 // Движок сценок. Одна и та же «машина» работает для нескольких экранов:
-// ЗАСТАВКА, ПОРАЖЕНИЕ и ПОБЕДА_УРОВНЯ. Отличаются они только сценарием из scenes.js.
+// ЗАСТАВКА, ПОРАЖЕНИЕ, ПОБЕДА_УРОВНЯ и ЗВОНОК. Отличаются они только сценарием.
 // createSceneState('intro') создаёт экран, который по умолчанию играет сценарий intro.
+// В enter() можно передать имя сценария из scenes.js или сразу готовый сценарий-объект.
 function createSceneState(defaultScene) {
   return {
     scene: null,    // текущий сценарий из scenes.js
@@ -345,8 +348,8 @@ function createSceneState(defaultScene) {
     typed: 0,       // сколько букв уже напечатано
     titleText: '',  // текст титра (с подставленным временем)
 
-    enter(sceneName) {
-      this.scene = SCENES[sceneName || defaultScene];
+    enter(scene) {
+      this.scene = typeof scene === 'object' ? scene : SCENES[scene || defaultScene];
       this.tick = 0;
       // Копируем персонажей из сценария, чтобы не испортить сам сценарий
       this.actors = {};
@@ -399,7 +402,9 @@ function createSceneState(defaultScene) {
     },
 
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
+    // и во время разговора по телефону (там HUD уровня)
     showSkip() {
+      if (this.scene.background === 'level') return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -461,7 +466,9 @@ function createSceneState(defaultScene) {
       if (step.type === 'title') {
         this.drawTitleCard(this.titleText);
       } else {
-        BACKGROUNDS[this.scene.background](ctx);
+        // Фон 'level' — замерший уровень (для разговора по телефону)
+        if (this.scene.background === 'level') levelState.draw();
+        else BACKGROUNDS[this.scene.background](ctx);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
         if (step.type === 'say') this.drawDialog(step);
@@ -469,7 +476,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      drawVersion();
+      if (this.scene.background !== 'level') drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -647,7 +654,7 @@ const level = {
   solids: [],        // твёрдые прямоугольники: плитки # и твёрдые части мебели
   tops: [],          // тонкие платформы: «-» и полки мебели (стоять сверху)
   furniture: [],     // мебель для рисования
-  checkpoints: [],   // дверные проёмы-чекпоинты {x, y}
+  phones: [],        // телефоны-звонки {x, y} — левый верхний угол телефона 7x11
   gate: null,        // калитка-финиш {x, y}
   start: null,       // старт Филиппа {x, y}
 };
@@ -702,7 +709,7 @@ function buildLevel(data) {
   }
 
   // 3) Разбираем символы
-  level.solids = []; level.tops = []; level.furniture = []; level.checkpoints = [];
+  level.solids = []; level.tops = []; level.furniture = []; level.phones = [];
   level.gate = null; level.start = null;
   let starts = 0, gates = 0;
   const totalCols = level.rows[0].length;
@@ -721,12 +728,15 @@ function buildLevel(data) {
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
       let size = null;
       if (FURNITURE[ch]) size = FURNITURE[ch];
-      if (ch === 'C') size = { w: 3, h: 4 };
       if (ch === 'E') size = { w: 4, h: 4 };
       if (!size) {
         if (ch === 'P') {
           starts++;
           level.start = { x: tileX(c) - 1, y: tileY(r + 1) - player.h };
+        }
+        if (ch === 'C') {
+          // Телефон висит над полом плитки: низ телефона на 3 пикселя выше пола
+          level.phones.push({ x: tileX(c), y: tileY(r + 1) - 14 });
         }
         continue;
       }
@@ -740,17 +750,15 @@ function buildLevel(data) {
       }
       const x = tileX(c);
       const y = tileY(r + 1) - size.h * TILE;   // верх предмета
-      if (ch === 'C') {
-        level.checkpoints.push({ x: x, y: y });
-      } else if (ch === 'E') {
+      if (ch === 'E') {
         gates++;
         level.gate = { x: x, y: y, w: 32 };
       } else {
+        // Предмет целиком твёрдый: каждая его часть — препятствие
         const def = FURNITURE[ch];
         level.furniture.push({ def: def, x: x, y: y });
-        for (const p of def.parts) {
-          if (p.kind === 'solid') level.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h });
-          else level.tops.push({ x: x + p.x, y: y + p.y, w: p.w });
+        for (const p of furnitureParts(def)) {
+          level.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h });
         }
       }
     }
@@ -759,8 +767,8 @@ function buildLevel(data) {
   if (starts > 1) errors.push('СТАРТОВ P НА КАРТЕ ' + starts + ', А НУЖЕН ОДИН.');
   if (gates === 0) errors.push('НА КАРТЕ НЕТ ФИНИША E. ПОСТАВЬ ОДНУ БУКВУ E.');
   if (gates > 1) errors.push('ФИНИШЕЙ E НА КАРТЕ ' + gates + ', А НУЖЕН ОДИН.');
-  // Чекпоинты по порядку слева направо
-  level.checkpoints.sort((a, b) => a.x - b.x);
+  // Телефоны по порядку слева направо
+  level.phones.sort((a, b) => a.x - b.x);
 }
 
 // x, y, w, h — это ХИТБОКС: невидимая рамка, по которой считаются столкновения.
@@ -807,22 +815,38 @@ function barX(levelX) {
   return Math.round(BAR.x + part * BAR.w);
 }
 
+// Мешок для случайных фраз: берём случайную, пока все не кончатся, потом мешок наполняется снова.
+// Так фразы не повторяются подряд, пока не прозвучат все.
+const phraseBags = {};
+function takeFromBag(name, list) {
+  if (!phraseBags[name] || phraseBags[name].length === 0) phraseBags[name] = list.slice();
+  const bag = phraseBags[name];
+  return bag.splice(Math.floor(Math.random() * bag.length), 1)[0];
+}
+
 const levelState = {
   leraX: 0,          // где Лера на уровне (её иконка на шкале)
   leraSpeed: 0,      // её текущая скорость
   waitSteps: 0,      // сколько шагов ещё длится фора
-  passed: [],        // какие чекпоинты уже пройдены (true/false)
-  saved: null,       // что запомнили на последнем чекпоинте — оттуда «ЕЩЁ РАЗ»
+  taken: [],         // какие телефоны уже взяты (true/false)
+  saved: null,       // что запомнили на месте последнего звонка — оттуда «ЕЩЁ РАЗ»
   alarm: false,      // Лера близко?
   alarmTimer: 0,     // для мигания и вибрации
+  ringing: -1,       // какой телефон сейчас звонит (пауза перед разговором), -1 — никакой
+  ringTimer: 0,      // сколько шагов осталось до разговора
+  tick: 0,           // счётчик для анимации телефонов
 
-  // mode = 'checkpoint' — продолжить с последнего чекпоинта, иначе — с начала
+  // mode:
+  //   'resume'   — вернуться после разговора по телефону: ничего не сбрасываем
+  //   'lastCall' — «ЕЩЁ РАЗ»: продолжить с места последнего звонка
+  //   иначе      — начать уровень сначала
   enter(mode) {
-    if (mode !== 'checkpoint' || !this.saved) {
-      this.passed = level.checkpoints.map(() => false);
-      this.saved = { x: level.start.x, y: level.start.y, leraX: 0, leraSpeed: CONFIG.leraSpeed, clockSteps: 0 };
+    if (mode === 'resume') return;
+    if (mode !== 'lastCall' || !this.saved) {
+      this.saved = { x: level.start.x, y: level.start.y, leraX: 0, leraSpeed: CONFIG.leraSpeed,
+                     clockSteps: 0, taken: level.phones.map(() => false) };
     }
-    // Восстанавливаем всё как было на старте или на чекпоинте
+    // Восстанавливаем всё как было на старте или в момент последнего звонка
     player.x = this.saved.x;
     player.y = this.saved.y;
     player.vx = 0; player.vy = 0;
@@ -832,31 +856,42 @@ const levelState = {
     player.animTime = 0;
     this.leraX = this.saved.leraX;
     this.leraSpeed = this.saved.leraSpeed;
+    this.taken = this.saved.taken.slice();
     clockSteps = this.saved.clockSteps;
     this.waitSteps = CONFIG.leraHeadStart * 60;    // фора в шагах
     this.alarm = false;
     this.alarmTimer = 0;
+    this.ringing = -1;
     // Камера сразу на герое, без плавного подъезда
     cameraX = Math.max(0, Math.min(level.width - W, player.x + player.w / 2 - W / 2));
   },
 
   update(input) {
+    this.tick++;
+
+    // --- Звонит телефон: короткая пауза, игра стоит, потом разговор ---
+    if (this.ringing >= 0) {
+      this.ringTimer--;
+      if (this.ringTimer <= 0) this.startCall(this.ringing);
+      return;
+    }
+
     this.movePlayer(input);
     clockSteps++;
 
-    // --- Чекпоинты ---
-    level.checkpoints.forEach((cp, i) => {
-      if (!this.passed[i] && player.x + player.w / 2 >= cp.x + 12) {
-        this.passed[i] = true;
-        checkpointSound();
-        // Лера отлетает назад и немного ускоряется
-        this.leraX = Math.max(0, this.leraX - CONFIG.checkpointPushBack);
-        this.leraSpeed += CONFIG.leraSpeedUp;
-        // Запоминаем, откуда начинать после поражения: Филипп стоит в проёме
-        this.saved = { x: cp.x + 7, y: cp.y + 32 - player.h, leraX: this.leraX,
-                       leraSpeed: this.leraSpeed, clockSteps: clockSteps };
+    // --- Телефоны: коснулся — звонок ---
+    for (let i = 0; i < level.phones.length; i++) {
+      const ph = level.phones[i];
+      const box = { x: ph.x - 2, y: ph.y - 2, w: 11, h: 15 };   // чуть больше телефона — легче попасть
+      if (!this.taken[i] && overlaps(player, box)) {
+        this.taken[i] = true;                     // телефон исчезает
+        this.ringing = i;
+        this.ringTimer = Math.round(CONFIG.callPause * 60);
+        player.vx = 0;
+        pickupSound();
+        return;
       }
-    });
+    }
 
     // --- Финиш ---
     if (player.x + player.w >= level.gate.x + 4) {
@@ -885,6 +920,29 @@ const levelState = {
     }
   },
 
+  // Разговор по телефону: отмазка Филиппа, ответ Леры. Потом Лера отлетает назад.
+  startCall(i) {
+    this.ringing = -1;
+    this.alarm = false;
+    // Лера отлетает назад и немного ускоряется
+    this.leraX = Math.max(0, this.leraX - CONFIG.callPushBack);
+    this.leraSpeed += CONFIG.leraSpeedUp;
+    // Тихо запоминаем место звонка: после поражения «ЕЩЁ РАЗ» начнётся отсюда
+    const ph = level.phones[i];
+    this.saved = { x: ph.x - 1, y: ph.y + 14 - player.h, leraX: this.leraX, leraSpeed: this.leraSpeed,
+                   clockSteps: clockSteps, taken: this.taken.slice() };
+    // Сценка разговора поверх замершего уровня
+    setState('call', {
+      background: 'level',
+      next: 'level',
+      nextArg: 'resume',
+      steps: [
+        { type: 'say', who: 'filipp', text: takeFromBag('excuses', CALL_EXCUSES) },
+        { type: 'say', who: 'lera', text: takeFromBag('answers', CALL_ANSWERS) },
+      ],
+    });
+  },
+
   // Бег, прыжки и столкновения Филиппа
   movePlayer(input) {
     // Бег: разгон в сторону нажатой кнопки
@@ -902,9 +960,11 @@ const levelState = {
       if (player.vx < 0) player.vx = Math.min(0, player.vx + CONFIG.playerFriction);
     }
 
-    // Прыжок: только с земли и только в момент нажатия
+    // Прыжок: только с земли и только в момент нажатия.
+    // Чем быстрее бежит Филипп, тем выше прыжок: с места — jumpSpeed, с разбега — до jumpSpeedRun.
     if (input.jumpPressed && player.onGround) {
-      player.vy = -CONFIG.jumpSpeed;
+      const run = Math.min(1, Math.abs(player.vx) / CONFIG.playerMaxSpeed);   // 0 — стоит, 1 — полный бег
+      player.vy = -(CONFIG.jumpSpeed + (CONFIG.jumpSpeedRun - CONFIG.jumpSpeed) * run);
       player.onGround = false;
     }
     // Отпустили прыжок, пока летим вверх — прыжок получается ниже
@@ -1005,18 +1065,29 @@ const levelState = {
           const topOpen = r === 0 || level.rows[r - 1][c] !== '#';
           drawSolidTile(ctx, tileX(c) - cam, tileY(r), bg.tile, topOpen, r);
         } else {
-          drawShelfTile(ctx, tileX(c) - cam, tileY(r), bg.shelf);
+          // Кронштейны рисуем под крайними плитками полки
+          drawShelfTile(ctx, tileX(c) - cam, tileY(r), bg.shelf, row[c - 1] !== '-', row[c + 1] !== '-');
         }
       }
     }
 
-    // Дверные проёмы-чекпоинты, калитка, мебель
-    level.checkpoints.forEach((cp, i) => drawDoorway(ctx, cp.x - cam, cp.y, this.passed[i]));
+    // Калитка и предметы (с тёмным контуром)
     drawGate(ctx, level.gate.x - cam, level.gate.y);
     for (const f of level.furniture) {
       if (f.x - cam > W || f.x + f.def.w * TILE - cam < 0) continue;  // за экраном — не рисуем
-      f.def.draw(ctx, f.x - cam, f.y);
+      drawFurniture(ctx, f.def, f.x - cam, f.y);
     }
+
+    // Телефоны, которые ещё не взяты. Звонящий сейчас — трясётся сильнее и «ДЗЫНЬ!»
+    level.phones.forEach((ph, i) => {
+      if (i === this.ringing) {
+        const shake = (this.ringTimer >> 1) % 2 ? 1 : -1;
+        drawPhonePickup(ctx, ph.x - cam + shake, ph.y - 6, this.tick * 3);
+        drawTextCenteredShadow('ДЗЫНЬ!', ph.x - cam + 4, Math.max(HUD_H + 2, ph.y - 18), '#ffcd75', '#1a1c2c');
+      } else if (!this.taken[i]) {
+        drawPhonePickup(ctx, ph.x - cam, ph.y, this.tick + i * 20);
+      }
+    });
 
     // Филипп: берём нужный кадр текущей анимации
     const anim = SPRITES.filipp.anims[player.anim];
@@ -1049,10 +1120,9 @@ const levelState = {
     ctx.fillStyle = blinkRed ? '#b13e53' : '#566c86';
     ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
 
-    // Отметки чекпоинтов: жёлтые, пройденные — зелёные
-    level.checkpoints.forEach((cp, i) => {
-      ctx.fillStyle = this.passed[i] ? '#a7f070' : '#ffcd75';
-      ctx.fillRect(barX(cp.x + 12), BAR.y - 3, 1, BAR.h + 6);
+    // Значки телефонов, которые ещё не взяты
+    level.phones.forEach((ph, i) => {
+      if (!this.taken[i] && i !== this.ringing) drawPhoneMini(ctx, barX(ph.x + 4) - 1, BAR.y - 5);
     });
     // Отметка финиша — флажок
     const fx = barX(level.gate.x);
@@ -1097,11 +1167,12 @@ const states = {
   level: levelState,                          // УРОВЕНЬ
   defeat: createSceneState('defeat'),         // ПОРАЖЕНИЕ
   levelWin: createSceneState('levelWin'),     // ПОБЕДА_УРОВНЯ
+  call: createSceneState(),                   // ЗВОНОК: отмазка Филиппа и ответ Леры
   error: errorState,                          // ОШИБКА в карте или в файлах
 };
 let state = null;
 
-// Включить экран. arg — дополнительные данные (например, «продолжить с чекпоинта»)
+// Включить экран. arg — дополнительные данные (например, «продолжить с места последнего звонка»)
 function setState(name, arg) {
   state = states[name];
   state.enter(arg);
