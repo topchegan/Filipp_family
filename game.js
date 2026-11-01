@@ -52,6 +52,22 @@ const CONFIG = {
   vacuumSpeed: 0.6,          // скорость пылесоса
   dazeSeconds: 1,            // сколько секунд Филипп оглушён пылесосом
 
+  // ----- Босс: Вася и Настя -----
+  bossPushBack: 3600,        // на сколько отлетает Лера при входе на арену (чтобы на бой было около минуты)
+  girlSpeed: 0.8,            // скорость бегущей девочки
+  girlJumpChance: 0.01,      // как часто девочка подпрыгивает на бегу (0.01 — примерно раз в 1,5 секунды)
+  hugSeconds: 2,             // сколько секунд Филипп стоит в обнимку «ПАПА, ДЕРЖИСЬ!»
+  girlRestSeconds: 1.5,      // после обнимашек девочка столько секунд отбегает в сторону (передышка)
+  girlPlaySeconds: 2,        // сколько секунд девочка играет после попадания игрушкой
+  bossHitsToWin: 3,          // сколько попаданий нужно, чтобы девочка села играть насовсем (и сердечек)
+  toyEverySeconds: 3,        // как часто падают игрушки (фаза 1)
+  toyEverySecondsPhase2: 1.8,// как часто падают игрушки (фаза 2)
+  doubleToyChance: 0.35,     // фаза 2: шанс, что упадут две игрушки сразу
+  phase2SpeedMul: 1.5,       // фаза 2: во сколько раз быстрее оставшаяся девочка
+  maxCarry: 3,               // сколько игрушек Филипп может нести
+  throwSpeed: 3,             // сила броска игрушки (вперёд)
+  throwLift: 1.5,            // насколько игрушка взлетает вверх при броске (дуга)
+
   // ----- Часы -----
   clockStartHour: 9,         // время на часах в начале уровня: часы...
   clockStartMinute: 30,      // ...и минуты
@@ -200,15 +216,17 @@ function phoneRing() {
 // УПРАВЛЕНИЕ
 // =============================================
 // Здесь храним, какие кнопки сейчас зажаты
-const keys = { left: false, right: false, jump: false };
+const keys = { left: false, right: false, jump: false, throw: false };
 // Отдельно — кнопки с клавиатуры и с экрана, потом объединяем
-const kb = { left: false, right: false, jump: false };
-const touch = { left: false, right: false, jump: false };
+const kb = { left: false, right: false, jump: false, throw: false };
+const touch = { left: false, right: false, jump: false, throw: false };
 // Касания и клики по самому экрану (не по кнопкам). Координаты — в пикселях игры.
 let taps = [];
 // Нажали ли «Прыжок» с прошлого шага. Запоминаем сразу в момент нажатия,
 // чтобы даже очень короткое нажатие не потерялось.
 let jumpHit = false;
+// То же для кнопки «Бросок» (бой с боссом)
+let throwHit = false;
 
 // Какая клавиша за что отвечает
 const keyMap = {
@@ -217,6 +235,7 @@ const keyMap = {
   KeyZ: 'jump',
   Space: 'jump',
   ArrowUp: 'jump',
+  KeyX: 'throw',
 };
 
 window.addEventListener('keydown', (e) => {
@@ -224,6 +243,7 @@ window.addEventListener('keydown', (e) => {
   const action = keyMap[e.code];
   if (action) {
     if (action === 'jump' && !e.repeat) jumpHit = true; // repeat — это автоповтор при удержании
+    if (action === 'throw' && !e.repeat) throwHit = true;
     kb[action] = true;
     e.preventDefault(); // чтобы пробел и стрелки не прокручивали страницу
   }
@@ -250,7 +270,7 @@ const buttons = document.querySelectorAll('.btn');
 function updateTouches(e) {
   e.preventDefault();
   unlockAudio();
-  touch.left = touch.right = touch.jump = false;
+  touch.left = touch.right = touch.jump = touch.throw = false;
   for (const t of e.touches) {
     const el = document.elementFromPoint(t.clientX, t.clientY);
     if (el && el.dataset && el.dataset.btn) {
@@ -263,6 +283,7 @@ function updateTouches(e) {
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const btn = el && el.dataset ? el.dataset.btn : undefined;
       if (btn === 'jump') jumpHit = true;
+      else if (btn === 'throw') throwHit = true;
       else if (!btn) taps.push(toGameCoords(t.clientX, t.clientY));
     }
   }
@@ -466,7 +487,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (this.scene.background === 'level') return false;
+      if (this.scene.background === 'level' || this.scene.background === 'boss') return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -541,6 +562,7 @@ function createSceneState(defaultScene) {
       } else {
         // Фон 'level' — замерший уровень (для разговора по телефону)
         if (this.scene.background === 'level') levelState.draw();
+        else if (this.scene.background === 'boss') bossState.draw();     // арена босса
         else BACKGROUNDS[this.scene.background](ctx);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
@@ -555,7 +577,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (this.scene.background !== 'level') drawVersion();   // на уровне версия уже есть в HUD
+      if (this.scene.background !== 'level' && this.scene.background !== 'boss') drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -586,7 +608,8 @@ function createSceneState(defaultScene) {
     drawPhone() {
       const f = this.actors.filipp;
       const shake = (this.timer >> 1) % 2;            // трясётся на 1 пиксель
-      drawPhoneIcon(f.x + 14 + shake, FLOOR_Y - 40, this.timer);
+      if (f) drawPhoneIcon(f.x + 14 + shake, FLOOR_Y - 40, this.timer);
+      else drawPhoneIcon(116 + shake, 50, this.timer);     // нет Филиппа на фоне — телефон посередине
       drawTextCenteredShadow('ДЗЫНЬ-ДЗЫНЬ!', 120 + shake, 18, '#ffcd75', '#1a1c2c', 2);
     },
 
@@ -727,8 +750,9 @@ const SCREEN_W = COLS * TILE;  // 240 — ширина одного экрана
 // Символы карты, которые игра знает. Буквы «скоро» пока ничего не делают.
 //   N — выход из части (лестница наверх, окно), L — Лера с досками (картинка)
 //   b — пиво, k — Кирилл, t — Туся, w — пылесос, l — лего, i — грабли
-const MAP_SYMBOLS = '.#-PCENLbktwli' + Object.keys(FURNITURE).join('');
-const MAP_SOON = 'vnmgs';
+//   v — Вася, n — Настя (только на арене босса)
+const MAP_SYMBOLS = '.#-PCENLbktwlivn' + Object.keys(FURNITURE).join('');
+const MAP_SOON = 'mgs';
 
 // Размеры особых предметов в плитках (символ — левый нижний угол)
 const SPECIAL_SIZES = { E: { w: 4, h: 4 }, N: { w: 3, h: 4 }, L: { w: 2, h: 3 } };
@@ -736,6 +760,7 @@ const SPECIAL_SIZES = { E: { w: 4, h: 4 }, N: { w: 3, h: 4 }, L: { w: 2, h: 3 } 
 let levelParts = [];     // все части уровня
 let partIndex = 0;       // в какой части сейчас Филипп
 let level = null;        // текущая часть: всё, что нужно для игры (см. buildPart)
+let bossArena = null;    // арена босса: собирается из LEVELS[0].boss как обычная часть
 let totalLength = 1;     // длина всего уровня для шкалы HUD: от старта до калитки через все части
 
 // Ошибки в карте. Если они есть, вместо игры показываем экран с ошибками.
@@ -752,9 +777,14 @@ function buildLevel(data) {
     errors.push('В LEVELS.JS НЕТ НИ ОДНОЙ ЧАСТИ УРОВНЯ (PARTS).');
     return;
   }
-  // 1) Проверяем каждый экран каждой части: фон, 15 строк по 30 символов, известные символы
-  data.parts.forEach((part, pi) => {
-    const pn = 'ЧАСТЬ ' + (pi + 1);
+  if (!data.boss) {
+    errors.push('В LEVELS.JS НЕТ АРЕНЫ БОССА (BOSS).');
+    return;
+  }
+  // 1) Проверяем каждый экран каждой части и арену: фон, 15 строк по 30 символов, известные символы
+  const toCheck = data.parts.concat([{ screens: [data.boss], arena: true }]);
+  toCheck.forEach((part, pi) => {
+    const pn = part.arena ? 'АРЕНА БОССА' : 'ЧАСТЬ ' + (pi + 1);
     if (!Array.isArray(part.screens) || part.screens.length === 0) {
       errors.push(pn + ': НЕТ НИ ОДНОГО ЭКРАНА.');
       return;
@@ -791,15 +821,19 @@ function buildLevel(data) {
     offset += lp.width;
     levelParts.push(lp);
   });
+  // 3) Арена босса — отдельная «часть» из одного экрана
+  bossArena = buildPart({ name: data.boss.name, screens: [data.boss] }, -1, false, true);
   if (errors.length > 0) return;
   const last = levelParts[levelParts.length - 1];
   totalLength = last.offset + last.gate.x;
+  bossArena.offset = totalLength - SCREEN_W / 2;   // на шкале HUD Филипп на арене — у самого финиша
 }
 
 // Собирает одну часть уровня из её экранов
-function buildPart(part, pi, isLast) {
+// isArena = true — это арена босса: там не нужны ни выход N, ни калитка E
+function buildPart(part, pi, isLast, isArena) {
   const errors = LEVEL_ERRORS;
-  const pn = 'ЧАСТЬ ' + (pi + 1);
+  const pn = isArena ? 'АРЕНА БОССА' : 'ЧАСТЬ ' + (pi + 1);
   const lp = {
     name: part.name || pn,            // название части для титра
     exitScene: part.exitScene,        // сценка при выходе из части (например простыни у окна)
@@ -814,6 +848,7 @@ function buildPart(part, pi, isLast) {
     npcs: [],          // Лера с досками {x, y, triggerX}
     beers: [],         // пиво {x, y}
     spawns: [],        // где появляются враги {type, x, y} (y — где ноги)
+    twins: [],         // арена босса: где стоят Вася и Настя {name, x, y}
     lego: [],          // россыпи лего {x, y, w, h}
     rakes: [],         // грабли {x, y, w, h}
     puddles: [],       // лужи {x, y, w, h}: скользко
@@ -853,6 +888,7 @@ function buildPart(part, pi, isLast) {
       if (ch === 'k') { lp.spawns.push({ type: 'kirill', x: tileX(c), y: tileY(r + 1) }); continue; }
       if (ch === 't') { lp.spawns.push({ type: 'cat', x: tileX(c), y: tileY(r + 1) }); continue; }
       if (ch === 'w') { lp.spawns.push({ type: 'vacuum', x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (ch === 'v' || ch === 'n') { lp.twins.push({ name: ch === 'v' ? 'vasya' : 'nastya', x: tileX(c), y: tileY(r + 1) }); continue; }
       if (ch === 'l') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
       if (ch === 'i') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
@@ -885,7 +921,9 @@ function buildPart(part, pi, isLast) {
   }
   if (starts === 0) errors.push(pn + ': НЕТ СТАРТА P. ПОСТАВЬ ОДНУ БУКВУ P.');
   if (starts > 1) errors.push(pn + ': СТАРТОВ P ' + starts + ', А НУЖЕН ОДИН.');
-  if (isLast) {
+  if (isArena) {
+    if (lp.twins.length !== 2) errors.push(pn + ': НУЖНЫ ВАСЯ (V) И НАСТЯ (N) — РОВНО ПО ОДНОЙ.');
+  } else if (isLast) {
     if (gates === 0) errors.push(pn + ': НЕТ ФИНИША E. В ПОСЛЕДНЕЙ ЧАСТИ НУЖНА ОДНА БУКВА E.');
     if (gates > 1) errors.push(pn + ': ФИНИШЕЙ E ' + gates + ', А НУЖЕН ОДИН.');
     if (exits > 0) errors.push(pn + ': В ПОСЛЕДНЕЙ ЧАСТИ НЕ НУЖЕН ВЫХОД N — ТАМ ФИНИШ E.');
@@ -1185,7 +1223,8 @@ const levelState = {
 
     // --- Финиш ---
     if (level.gate && player.x + player.w >= level.gate.x + 4) {
-      setState('levelWin');
+      // Калитка ведёт на арену босса: затемнение, дальше — арена
+      setState('inLevelScene', { background: 'level', next: 'boss', nextArg: 'intro', steps: [{ type: 'fade' }] });
       return;
     }
 
@@ -1572,7 +1611,7 @@ const levelState = {
       drawRake(ctx, r.x - cam, r.y - 4, Math.max(0, lift));
     }
     // Пиво, которое ещё не выпито (покачивается)
-    const beers = this.beersTaken[partIndex];
+    const beers = this.beersTaken[partIndex] || [];
     level.beers.forEach((b, i) => {
       if (!beers[i]) drawBeer(ctx, b.x - cam, b.y + Math.round(Math.sin(this.tick / 12 + i) * 1.5));
     });
@@ -1580,7 +1619,7 @@ const levelState = {
     for (const e of this.enemies) this.drawEnemy(e, cam);
 
     // Телефоны, которые ещё не взяты. Звонящий сейчас — трясётся сильнее и «ДЗЫНЬ!»
-    const taken = this.taken[partIndex];
+    const taken = this.taken[partIndex] || [];
     level.phones.forEach((ph, i) => {
       if (i === this.ringing) {
         const shake = (this.ringTimer >> 1) % 2 ? 1 : -1;
@@ -1614,7 +1653,9 @@ const levelState = {
 
     // Всплывающие надписи («АЙ!», «МЯУ!», «+1»): поднимаются и исчезают
     for (const p of this.popups) {
-      drawTextCenteredShadow(p.text, Math.round(p.x) - cam, Math.max(HUD_H + 2, Math.round(p.y - 10 - p.t / 3)), '#f4f4f4', '#b13e53');
+      const half = Math.ceil(textWidth(p.text) / 2) + 2;          // у края экрана не обрезаем
+      const px = Math.max(half, Math.min(W - half, Math.round(p.x) - cam));
+      drawTextCenteredShadow(p.text, px, Math.max(HUD_H + 2, Math.round(p.y - 10 - p.t / 3)), '#f4f4f4', '#b13e53');
     }
 
     // Батут: надпись «БОЙНГ!» там, где Филипп оттолкнулся
@@ -1709,6 +1750,331 @@ const levelState = {
 };
 
 // =============================================
+// ЭКРАН: БОСС УРОВНЯ 1 — ВАСЯ И НАСТЯ
+// =============================================
+// Арена — один экран (LEVELS[0].boss). Девочки по очереди бегут обнимать папу,
+// сверху падают игрушки. Филипп подбирает игрушки и бросает в девочек:
+// попала — девочка садится играть. После 3 попаданий — играет насовсем.
+// ФАЗА 1: обе девочки в игре. ФАЗА 2: одна села насовсем — вторая быстрее, игрушек больше.
+// Лера идёт и во время боя. Победа — обе девочки играют, Филипп на цыпочках уходит.
+
+const TOY_GRAVITY = 0.2;         // как быстро падают игрушки сверху
+const THROW_GRAVITY = 0.15;      // как быстро опускается брошенная игрушка
+const TOY_DROP_Y = HUD_H + 12;   // откуда падают игрушки (под шкалами девочек)
+
+const bossState = {
+  girls: [],       // Вася и Настя
+  toys: [],        // падающие и лежащие игрушки
+  thrown: [],      // брошенные Филиппом игрушки в полёте
+  carried: [],     // что Филипп несёт (до CONFIG.maxCarry)
+  active: 0,       // какая девочка сейчас бежит к папе (номер в girls)
+  toyTimer: 0,     // через сколько шагов упадёт следующая игрушка
+  outro: false,    // победа: Филипп на цыпочках уходит
+  outroTimer: 0,
+  saved: null,     // начало арены — для «ЕЩЁ РАЗ»
+
+  // mode: 'intro' — первый вход (Лера отлетает), 'retry' — «ЕЩЁ РАЗ», 'fight' — вернулись после вступления
+  enter(mode) {
+    if (mode === 'fight') return;
+    if (mode === 'intro') {
+      levelState.leraX = Math.max(0, levelState.leraX - CONFIG.bossPushBack);
+      this.saved = { leraX: levelState.leraX, leraSpeed: levelState.leraSpeed, clockSteps: clockSteps };
+    } else if (mode === 'retry') {
+      levelState.leraX = this.saved.leraX;
+      levelState.leraSpeed = this.saved.leraSpeed;
+      clockSteps = this.saved.clockSteps;
+      levelState.lives = CONFIG.startLives;          // снова 3 кружки
+    }
+    this.reset();
+    if (mode === 'intro') {
+      // Титр и разговор перед боем — поверх арены
+      const steps = [{ type: 'title', text: 'БОСС:\nВАСЯ И НАСТЯ', auto: 2 }].concat(SCENES.bossIntro.steps);
+      setState('inLevelScene', { background: 'boss', next: 'boss', nextArg: 'fight', steps: steps });
+    }
+  },
+
+  // Арена в начальное положение
+  reset() {
+    level = bossArena;
+    partIndex = levelParts.length;                   // арена идёт после всех частей уровня
+    levelState.enemies = [];
+    levelState.popups = [];
+    levelState.invuln = 0;
+    levelState.alarm = false;
+    levelState.ringing = -1;
+    levelState.placePlayer(level.start.x, level.start.y);
+    player.stun = 0;
+    this.girls = level.twins.map((t) => ({
+      name: t.name, w: 8, h: 14, x: t.x, y: t.y - 14, homeX: t.x,
+      vx: 0, vy: 0, dir: -1, onGround: false, state: 'idle', timer: 0, hits: 0,
+    }));
+    this.toys = [];
+    this.thrown = [];
+    this.carried = [];
+    this.active = 0;
+    this.toyTimer = 90;
+    this.outro = false;
+    this.outroTimer = 0;
+  },
+
+  // Фаза 2 — когда одна из девочек уже играет насовсем
+  phase() {
+    return this.girls.some((gl) => gl.state === 'out') ? 2 : 1;
+  },
+
+  update(input) {
+    levelState.tick++;
+    if (this.outro) { this.updateOutro(); return; }
+
+    levelState.movePlayer(input);
+    clockSteps++;
+    if (levelState.invuln > 0) levelState.invuln--;
+    levelState.popups = levelState.popups.filter((p) => ++p.t < 50);
+
+    // Лера идёт и во время боя
+    levelState.leraX += levelState.leraSpeed;
+    if (levelState.leraX >= playerGlobalX()) { this.lose(); return; }
+    const wasAlarm = levelState.alarm;
+    levelState.alarm = playerGlobalX() - levelState.leraX < CONFIG.alarmDistance;
+    if (levelState.alarm) {
+      if (!wasAlarm) levelState.alarmTimer = 0;
+      if (levelState.alarmTimer % 60 === 0) vibrate();
+      levelState.alarmTimer++;
+    }
+
+    this.updateGirls();
+    this.updateToys();
+    this.updateThrow(input);
+
+    if (levelState.lives <= 0) { this.lose(); return; }
+    if (this.girls.every((gl) => gl.state === 'out')) this.startOutro();
+  },
+
+  // Поражение: та же сценка, но «ЕЩЁ РАЗ» — с начала арены
+  lose() {
+    setState('defeat', Object.assign({}, SCENES.defeat, { next: 'boss', nextArg: 'retry' }));
+  },
+
+  // Следующая девочка бежит к папе (если она ещё в игре)
+  nextRunner() {
+    const other = 1 - this.active;
+    if (this.girls[other].state !== 'out') this.active = other;
+    const gl = this.girls[this.active];
+    gl.timer = 0;
+  },
+
+  updateGirls() {
+    const phase2 = this.phase() === 2;
+    const speed = CONFIG.girlSpeed * (phase2 ? CONFIG.phase2SpeedMul : 1);
+    const pcx = player.x + player.w / 2;
+    this.girls.forEach((gl, i) => {
+      gl.timer++;
+      if (gl.state === 'out') {
+        gl.vx = 0;
+      } else if (gl.state === 'play') {
+        gl.vx = 0;
+        if (gl.timer >= CONFIG.girlPlaySeconds * 60) { gl.state = 'idle'; gl.timer = 0; }
+      } else if (gl.state === 'hug') {
+        // Обнимает папу: держится рядом с ним
+        gl.vx = 0;
+        gl.x = gl.dir > 0 ? player.x - gl.w + 2 : player.x + player.w - 2;
+        if (gl.timer >= CONFIG.hugSeconds * 60) {
+          gl.state = 'rest'; gl.timer = 0;            // отпустила — передышка
+          this.nextRunner();
+        }
+      } else if (gl.state === 'rest') {
+        // Передышка: отбегает от папы, потом снова может бежать к нему
+        gl.dir = pcx < gl.x + gl.w / 2 ? 1 : -1;
+        gl.vx = gl.dir * speed * 0.6;
+        if (gl.timer >= CONFIG.girlRestSeconds * 60) { gl.state = 'idle'; gl.timer = 0; }
+      } else if (i === this.active) {
+        // Бежит к папе, иногда подпрыгивает
+        gl.state = 'run';
+        gl.dir = pcx < gl.x + gl.w / 2 ? -1 : 1;
+        gl.vx = gl.dir * speed;
+        if (gl.onGround && Math.random() < CONFIG.girlJumpChance) gl.vy = -3.2;
+        if (gl.timer > 7 * 60) this.nextRunner();      // долго не догнала — очередь сестры
+        if (player.stun === 0 && overlaps(player, gl)) {
+          gl.state = 'hug'; gl.timer = 0;
+          player.stun = Math.round(CONFIG.hugSeconds * 60);
+          player.stunKind = 'hug';
+          player.vx = 0;
+          levelState.popup('ПАПА, ДЕРЖИСЬ!', pcx, player.y - 2);
+        }
+      } else {
+        // Ждёт своей очереди: возвращается на своё место
+        const dx = gl.homeX - gl.x;
+        gl.state = Math.abs(dx) > 3 ? 'back' : 'idle';
+        gl.vx = gl.state === 'back' ? Math.sign(dx) * speed * 0.6 : 0;
+        if (gl.vx !== 0) gl.dir = Math.sign(gl.vx);
+      }
+      const wantedVx = gl.vx;
+      if (gl.state !== 'hug') moveEnemy(gl, false);
+      // Упёрлась в скамейку или песочницу — перепрыгивает
+      if (wantedVx !== 0 && gl.vx === 0 && gl.onGround) { gl.vy = -3.4; gl.dir = Math.sign(wantedVx); }
+    });
+  },
+
+  // Новая игрушка: сначала тень на земле (за секунду до падения), потом падает
+  spawnToy() {
+    const kinds = ['ball', 'cube', 'bear'];
+    // Фаза 1: игрушка падает где угодно, но не прямо на Филиппа. Фаза 2: может и на него.
+    let x = 0;
+    for (let tries = 0; tries < 10; tries++) {
+      x = Math.round(8 + Math.random() * (level.width - 24));
+      if (this.phase() === 2 || Math.abs(x + 4 - (player.x + player.w / 2)) > 24) break;
+    }
+    // Где игрушка упадёт: самый высокий пол или предмет под ней
+    let landY = H;
+    for (const s of level.solids) if (x + 8 > s.x && x < s.x + s.w && s.y < landY && s.y > TOY_DROP_Y) landY = s.y;
+    const fallSteps = Math.sqrt(2 * (landY - 8 - TOY_DROP_Y) / TOY_GRAVITY);
+    this.toys.push({ kind: kinds[Math.floor(Math.random() * 3)], x: x, y: TOY_DROP_Y, vy: 0, landY: landY,
+                     state: 'warn', timer: Math.max(0, Math.round(60 - fallSteps)), age: 0 });
+  },
+
+  updateToys() {
+    // Игрушки падают раз в несколько секунд, в фазе 2 — чаще и иногда по две
+    this.toyTimer--;
+    if (this.toyTimer <= 0) {
+      const phase2 = this.phase() === 2;
+      this.spawnToy();
+      if (phase2 && Math.random() < CONFIG.doubleToyChance) this.spawnToy();
+      this.toyTimer = Math.round((phase2 ? CONFIG.toyEverySecondsPhase2 : CONFIG.toyEverySeconds) * 60);
+    }
+    for (const t of this.toys) {
+      if (t.state === 'warn') {
+        if (--t.timer <= 0) t.state = 'fall';
+      } else if (t.state === 'fall') {
+        t.vy += TOY_GRAVITY;
+        t.y += t.vy;
+        if (overlaps(player, { x: t.x, y: t.y, w: 8, h: 8 })) {
+          levelState.hurt('ОЙ!', t.x + 4);            // по голове — минус кружка
+          t.state = 'ground'; t.y = t.landY - 8;
+        } else if (t.y + 8 >= t.landY) {
+          t.state = 'ground'; t.y = t.landY - 8;
+        }
+      } else {
+        t.age++;
+        // Подобрать: просто коснуться (если руки не заняты)
+        if (this.carried.length < CONFIG.maxCarry && overlaps(player, { x: t.x, y: t.y, w: 8, h: 8 })) {
+          this.carried.push(t.kind);
+          t.taken = true;
+          pickupSound();
+        }
+      }
+    }
+    // Лежит слишком долго (10 секунд) — исчезает
+    this.toys = this.toys.filter((t) => !t.taken && t.age < 600);
+  },
+
+  updateThrow(input) {
+    // Бросок по дуге в сторону взгляда. Можно и в обнимку — так и освобождаются
+    if (input.throwPressed && this.carried.length > 0 && player.stunKind !== 'trip') {
+      const kind = this.carried.pop();
+      this.thrown.push({ kind: kind, x: player.x + player.w / 2 - 4, y: player.y + 10,   // из рук
+                         vx: player.facing * CONFIG.throwSpeed, vy: -CONFIG.throwLift });
+    }
+    for (const t of this.thrown) {
+      t.vy += THROW_GRAVITY;
+      t.x += t.vx;
+      t.y += t.vy;
+      const box = { x: t.x, y: t.y, w: 8, h: 8 };
+      // Попала в девочку?
+      for (const gl of this.girls) {
+        if (gl.state === 'out' || gl.state === 'play' || !overlaps(box, gl)) continue;
+        if (gl.state === 'hug') player.stun = 0;      // отпустила папу
+        gl.hits++;
+        gl.state = gl.hits >= CONFIG.bossHitsToWin ? 'out' : 'play';
+        gl.timer = 0;
+        gl.vx = 0;
+        levelState.popup('УРА, ' + TOY_NAMES[t.kind] + '!', gl.x + 4, gl.y - 4);
+        gulpSound();
+        if (this.active === this.girls.indexOf(gl)) this.nextRunner();
+        t.done = true;
+        break;
+      }
+      if (t.done) continue;
+      // Упала на землю — снова лежит, её можно подобрать
+      for (const s of level.solids) {
+        if (overlaps(box, s)) {
+          this.toys.push({ kind: t.kind, x: Math.round(t.x), y: s.y - 8, vy: 0, landY: s.y, state: 'ground', age: 0 });
+          t.done = true;
+          break;
+        }
+      }
+      if (t.x < -10 || t.x > level.width + 10) t.done = true;
+    }
+    this.thrown = this.thrown.filter((t) => !t.done);
+  },
+
+  // Победа: обе девочки играют, Филипп на цыпочках уходит вправо
+  startOutro() {
+    this.outro = true;
+    this.outroTimer = 0;
+    player.stun = 0;
+    this.toys = [];
+    this.thrown = [];
+    levelState.alarm = false;
+    levelState.popup('ПАПА ПОТОМ ПОИГРАЕТ!', player.x + player.w / 2, player.y - 2);
+  },
+
+  updateOutro() {
+    this.outroTimer++;
+    player.facing = 1;
+    player.x += 0.7;                                // на цыпочках — не спеша
+    player.anim = 'run';
+    player.animTime += 0.5;
+    // Надпись «ПАПА ПОТОМ ПОИГРАЕТ!» плывёт над Филиппом и не исчезает
+    for (const p of levelState.popups) { p.t = 6; p.x = player.x + player.w / 2; }
+    if (player.x > level.width + 8 || this.outroTimer > 360) {
+      levelState.popups = [];
+      player.x = level.width + 40;                  // ушёл за край — на фоне звонка его нет
+      setState('levelWin');
+    }
+  },
+
+  draw() {
+    levelState.draw();                              // фон, скамейка, Филипп, надписи, HUD
+    const cam = Math.round(cameraX);
+    // Тени и игрушки
+    for (const t of this.toys) {
+      if (t.state !== 'ground') {
+        const total = 60;
+        const left = t.state === 'warn' ? t.timer + 30 : Math.max(0, (t.landY - 8 - t.y) / 3);
+        drawToyShadow(ctx, t.x + 4 - cam, t.landY, 1 - Math.min(1, left / total));
+      }
+      if (t.state !== 'warn') drawToy(ctx, t.kind, Math.round(t.x) - cam, Math.round(t.y));
+    }
+    for (const t of this.thrown) drawToy(ctx, t.kind, Math.round(t.x) - cam, Math.round(t.y));
+    // Девочки
+    for (const gl of this.girls) {
+      const anim = SPRITES[gl.name].anims[
+        gl.state === 'out' || gl.state === 'play' ? 'sit' :
+        !gl.onGround && gl.state !== 'hug' ? 'jump' :
+        gl.state === 'run' || gl.state === 'back' || gl.state === 'rest' ? 'run' : 'stand'];
+      const frame = anim.frames[Math.floor(levelState.tick / anim.speed) % anim.frames.length];
+      drawSprite(ctx, frame, Math.round(gl.x) - 1 - cam, Math.round(gl.y), gl.dir < 0);
+      if (gl.state === 'out' || gl.state === 'play') {
+        drawToy(ctx, gl.name === 'vasya' ? 'bear' : 'ball', Math.round(gl.x) + 6 - cam, Math.round(gl.y) + 6);
+      }
+    }
+    // Шкалы девочек: «ВАСЯ ♥♥♥» слева, «НАСТЯ ♥♥♥» справа
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, HUD_H, W, 9);
+    this.girls.forEach((gl, i) => {
+      const label = gl.name === 'vasya' ? 'ВАСЯ' : 'НАСТЯ';
+      const x0 = i === 0 ? 4 : W - 4 - textWidth(label) - CONFIG.bossHitsToWin * 7 - 3;
+      drawText(ctx, label, x0, HUD_H + 1, gl.name === 'vasya' ? '#b13e53' : '#41a6f6');
+      for (let h = 0; h < CONFIG.bossHitsToWin; h++) {
+        drawHeart(ctx, x0 + textWidth(label) + 4 + h * 7, HUD_H + 2, h < CONFIG.bossHitsToWin - gl.hits);
+      }
+    });
+    // Что Филипп несёт — рядом с кружками в HUD
+    this.carried.forEach((kind, i) => drawToy(ctx, kind, 52 + i * 9, 0));
+  },
+};
+
+// =============================================
 // ЭКРАН ОШИБКИ: в карте или в файле что-то не так
 // =============================================
 const errorState = {
@@ -1740,12 +2106,15 @@ const states = {
   defeat: createSceneState('defeat'),         // ПОРАЖЕНИЕ
   levelWin: createSceneState('levelWin'),     // ПОБЕДА_УРОВНЯ
   inLevelScene: createSceneState(),           // СЦЕНКА ПОВЕРХ УРОВНЯ: звонок-отмазка, переход между частями
+  boss: bossState,                            // БОСС: Вася и Настя
   error: errorState,                          // ОШИБКА в карте или в файлах
 };
 let state = null;
 
 // Включить экран. arg — дополнительные данные (например, «продолжить с места последнего звонка»)
 function setState(name, arg) {
+  // Кнопка «Бросок» видна только в бою с боссом
+  document.body.classList.toggle('boss-fight', name === 'boss');
   state = states[name];
   state.enter(arg);
 }
@@ -1763,8 +2132,11 @@ function update() {
   // Что произошло за этот шаг — передаём текущему экрану
   const jumpPressed = jumpHit;                     // «Прыжок» только что нажали
   jumpHit = false;
+  const throwPressed = throwHit;                   // «Бросок» только что нажали
+  throwHit = false;
   const input = {
     jumpPressed: jumpPressed,
+    throwPressed: throwPressed,
     taps: taps,                                     // касания экрана
     pressed: jumpPressed || taps.length > 0,        // любое «нажатие»
   };

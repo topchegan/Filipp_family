@@ -66,3 +66,17 @@ html, body {
   font-size: 24px;
   border-radius: 48px;
 }
+
+/* «Бросок» — над кнопкой «Прыжок». Видна только в бою с боссом (класс boss-fight ставит game.js) */
+.btn.throw {
+  right: 24px;
+  bottom: calc(24px + 96px + 16px + env(safe-area-inset-bottom));
+  width: 140px;
+  height: 64px;
+  font-size: 22px;
+  border-radius: 32px;
+  display: none;
+}
+body.boss-fight .btn.throw {
+  display: flex;
+}

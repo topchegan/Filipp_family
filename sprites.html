@@ -131,6 +131,14 @@
     addCard(trapRow, 12, 12, 6, 'Пустая кружка в HUD', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 12, 12); drawBeer(g, 2, 2, true); });
     addCard(trapRow, 24, 14, 6, 'Звёздочки (оглушён)', (g) => drawStars(g, 12, 7, 0));
 
+    // Бой с близнецами: игрушки, тень падения, сердечки
+    const bossRow = addRow('Босс: игрушки, тень, сердечки');
+    addCard(bossRow, 12, 12, 6, 'Мяч', (g) => drawToy(g, 'ball', 2, 2));
+    addCard(bossRow, 12, 12, 6, 'Кубик', (g) => drawToy(g, 'cube', 2, 2));
+    addCard(bossRow, 12, 12, 6, 'Мишка', (g) => drawToy(g, 'bear', 2, 2));
+    addCard(bossRow, 24, 8, 6, 'Тень: куда упадёт', (g) => drawToyShadow(g, 12, 5, 0.8));
+    addCard(bossRow, 24, 9, 6, 'Сердечки: целое и погасшее', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 24, 9); drawHeart(g, 4, 2, true); drawHeart(g, 14, 2, false); });
+
     // Минивэн крупно, рядом Филипп — сравнить рост. Внизу полоска земли.
     const vanRow = addRow('Минивэн (A, 10x4) и Филипп для сравнения роста');
     addCard(vanRow, 110, 40, 6, 'Минивэн на домкрате и Филипп', (g) => {

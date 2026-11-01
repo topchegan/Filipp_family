@@ -12,7 +12,7 @@
 //   Саму одинарную кавычку ' внутри текста писать нельзя. Вместо неё — « ».
 // - В конце каждой строки-шага стоит запятая.
 // - Одна реплика — не длиннее 90 букв (это 3 строки в окне). Длинную раздели на две.
-// - who — это кто говорит: filipp, sanya или lera (список в SPEAKERS ниже).
+// - who — это кто говорит: filipp, sanya, lera, vasya, nastya, babushka (список в SPEAKERS ниже).
 // - Чтобы поменять имя над репликой, добавь name: 'ФИЛИПП (ПРО СЕБЯ)'.
 //
 // ВИДЫ ШАГОВ:
@@ -40,6 +40,9 @@ const SPEAKERS = {
   filipp: { name: 'ФИЛИПП', portrait: 'filipp', pitch: 220 },
   sanya:  { name: 'САНЯ',   portrait: 'sanya',  pitch: 140 },
   lera:   { name: 'ЛЕРА',   portrait: 'lera',   pitch: 440 },
+  vasya:  { name: 'ВАСЯ',   portrait: 'vasya',  pitch: 620 },
+  nastya: { name: 'НАСТЯ',  portrait: 'nastya', pitch: 680 },
+  babushka: { name: 'БАБУШКА', portrait: 'babushka', pitch: 300 },
 };
 
 const SCENES = {
@@ -96,11 +99,29 @@ const SCENES = {
     ],
   },
 
-  // ПОБЕДА_УРОВНЯ: Филипп добежал до калитки (пока заглушка, позже тут будет босс)
+  // БОСС: разговор перед боем с Васей и Настей (перед ним игра сама покажет титр «БОСС: ВАСЯ И НАСТЯ»)
+  bossIntro: {
+    steps: [
+      { type: 'say', who: 'vasya',  text: 'Папа! Поиграй с нами!' },
+      { type: 'say', who: 'nastya', text: 'Ну пожа-а-алуйста!' },
+      { type: 'say', who: 'filipp', text: 'Девочки, папе надо... за гвоздями!' },
+      { type: 'say', who: 'vasya',  name: 'ВАСЯ И НАСТЯ', text: 'ПОИГРА-А-АЙ!' },
+    ],
+  },
+
+  // ПОБЕДА_УРОВНЯ: девочки играют, Филипп ушёл. Звонок бабушки и конец уровня.
+  // Фон — арена босса.
   levelWin: {
+    background: 'boss',
     next: 'title',              // потом — снова титульный экран
     steps: [
-      { type: 'title', text: 'УРОВЕНЬ ПРОЙДЕН!\nНА ЧАСАХ {ВРЕМЯ}' },
+      { type: 'phone' },
+      { type: 'say', who: 'babushka', text: 'Филиппушка! Телевизор не показывает! Приходи, почини!' },
+      { type: 'say', who: 'filipp',   text: 'Бабуль, я так-то немного занят...' },
+      { type: 'say', who: 'babushka', text: 'Я пирожков напекла.' },
+      { type: 'say', who: 'filipp',   name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%... Иду.' },
+      { type: 'title', text: 'КОНЕЦ УРОВНЯ 1\nНА ЧАСАХ {ВРЕМЯ}' },
+      { type: 'title', text: 'ПРОДОЛЖЕНИЕ\nСЛЕДУЕТ...' },
     ],
   },
 };
