@@ -30,6 +30,7 @@
   <h1>Витрина спрайтов</h1>
   <div id="list"></div>
 
+  <script src="font.js"></script>
   <script src="sprites.js"></script>
   <script>
     // Во сколько раз увеличиваем спрайты
@@ -100,11 +101,65 @@
     // Иконки 8x8 для шкалы гонки
     addStaticSection('Иконки для шкалы (8x8)', ICONS, 8, 8, ZOOM, (g, item) => g.drawImage(item.image, 0, 0));
 
+    // Мебель и крупные вещи уровня (в плитках по 8 пикселей). Над предметом — немного места
+    // (на столе стоит чашка, над калиткой табличка).
+    const furnItems = {};
+    for (const key in FURNITURE) furnItems[key] = { name: FURNITURE[key].name + ' (' + key + ', ' + FURNITURE[key].w + 'x' + FURNITURE[key].h + ')', w: FURNITURE[key].w * 8, h: FURNITURE[key].h * 8, paint: (g) => FURNITURE[key].draw(g, 2, 14) };
+    furnItems.C1 = { name: 'Чекпоинт (C, 3x4)', w: 24, h: 32, paint: (g) => drawDoorway(g, 2, 14, false) };
+    furnItems.C2 = { name: 'Чекпоинт пройден', w: 24, h: 32, paint: (g) => drawDoorway(g, 2, 14, true) };
+    furnItems.E = { name: 'Калитка «ВЫХОД» (E, 4x4)', w: 32, h: 32, paint: (g) => drawGate(g, 2, 14) };
+    const furnRow = addRow('Мебель и вещи на уровне');
+    for (const key in furnItems) {
+      const it = furnItems[key];
+      addCard(furnRow, it.w + 4, it.h + 14, 6, it.name, (g) => it.paint(g));
+    }
+
+    // Фоны экранов уровня: обои, мелкие вещи и как выглядят плитки # и - на этом фоне
+    const lvlRow = addRow('Фоны экранов уровня (240x120, увеличены в 3 раза)');
+    for (const key in LEVEL_BACKGROUNDS) {
+      const bg = LEVEL_BACKGROUNDS[key];
+      addCard(lvlRow, 240, 120, 3, bg.name + ' (' + key + ')', (g) => {
+        bg.draw(g, 0, 0);
+        for (let c = 0; c < 30; c++) drawSolidTile(g, c * 8, 112, bg.tile, true, 14);
+        for (let c = 2; c < 6; c++) drawShelfTile(g, c * 8, 80, bg.shelf);
+      });
+    }
+
+    // Новый заголовок раздела и ряд для карточек
+    function addRow(titleText) {
+      const t = document.createElement('h2');
+      t.textContent = titleText;
+      list.appendChild(t);
+      const row = document.createElement('div');
+      row.className = 'row';
+      list.appendChild(row);
+      return row;
+    }
+
+    // Карточка: холст w x h, увеличенный в zoom раз, и подпись
+    function addCard(row, w, h, zoom, labelText, paint) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const cv = document.createElement('canvas');
+      cv.width = w;
+      cv.height = h;
+      cv.style.width = w * zoom + 'px';
+      cv.style.height = h * zoom + 'px';
+      cv.style.background = '#94b0c2';
+      paint(cv.getContext('2d'));
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = labelText;
+      card.appendChild(cv);
+      card.appendChild(label);
+      row.appendChild(card);
+    }
+
     // Фоны 240x136 — они большие, поэтому увеличиваем не в 6, а в 3 раза
     const BG_NAMES = { livingRoom: 'Гостиная утром', extension: 'Двор с пристройкой' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
-    addStaticSection('Фоны (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
+    addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
       (g, item) => BACKGROUNDS[item.key](g));
 
     // Раздел с картинками без анимации: заголовок и карточки с подписями

@@ -10,7 +10,7 @@
 //   draw()         — рисование
 // Переключает экраны функция setState().
 
-const VERSION = 'v0.5';
+const VERSION = 'v0.6';
 
 // =============================================
 // НАСТРОЙКИ БАЛАНСА
@@ -628,46 +628,140 @@ function drawClock(cx, cy, r, hours, minutes) {
 // =============================================
 // ЭКРАН 3: УРОВЕНЬ (гонка с Лерой)
 // =============================================
-const LEVEL_W = 1440;  // ширина уровня — 6 экранов
-const FLOOR_TOP = 120; // верх пола
+// Уровень собирается из карты в levels.js (плитки 8x8).
+const TILE = 8;            // размер плитки
+const COLS = 30;           // плиток в ширину на одном экране
+const ROWS = 15;           // плиток в высоту (без HUD)
+const HUD_H = 16;          // высота HUD сверху (2 ряда плиток)
+const SCREEN_W = COLS * TILE;  // 240 — ширина одного экрана
 
-// Пол, ящики и платформы: x, y — левый верхний угол, w, h — ширина и высота.
-// Низ платформы должен быть выше 98, иначе Филипп (рост 22) упрётся в неё головой.
-// Ящик стоит на полу (его низ = 120). Через ящик выше 40 не перепрыгнуть — нужна ступенька.
-const solids = [
-  { x: 0,    y: 120, w: LEVEL_W, h: 16 },  // пол
-  // --- экран 1 ---
-  { x: 150,  y: 104, w: 16, h: 16 },       // низкий ящик
-  { x: 200,  y: 88,  w: 40, h: 6 },
-  // --- экран 2 ---
-  { x: 260,  y: 70,  w: 36, h: 6 },
-  { x: 330,  y: 96,  w: 20, h: 24 },       // ящик повыше
-  { x: 390,  y: 80,  w: 40, h: 6 },
-  // чекпоинт 1 на x = 480
-  // --- экран 3 ---
-  { x: 560,  y: 88,  w: 16, h: 32 },       // высокий ящик
-  { x: 620,  y: 76,  w: 40, h: 6 },
-  { x: 690,  y: 56,  w: 44, h: 6 },
-  // --- экран 4 ---
-  { x: 780,  y: 96,  w: 20, h: 24 },       // ступенька вплотную...
-  { x: 800,  y: 72,  w: 16, h: 48 },       // ...к стене, которую сразу не перепрыгнуть
-  { x: 860,  y: 84,  w: 40, h: 6 },
-  // чекпоинт 2 на x = 960
-  // --- экран 5 ---
-  { x: 1040, y: 104, w: 16, h: 16 },
-  { x: 1090, y: 88,  w: 16, h: 32 },
-  { x: 1150, y: 80,  w: 40, h: 6 },
-  // --- экран 6 ---
-  { x: 1220, y: 60,  w: 40, h: 6 },
-  { x: 1300, y: 96,  w: 20, h: 24 },
-];
+// Символы карты, которые игра знает. Буквы «скоро» пока ничего не делают.
+const MAP_SYMBOLS = '.#-PCE' + Object.keys(FURNITURE).join('');
+const MAP_SOON = 'kvntmgbs';
 
-// Чекпоинты — дверные проёмы с ковриком. x — левый край проёма.
-const CHECKPOINT_XS = [480, 960];
-const DOOR_W = 22, DOOR_H = 32;
+// Сюда складываем собранный уровень
+const level = {
+  width: 0,          // ширина в пикселях
+  screens: [],       // экраны: фон и карта
+  rows: [],          // вся карта целиком: 15 длинных строк
+  solids: [],        // твёрдые прямоугольники: плитки # и твёрдые части мебели
+  tops: [],          // тонкие платформы: «-» и полки мебели (стоять сверху)
+  furniture: [],     // мебель для рисования
+  checkpoints: [],   // дверные проёмы-чекпоинты {x, y}
+  gate: null,        // калитка-финиш {x, y}
+  start: null,       // старт Филиппа {x, y}
+};
 
-// Калитка «ВЫХОД» — финиш. Добежал до неё — уровень пройден.
-const GATE = { x: 1400, w: 32 };
+// Ошибки в карте. Если они есть, вместо игры показываем экран с ошибками.
+const LEVEL_ERRORS = [];
+
+// Пиксели на экране для плитки: столбец c, строка r
+function tileX(c) { return c * TILE; }
+function tileY(r) { return HUD_H + r * TILE; }
+
+// Проверяем карту и собираем из неё уровень
+function buildLevel(data) {
+  const errors = LEVEL_ERRORS;
+  if (!data || !Array.isArray(data.screens) || data.screens.length === 0) {
+    errors.push('В LEVELS.JS НЕТ НИ ОДНОГО ЭКРАНА.');
+    return;
+  }
+  // 1) Проверяем каждый экран: фон, 15 строк по 30 символов, известные символы
+  data.screens.forEach((scr, i) => {
+    const n = i + 1;
+    if (!LEVEL_BACKGROUNDS[scr.bg]) {
+      errors.push('ЭКРАН ' + n + ': НЕИЗВЕСТНЫЙ ФОН «' + scr.bg + '».');
+    }
+    if (!Array.isArray(scr.map)) {
+      errors.push('ЭКРАН ' + n + ': НЕТ КАРТЫ MAP.');
+      return;
+    }
+    if (scr.map.length !== ROWS) {
+      errors.push('ЭКРАН ' + n + ': СТРОК ' + scr.map.length + ', А НУЖНО 15.');
+    }
+    scr.map.forEach((row, r) => {
+      if (row.length !== COLS) {
+        errors.push('ЭКРАН ' + n + ', СТРОКА ' + (r + 1) + ': СИМВОЛОВ ' + row.length + ', А НУЖНО 30.');
+      }
+      for (let c = 0; c < row.length; c++) {
+        const ch = row[c];
+        if (MAP_SYMBOLS.indexOf(ch) === -1 && MAP_SOON.indexOf(ch) === -1) {
+          errors.push('ЭКРАН ' + n + ', СТРОКА ' + (r + 1) + ', СИМВОЛ ' + (c + 1) + ': НЕИЗВЕСТНЫЙ ЗНАК «' + ch + '».');
+        }
+      }
+    });
+  });
+  if (errors.length > 0) return;
+
+  // 2) Склеиваем экраны в одну длинную карту
+  level.screens = data.screens;
+  level.width = data.screens.length * SCREEN_W;
+  level.rows = [];
+  for (let r = 0; r < ROWS; r++) {
+    level.rows.push(data.screens.map((s) => s.map[r]).join(''));
+  }
+
+  // 3) Разбираем символы
+  level.solids = []; level.tops = []; level.furniture = []; level.checkpoints = [];
+  level.gate = null; level.start = null;
+  let starts = 0, gates = 0;
+  const totalCols = level.rows[0].length;
+  for (let r = 0; r < ROWS; r++) {
+    const row = level.rows[r];
+    for (let c = 0; c < totalCols; c++) {
+      const ch = row[c];
+      const where = 'ЭКРАН ' + (Math.floor(c / COLS) + 1) + ', СТРОКА ' + (r + 1) + ', СИМВОЛ ' + (c % COLS + 1);
+      // Соседние плитки # и - в строке склеиваем в один длинный прямоугольник
+      if ((ch === '#' || ch === '-') && (c === 0 || row[c - 1] !== ch)) {
+        let len = 1;
+        while (c + len < totalCols && row[c + len] === ch) len++;
+        if (ch === '#') level.solids.push({ x: tileX(c), y: tileY(r), w: len * TILE, h: TILE });
+        else level.tops.push({ x: tileX(c), y: tileY(r), w: len * TILE });
+      }
+      // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
+      let size = null;
+      if (FURNITURE[ch]) size = FURNITURE[ch];
+      if (ch === 'C') size = { w: 3, h: 4 };
+      if (ch === 'E') size = { w: 4, h: 4 };
+      if (!size) {
+        if (ch === 'P') {
+          starts++;
+          level.start = { x: tileX(c) - 1, y: tileY(r + 1) - player.h };
+        }
+        continue;
+      }
+      if (r - size.h + 1 < 0) {
+        errors.push(where + ': ПРЕДМЕТ «' + ch + '» НЕ ВЛЕЗАЕТ ПО ВЫСОТЕ. ОПУСТИ ЕГО НИЖЕ.');
+        continue;
+      }
+      if (c + size.w > totalCols) {
+        errors.push(where + ': ПРЕДМЕТ «' + ch + '» ВЫЛЕЗАЕТ ЗА ПРАВЫЙ КРАЙ УРОВНЯ.');
+        continue;
+      }
+      const x = tileX(c);
+      const y = tileY(r + 1) - size.h * TILE;   // верх предмета
+      if (ch === 'C') {
+        level.checkpoints.push({ x: x, y: y });
+      } else if (ch === 'E') {
+        gates++;
+        level.gate = { x: x, y: y, w: 32 };
+      } else {
+        const def = FURNITURE[ch];
+        level.furniture.push({ def: def, x: x, y: y });
+        for (const p of def.parts) {
+          if (p.kind === 'solid') level.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h });
+          else level.tops.push({ x: x + p.x, y: y + p.y, w: p.w });
+        }
+      }
+    }
+  }
+  if (starts === 0) errors.push('НА КАРТЕ НЕТ СТАРТА P. ПОСТАВЬ ОДНУ БУКВУ P.');
+  if (starts > 1) errors.push('СТАРТОВ P НА КАРТЕ ' + starts + ', А НУЖЕН ОДИН.');
+  if (gates === 0) errors.push('НА КАРТЕ НЕТ ФИНИША E. ПОСТАВЬ ОДНУ БУКВУ E.');
+  if (gates > 1) errors.push('ФИНИШЕЙ E НА КАРТЕ ' + gates + ', А НУЖЕН ОДИН.');
+  // Чекпоинты по порядку слева направо
+  level.checkpoints.sort((a, b) => a.x - b.x);
+}
 
 // x, y, w, h — это ХИТБОКС: невидимая рамка, по которой считаются столкновения.
 // Она меньше картинки 16x24 и примерно совпадает с телом.
@@ -707,9 +801,9 @@ function overlaps(a, b) {
 }
 
 // Шкала прогресса в HUD: где на ней точка уровня x
-const BAR = { x: 6, y: 14, w: 228, h: 3 };
+const BAR = { x: 6, y: 11, w: 228, h: 2 };
 function barX(levelX) {
-  const part = Math.max(0, Math.min(1, levelX / GATE.x));
+  const part = Math.max(0, Math.min(1, levelX / level.gate.x));
   return Math.round(BAR.x + part * BAR.w);
 }
 
@@ -725,12 +819,12 @@ const levelState = {
   // mode = 'checkpoint' — продолжить с последнего чекпоинта, иначе — с начала
   enter(mode) {
     if (mode !== 'checkpoint' || !this.saved) {
-      this.passed = CHECKPOINT_XS.map(() => false);
-      this.saved = { x: 20, leraX: 0, leraSpeed: CONFIG.leraSpeed, clockSteps: 0 };
+      this.passed = level.checkpoints.map(() => false);
+      this.saved = { x: level.start.x, y: level.start.y, leraX: 0, leraSpeed: CONFIG.leraSpeed, clockSteps: 0 };
     }
     // Восстанавливаем всё как было на старте или на чекпоинте
     player.x = this.saved.x;
-    player.y = FLOOR_TOP - player.h;
+    player.y = this.saved.y;
     player.vx = 0; player.vy = 0;
     player.onGround = false;
     player.facing = 1;
@@ -743,7 +837,7 @@ const levelState = {
     this.alarm = false;
     this.alarmTimer = 0;
     // Камера сразу на герое, без плавного подъезда
-    cameraX = Math.max(0, Math.min(LEVEL_W - W, player.x + player.w / 2 - W / 2));
+    cameraX = Math.max(0, Math.min(level.width - W, player.x + player.w / 2 - W / 2));
   },
 
   update(input) {
@@ -751,20 +845,21 @@ const levelState = {
     clockSteps++;
 
     // --- Чекпоинты ---
-    CHECKPOINT_XS.forEach((cx, i) => {
-      if (!this.passed[i] && player.x + player.w / 2 >= cx + DOOR_W / 2) {
+    level.checkpoints.forEach((cp, i) => {
+      if (!this.passed[i] && player.x + player.w / 2 >= cp.x + 12) {
         this.passed[i] = true;
         checkpointSound();
         // Лера отлетает назад и немного ускоряется
         this.leraX = Math.max(0, this.leraX - CONFIG.checkpointPushBack);
         this.leraSpeed += CONFIG.leraSpeedUp;
-        // Запоминаем, откуда начинать после поражения
-        this.saved = { x: cx + 6, leraX: this.leraX, leraSpeed: this.leraSpeed, clockSteps: clockSteps };
+        // Запоминаем, откуда начинать после поражения: Филипп стоит в проёме
+        this.saved = { x: cp.x + 7, y: cp.y + 32 - player.h, leraX: this.leraX,
+                       leraSpeed: this.leraSpeed, clockSteps: clockSteps };
       }
     });
 
     // --- Финиш ---
-    if (player.x + player.w >= GATE.x + 4) {
+    if (player.x + player.w >= level.gate.x + 4) {
       setState('levelWin');
       return;
     }
@@ -823,7 +918,7 @@ const levelState = {
 
     // Двигаем по X и выталкиваем из стен
     player.x += player.vx;
-    for (const s of solids) {
+    for (const s of level.solids) {
       if (overlaps(player, s)) {
         if (player.vx > 0) player.x = s.x - player.w;
         else if (player.vx < 0) player.x = s.x + s.w;
@@ -833,12 +928,13 @@ const levelState = {
 
     // Не даём уйти за края уровня
     if (player.x < 0) { player.x = 0; player.vx = 0; }
-    if (player.x > LEVEL_W - player.w) { player.x = LEVEL_W - player.w; player.vx = 0; }
+    if (player.x > level.width - player.w) { player.x = level.width - player.w; player.vx = 0; }
 
     // Двигаем по Y и выталкиваем из пола/потолка
+    const oldBottom = player.y + player.h;   // где были ноги до движения
     player.y += player.vy;
     player.onGround = false;
-    for (const s of solids) {
+    for (const s of level.solids) {
       if (overlaps(player, s)) {
         if (player.vy > 0) {        // падали вниз — встали на платформу
           player.y = s.y - player.h;
@@ -847,6 +943,21 @@ const levelState = {
           player.y = s.y + s.h;
         }
         player.vy = 0;
+      }
+    }
+
+    // Тонкие платформы: ловят, только если падаем сверху.
+    // Если прыгаем снизу — пролетаем насквозь.
+    if (player.vy >= 0) {
+      for (const t of level.tops) {
+        const above = oldBottom <= t.y;                     // ноги были выше полки
+        const below = player.y + player.h >= t.y;            // а теперь на ней или ниже
+        const sideBySide = player.x + player.w > t.x && player.x < t.x + t.w;
+        if (above && below && sideBySide) {
+          player.y = t.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+        }
       }
     }
 
@@ -868,26 +979,43 @@ const levelState = {
     const target = player.x + player.w / 2 - W / 2;
     cameraX += (target - cameraX) * 0.1;
     // Камера не выходит за края уровня
-    cameraX = Math.max(0, Math.min(LEVEL_W - W, cameraX));
+    cameraX = Math.max(0, Math.min(level.width - W, cameraX));
   },
 
   draw() {
     const cam = Math.round(cameraX); // целые пиксели — без размытия
 
-    // Небо
-    ctx.fillStyle = '#41a6f6';
-    ctx.fillRect(0, 0, W, H);
+    // Экраны, которые сейчас видны (обычно два соседних)
+    const first = Math.floor(cam / SCREEN_W);
+    for (let s = first; s <= first + 1 && s < level.screens.length; s++) {
+      const bg = LEVEL_BACKGROUNDS[level.screens[s].bg];
+      bg.draw(ctx, s * SCREEN_W - cam, HUD_H);
+    }
 
-    // Дверные проёмы-чекпоинты (позади героя)
-    CHECKPOINT_XS.forEach((cx, i) => this.drawDoor(cx - cam, this.passed[i]));
+    // Плитки # и - (только видимые столбцы)
+    const c0 = Math.floor(cam / TILE);
+    const c1 = Math.min(level.rows[0].length - 1, c0 + COLS);
+    for (let r = 0; r < ROWS; r++) {
+      const row = level.rows[r];
+      for (let c = c0; c <= c1; c++) {
+        const ch = row[c];
+        if (ch !== '#' && ch !== '-') continue;
+        const bg = LEVEL_BACKGROUNDS[level.screens[Math.floor(c / COLS)].bg];
+        if (ch === '#') {
+          const topOpen = r === 0 || level.rows[r - 1][c] !== '#';
+          drawSolidTile(ctx, tileX(c) - cam, tileY(r), bg.tile, topOpen, r);
+        } else {
+          drawShelfTile(ctx, tileX(c) - cam, tileY(r), bg.shelf);
+        }
+      }
+    }
 
-    // Калитка «ВЫХОД»
-    this.drawGate(GATE.x - cam);
-
-    // Пол, ящики и платформы
-    ctx.fillStyle = '#566c86';
-    for (const s of solids) {
-      ctx.fillRect(s.x - cam, s.y, s.w, s.h);
+    // Дверные проёмы-чекпоинты, калитка, мебель
+    level.checkpoints.forEach((cp, i) => drawDoorway(ctx, cp.x - cam, cp.y, this.passed[i]));
+    drawGate(ctx, level.gate.x - cam, level.gate.y);
+    for (const f of level.furniture) {
+      if (f.x - cam > W || f.x + f.def.w * TILE - cam < 0) continue;  // за экраном — не рисуем
+      f.def.draw(ctx, f.x - cam, f.y);
     }
 
     // Филипп: берём нужный кадр текущей анимации
@@ -901,47 +1029,20 @@ const levelState = {
     if (this.alarm) {
       const shake = (this.alarmTimer >> 1) % 2;
       drawPhoneIcon(sx + 4 + shake, sy - 14, this.alarmTimer);
-      const textY = Math.max(24, sy - 24);          // не залезаем на HUD
+      const textY = Math.max(HUD_H + 2, sy - 24);   // не залезаем на HUD
       drawTextCenteredShadow('ТЫ ГДЕ?!', sx + 8 + shake, textY, '#ffcd75', '#1a1c2c');
     }
 
     this.drawHud();
   },
 
-  // Дверной проём с ковриком. lit = пройден (подсвечен)
-  drawDoor(x, lit) {
-    const y = FLOOR_TOP - DOOR_H;
-    ctx.fillStyle = lit ? '#ffcd75' : '#333c57';    // наличник
-    ctx.fillRect(x, y, DOOR_W, DOOR_H);
-    ctx.fillStyle = lit ? '#73eff7' : '#29366f';    // проём: тёмный, после прохождения — светлый
-    ctx.fillRect(x + 3, y + 3, DOOR_W - 6, DOOR_H - 3);
-    ctx.fillStyle = lit ? '#a7f070' : '#b13e53';    // коврик
-    ctx.fillRect(x - 2, FLOOR_TOP - 2, DOOR_W + 4, 2);
-  },
-
-  // Калитка с табличкой «ВЫХОД»
-  drawGate(x) {
-    ctx.fillStyle = '#f4f4f4';
-    ctx.fillRect(x, 82, 4, 38);                     // левый столб
-    ctx.fillRect(x + GATE.w - 4, 82, 4, 38);        // правый столб
-    ctx.fillStyle = '#ef7d57';
-    for (let i = 6; i < GATE.w - 5; i += 4) ctx.fillRect(x + i, 92, 2, 28); // штакетник
-    ctx.fillRect(x + 4, 96, GATE.w - 8, 2);         // перекладины
-    ctx.fillRect(x + 4, 110, GATE.w - 8, 2);
-    ctx.fillStyle = '#38b764';                      // табличка
-    ctx.fillRect(x - 2, 70, GATE.w + 4, 11);
-    drawText(ctx, 'ВЫХОД', x + 2, 72, '#f4f4f4');
-  },
-
-  // HUD: полоска сверху — версия, часы, шкала гонки с иконками
+  // HUD: полоска сверху (2 ряда плиток) — версия, часы, шкала гонки с иконками
   drawHud() {
     ctx.fillStyle = '#1a1c2c';
-    ctx.fillRect(0, 0, W, 21);
-    ctx.fillStyle = '#333c57';
-    ctx.fillRect(0, 21, W, 1);
+    ctx.fillRect(0, 0, W, HUD_H);
 
-    drawText(ctx, VERSION, 2, 2, '#94b0c2');
-    drawText(ctx, clockText(), W - 31, 2, '#ffcd75');
+    drawText(ctx, VERSION, 2, 1, '#94b0c2');
+    drawText(ctx, clockText(), W - 31, 1, '#ffcd75');
 
     // Шкала: при тревоге мигает красным
     const blinkRed = this.alarm && Math.floor(this.alarmTimer / 8) % 2 === 0;
@@ -949,19 +1050,41 @@ const levelState = {
     ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
 
     // Отметки чекпоинтов: жёлтые, пройденные — зелёные
-    CHECKPOINT_XS.forEach((cx, i) => {
+    level.checkpoints.forEach((cp, i) => {
       ctx.fillStyle = this.passed[i] ? '#a7f070' : '#ffcd75';
-      ctx.fillRect(barX(cx + DOOR_W / 2), BAR.y - 3, 1, BAR.h + 6);
+      ctx.fillRect(barX(cp.x + 12), BAR.y - 3, 1, BAR.h + 6);
     });
     // Отметка финиша — флажок
-    const fx = barX(GATE.x);
+    const fx = barX(level.gate.x);
     ctx.fillStyle = '#f4f4f4';
-    ctx.fillRect(fx, BAR.y - 5, 1, BAR.h + 8);
-    ctx.fillRect(fx - 3, BAR.y - 5, 3, 3);
+    ctx.fillRect(fx, BAR.y - 4, 1, BAR.h + 7);
+    ctx.fillRect(fx - 3, BAR.y - 4, 3, 3);
 
     // Иконки-головы: Лера рисуется поверх Филиппа, когда догоняет
-    ctx.drawImage(ICONS.filipp.image, barX(player.x + player.w / 2) - 4, BAR.y - 3);
-    ctx.drawImage(ICONS.lera.image, barX(this.leraX) - 4, BAR.y - 3);
+    ctx.drawImage(ICONS.filipp.image, barX(player.x + player.w / 2) - 4, HUD_H - 8);
+    ctx.drawImage(ICONS.lera.image, barX(this.leraX) - 4, HUD_H - 8);
+  },
+};
+
+// =============================================
+// ЭКРАН ОШИБКИ: в карте или в файле что-то не так
+// =============================================
+const errorState = {
+  messages: [],
+  enter() {},
+  update() {},
+  draw() {
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, H);
+    drawText(ctx, 'ОШИБКА В КАРТЕ УРОВНЯ', 4, 4, '#b13e53');
+    let y = 16;
+    for (const msg of this.messages) {
+      const lines = drawText(ctx, msg, 4, y, '#f4f4f4', W - 8);
+      y += lines * LINE_STEP + 3;
+      if (y > H - 24) break;                       // больше не влезает
+    }
+    drawText(ctx, 'ПОПРАВЬ LEVELS.JS И ОБНОВИ СТРАНИЦУ.', 4, H - 20, '#ffcd75', W - 8);
+    drawText(ctx, VERSION, 2, H - 9, '#566c86');
   },
 };
 
@@ -974,6 +1097,7 @@ const states = {
   level: levelState,                          // УРОВЕНЬ
   defeat: createSceneState('defeat'),         // ПОРАЖЕНИЕ
   levelWin: createSceneState('levelWin'),     // ПОБЕДА_УРОВНЯ
+  error: errorState,                          // ОШИБКА в карте или в файлах
 };
 let state = null;
 
@@ -1026,5 +1150,22 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
-setState('title');
+// Перед запуском проверяем файлы и карту уровня.
+// LOAD_ERRORS собирает index.html: туда попадают ошибки в файлах (например, забытая кавычка).
+for (const e of window.LOAD_ERRORS || []) {
+  LEVEL_ERRORS.push('ОШИБКА В ФАЙЛЕ ' + e.file.toUpperCase() + ', СТРОКА ' + e.line +
+                    '. ЧАЩЕ ВСЕГО ЭТО ЗАБЫТАЯ КАВЫЧКА ИЛИ ЗАПЯТАЯ.');
+}
+if (typeof LEVELS === 'undefined') {
+  if (LEVEL_ERRORS.length === 0) LEVEL_ERRORS.push('ФАЙЛ LEVELS.JS НЕ ЗАГРУЗИЛСЯ.');
+} else if (LEVEL_ERRORS.length === 0) {
+  buildLevel(LEVELS[0]);
+}
+
+if (LEVEL_ERRORS.length > 0) {
+  errorState.messages = LEVEL_ERRORS;
+  setState('error');
+} else {
+  setState('title');
+}
 requestAnimationFrame(loop);

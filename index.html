@@ -23,10 +23,21 @@
     <div class="btn jump" data-btn="jump">Прыжок</div>
   </div>
 
+  <!-- Если в каком-то файле ошибка (например, забыта кавычка в levels.js),
+       запоминаем её. Тогда game.js покажет понятную надпись, а не чёрный экран. -->
+  <script>
+    window.LOAD_ERRORS = [];
+    window.addEventListener('error', (e) => {
+      const file = (e.filename || '').split('/').pop() || 'неизвестном файле';
+      window.LOAD_ERRORS.push({ file: file, line: e.lineno || '?' });
+    });
+  </script>
+
   <!-- Порядок важен: game.js пользуется всеми файлами выше -->
   <script src="font.js"></script>     <!-- пиксельный шрифт -->
   <script src="sprites.js"></script>  <!-- картинки персонажей -->
   <script src="scenes.js"></script>   <!-- сценарий заставок -->
+  <script src="levels.js"></script>   <!-- карты уровней -->
   <script src="game.js"></script>     <!-- сама игра -->
 </body>
 </html>
