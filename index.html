@@ -10,7 +10,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Филипп">
   <title>Всем что-то надо от Филиппа</title>
-  <link rel="stylesheet" href="style.css">
+  <!-- Просим браузер не хранить саму страницу в кэше, а каждый раз спрашивать свежую -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <!-- Номер версии. Сам version.js грузим с текущим временем в адресе — он всегда свежий -->
+  <script>document.write('<script src="version.js?t=' + Date.now() + '"><\/script>');</script>
+  <!-- Стили с меткой версии: style.css?v=0.6 -->
+  <script>loadWithVersion(['style.css']);</script>
 </head>
 <body>
   <!-- Игровой холст. Его размер 240x136, а увеличиваем мы его в style.css и game.js -->
@@ -28,16 +35,20 @@
   <script>
     window.LOAD_ERRORS = [];
     window.addEventListener('error', (e) => {
-      const file = (e.filename || '').split('/').pop() || 'неизвестном файле';
+      const file = (e.filename || '').split('/').pop().split('?')[0] || 'неизвестном файле';
       window.LOAD_ERRORS.push({ file: file, line: e.lineno || '?' });
     });
   </script>
 
-  <!-- Порядок важен: game.js пользуется всеми файлами выше -->
-  <script src="font.js"></script>     <!-- пиксельный шрифт -->
-  <script src="sprites.js"></script>  <!-- картинки персонажей -->
-  <script src="scenes.js"></script>   <!-- сценарий заставок -->
-  <script src="levels.js"></script>   <!-- карты уровней -->
-  <script src="game.js"></script>     <!-- сама игра -->
+  <!-- Файлы игры с меткой версии (game.js?v=0.6). Порядок важен: game.js пользуется всеми файлами выше -->
+  <script>
+    loadWithVersion([
+      'font.js',     // пиксельный шрифт
+      'sprites.js',  // картинки персонажей
+      'scenes.js',   // сценарий заставок
+      'levels.js',   // карты уровней
+      'game.js',     // сама игра
+    ]);
+  </script>
 </body>
 </html>

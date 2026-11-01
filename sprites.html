@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Витрина спрайтов</title>
+  <!-- Просим браузер не хранить саму страницу в кэше, а каждый раз спрашивать свежую -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <!-- Номер версии. Сам version.js грузим с текущим временем в адресе — он всегда свежий -->
+  <script>document.write('<script src="version.js?t=' + Date.now() + '"><\/script>');</script>
   <style>
     body {
       margin: 0;
@@ -30,8 +36,8 @@
   <h1>Витрина спрайтов</h1>
   <div id="list"></div>
 
-  <script src="font.js"></script>
-  <script src="sprites.js"></script>
+  <!-- Файлы с меткой версии (sprites.js?v=0.6) -->
+  <script>loadWithVersion(['font.js', 'sprites.js']);</script>
   <script>
     // Во сколько раз увеличиваем спрайты
     const ZOOM = 6;
