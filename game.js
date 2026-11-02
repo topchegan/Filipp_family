@@ -381,7 +381,9 @@ let switchHit = false;
 let menuMove = 0;
 let confirmHit = false;
 
-// Какая клавиша за что отвечает
+// Какая клавиша за что отвечает.
+// Клавиши узнаём по МЕСТУ на клавиатуре (e.code: KeyZ, KeyX...), а не по букве (e.key).
+// Поэтому при русской раскладке всё работает так же: клавиша «Я» — это KeyZ, «Ч» — KeyX, «С» — KeyC.
 const keyMap = {
   ArrowLeft: 'left',
   ArrowRight: 'right',
@@ -799,31 +801,40 @@ function createSceneState(defaultScene) {
     },
 
     // Окно диалога: рамка, портрет, имя, текст, стрелка
+    // На аренах боссов окно диалога сверху экрана, чтобы не закрывать персонажей внизу.
+    // Возвращает, на сколько пикселей сдвинуть окно вверх (0 — окно на обычном месте, внизу)
+    boxShift() {
+      return this.scene.background === 'boss' || this.scene.background === 'mom' ? 2 - BOX.y : 0;
+    },
+
     drawDialog(step) {
       const speaker = SPEAKERS[step.who];
-      drawBox(BOX.x, BOX.y, BOX.w, BOX.h);
+      const dy = this.boxShift();
+      drawBox(BOX.x, BOX.y + dy, BOX.w, BOX.h);
 
       // Портрет в рамке
       ctx.fillStyle = '#94b0c2';
-      ctx.fillRect(PORTRAIT_X - 1, PORTRAIT_Y - 1, 34, 34);
+      ctx.fillRect(PORTRAIT_X - 1, PORTRAIT_Y - 1 + dy, 34, 34);
       ctx.fillStyle = '#333c57';
-      ctx.fillRect(PORTRAIT_X, PORTRAIT_Y, 32, 32);
-      ctx.drawImage(PORTRAITS[speaker.portrait].image, PORTRAIT_X, PORTRAIT_Y);
+      ctx.fillRect(PORTRAIT_X, PORTRAIT_Y + dy, 32, 32);
+      ctx.drawImage(PORTRAITS[speaker.portrait].image, PORTRAIT_X, PORTRAIT_Y + dy);
 
       // Имя над текстом
-      drawText(ctx, step.name || speaker.name, TEXT_X, PORTRAIT_Y, '#ffcd75');
+      drawText(ctx, step.name || speaker.name, TEXT_X, PORTRAIT_Y + dy, '#ffcd75');
 
       // Текст: показываем только напечатанные буквы
-      drawText(ctx, step.text, TEXT_X, TEXT_Y, '#f4f4f4', TEXT_W, { maxChars: this.typed });
+      drawText(ctx, step.text, TEXT_X, TEXT_Y + dy, '#f4f4f4', TEXT_W, { maxChars: this.typed });
 
       // Реплика допечатана — мигает стрелка ▼
-      if (this.typed >= this.fullText.length) this.drawArrow();
+      if (this.typed >= this.fullText.length) this.drawArrow(BOX.y + BOX.h - 8 + dy);
     },
 
     // Подпись внизу экрана и, если задана, кнопка (например «ЕЩЁ РАЗ»)
     drawCaption(step) {
-      drawBox(CAPTION.x, CAPTION.y, CAPTION.w, CAPTION.h);
-      drawText(ctx, step.text, CAPTION.x + 6, CAPTION.y + 7, '#f4f4f4', step.button ? 168 : CAPTION.w - 12);
+      // На арене босса подпись (например «ПЛОВ +3») тоже сверху; кнопка «ЕЩЁ РАЗ» всегда внизу
+      const dy = step.button ? 0 : (this.boxShift() ? 2 - CAPTION.y : 0);
+      drawBox(CAPTION.x, CAPTION.y + dy, CAPTION.w, CAPTION.h);
+      drawText(ctx, step.text, CAPTION.x + 6, CAPTION.y + 7 + dy, '#f4f4f4', step.button ? 168 : CAPTION.w - 12);
       if (step.button) {
         // Кнопка мигает рамкой, чтобы её заметили
         const b = CAPTION_BUTTON;
@@ -833,17 +844,18 @@ function createSceneState(defaultScene) {
         ctx.fillRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2);
         drawTextCentered(ctx, step.button, b.x + b.w / 2, b.y + 4, '#ffcd75');
       } else if (this.timer > 20) {
-        this.drawArrow();
+        this.drawArrow(CAPTION.y + CAPTION.h - 8 + dy);
       }
     },
 
-    // Мигающая стрелка ▼ в правом нижнем углу
-    drawArrow() {
+    // Мигающая стрелка ▼ в правом нижнем углу окна. y — где её верх (по умолчанию — низ экрана)
+    drawArrow(y) {
       if (Math.floor(this.tick / 20) % 2 !== 0) return;
+      const ay = y === undefined ? 126 : y;
       ctx.fillStyle = '#f4f4f4';
-      ctx.fillRect(228, 126, 5, 1);
-      ctx.fillRect(229, 127, 3, 1);
-      ctx.fillRect(230, 128, 1, 1);
+      ctx.fillRect(228, ay, 5, 1);
+      ctx.fillRect(229, ay + 1, 3, 1);
+      ctx.fillRect(230, ay + 2, 1, 1);
     },
 
     // Титр на весь экран: часы и надпись (можно в несколько строк через \n)
@@ -1232,6 +1244,32 @@ function barX(globalX) {
   return Math.round(BAR.x + part * BAR.w);
 }
 
+// =============================================
+// ПОДСКАЗКИ: короткая надпись внизу экрана на 3 секунды, каждая — один раз за игру
+// =============================================
+const hintsShown = {};   // какие подсказки уже были (до перезагрузки страницы)
+let hint = null;         // подсказка на экране {text, t}
+
+function showHint(id, text) {
+  if (hintsShown[id]) return;
+  hintsShown[id] = true;
+  hint = { text: text, t: 180 };
+}
+
+// Каждый шаг игры: подсказка тает
+function tickHint() {
+  if (hint && --hint.t <= 0) hint = null;
+}
+
+// Рисуем подсказку внизу, над экранными кнопками
+function drawHint() {
+  if (!hint) return;
+  const w = textWidth(hint.text) + 10;
+  const x = Math.round(W / 2 - w / 2), y = H - 46;
+  drawBox(x, y, w, 13);
+  drawText(ctx, hint.text, x + 5, y + 3, '#ffcd75');
+}
+
 // Значки оружия под HUD слева (уровень 2): «ключ x5» и «плов x1». Тап по значку — сменить оружие
 const WEAPON_PANEL = { x: 2, y: HUD_H + 1, w: 54, h: 11 };
 
@@ -1560,8 +1598,22 @@ const levelState = {
   },
 
   // Всплывающая надпись над точкой x, y
+  // Если на этом месте уже есть надпись, новая встаёт выше. Выше места нет (там HUD) — старая
+  // надпись убирается. Та же самая надпись не повторяется, а просто начинается заново.
   popup(text, x, y) {
-    this.popups.push({ text: text, x: x, y: y, t: 0 });
+    const w = textWidth(text);
+    let ny = y;
+    for (let tries = 0; tries < 6; tries++) {
+      // Где надпись сейчас (она поднимается со временем)
+      const clash = this.popups.find((p) => Math.abs(p.x - x) < (textWidth(p.text) + w) / 2 + 3 &&
+                                            Math.abs((p.y - p.t / 3) - ny) < 9);
+      if (!clash) break;
+      if (clash.text === text) { clash.t = 0; clash.x = x; clash.y = ny; return; }
+      const above = clash.y - clash.t / 3 - 9;
+      if (above - 10 < HUD_H + 2) { this.popups.splice(this.popups.indexOf(clash), 1); continue; }
+      ny = above;
+    }
+    this.popups.push({ text: text, x: x, y: ny, t: 0 });
   },
 
   // Удар: минус кружка, отброс, мигание. srcX — откуда пришёл удар (чтобы отбросить в другую сторону)
@@ -1604,6 +1656,8 @@ const levelState = {
       return;
     }
 
+    tickHint();
+    if (weaponsOn()) showHint('weapons', HINTS.weapons);   // уровень 2: впервые есть оружие
     this.updateGossip(input);                         // бабушки на лавке держат — кнопки не слушаются
     this.movePlayer(input);
     clockSteps++;
@@ -2006,6 +2060,7 @@ const levelState = {
       if (!g.released && this.inGossip(g, 1)) {
         this.gossipHold = g;
         this.nods = 0;
+        showHint('gossip', HINTS.gossip);              // первая лавка с бабушками
         player.vx = 0;
         g.talkStart = this.tick;
         break;
@@ -2605,6 +2660,7 @@ const levelState = {
     }
 
     this.drawHud();
+    if (state === levelState || state === momState) drawHint();   // в сценках подсказку не показываем
   },
 
   // Лавка с бабушками: пунктирный полукруг «зоны сплетен», «БУ-БУ-БУ», реплики, когда Филипп застрял
@@ -3203,6 +3259,7 @@ const momState = {
 
   update(input) {
     levelState.tick++;
+    tickHint();
     levelState.movePlayer(input);
     clockSteps++;
     levelState.tickEffects();
@@ -3396,7 +3453,8 @@ const momState = {
     const frame = anim.frames[Math.floor(levelState.tick / anim.speed) % anim.frames.length];
     drawSprite(ctx, frame, Math.round(m.x) - 2, Math.round(m.y) + m.h - 22, m.dir < 0);
     // Фаза 2: «ДАЙ ОБНИМУ!» над мамой и сердечко-полоска, сколько осталось постоять рядом
-    if (!this.intro && this.phase() === 2 && this.hugCool === 0 && this.hugging === 0 && Math.floor(levelState.tick / 30) % 2 === 0) {
+    const busy = levelState.popups.some((p) => Math.abs(p.x - (m.x + 5)) < 40);   // над мамой уже есть надпись
+    if (state === momState && !busy && this.phase() === 2 && this.hugCool === 0 && this.hugging === 0 && Math.floor(levelState.tick / 30) % 2 === 0) {
       drawTextCenteredShadow(MOM_TEXT.hug, Math.max(34, Math.min(W - 34, Math.round(m.x) + 5)), Math.round(m.y) - 12, '#ef7d57', '#1a1c2c');
     }
     if (this.hugT > 0) {
@@ -3473,6 +3531,7 @@ function drawMenu(menu, items, cx, y0, step, first) {
 // =============================================
 let paused = false;
 const pauseMenu = createMenu();
+let pauseControls = false;   // открыт список «УПРАВЛЕНИЕ»
 let dimImage = null;      // затемнение «сеточкой» (только цвет палитры), готовим один раз
 
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
@@ -3489,12 +3548,18 @@ function pauseItems() {
     'ПРОДОЛЖИТЬ',
     state === bossState || state === momState ? 'НАЧАТЬ БОЙ ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА',
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
+    'УПРАВЛЕНИЕ',
     'ВЫЙТИ В ГЛАВНОЕ МЕНЮ',
   ];
 }
 
 function updatePause(input) {
-  const choice = menuUpdate(pauseMenu, 4, input);
+  // Открыт список «УПРАВЛЕНИЕ»: любое нажатие — назад в меню паузы
+  if (pauseControls) {
+    if (input.confirm || input.taps.length > 0 || input.menuMove) pauseControls = false;
+    return;
+  }
+  const choice = menuUpdate(pauseMenu, 5, input);
   if (choice === 0) paused = false;
   if (choice === 1) {
     paused = false;
@@ -3503,7 +3568,8 @@ function updatePause(input) {
     else setState('level', 'lastCall');
   }
   if (choice === 2) setSound(!soundOn);
-  if (choice === 3) { paused = false; setState('title'); }
+  if (choice === 3) pauseControls = true;
+  if (choice === 4) { paused = false; setState('title'); }
 }
 
 function drawPause() {
@@ -3515,9 +3581,31 @@ function drawPause() {
     for (let y = 0; y < H; y++) for (let x = (y % 2); x < W; x += 2) g.fillRect(x, y, 1, 1);
   }
   ctx.drawImage(dimImage, 0, 0);
-  drawBox(30, 30, 180, 80);
-  drawTextCentered(ctx, 'ПАУЗА', 120, 37, '#ffcd75', 2);
-  drawMenu(pauseMenu, pauseItems(), 120, 60, 12);
+  if (pauseControls) { drawControls(); return; }
+  drawBox(30, 22, 180, 96);
+  drawTextCentered(ctx, 'ПАУЗА', 120, 29, '#ffcd75', 2);
+  drawMenu(pauseMenu, pauseItems(), 120, 52, 12);
+}
+
+// Список «УПРАВЛЕНИЕ» в меню паузы
+function drawControls() {
+  drawBox(8, 4, 224, 128);
+  drawTextCentered(ctx, 'УПРАВЛЕНИЕ', 120, 9, '#ffcd75');
+  const rows = [
+    ['КЛАВИАТУРА:', '#94b0c2'],
+    ['СТРЕЛКИ — БЕГ', '#f4f4f4'],
+    ['Z ИЛИ ПРОБЕЛ — ПРЫЖОК', '#f4f4f4'],
+    ['X — БРОСОК', '#f4f4f4'],
+    ['C — СМЕНА ОРУЖИЯ', '#f4f4f4'],
+    ['P ИЛИ ESC — ПАУЗА', '#f4f4f4'],
+    ['(РАБОТАЕТ И ПРИ РУССКОЙ РАСКЛАДКЕ)', '#566c86'],
+    ['IPAD:', '#94b0c2'],
+    ['КНОПКИ ВНИЗУ — БЕГ, ПРЫЖОК, БРОСОК', '#f4f4f4'],
+    ['ТАП ПО ЗНАЧКУ ОРУЖИЯ — СМЕНА', '#f4f4f4'],
+    ['КНОПКА ВВЕРХУ СПРАВА — ПАУЗА', '#f4f4f4'],
+  ];
+  rows.forEach(([text, color], i) => drawText(ctx, text, 16, 21 + i * 9, color));
+  drawTextCentered(ctx, 'НАЖМИ, ЧТОБЫ ВЕРНУТЬСЯ', 120, 122, '#ffcd75');
 }
 
 // =============================================
@@ -3675,6 +3763,7 @@ function update() {
   // Пауза: ⏸, P или Esc
   if (pauseHit) {
     pauseHit = false;
+    pauseControls = false;
     if (paused) paused = false;
     else if (canPause()) { paused = true; pauseMenu.index = 0; }
   }
