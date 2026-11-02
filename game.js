@@ -363,41 +363,43 @@ function phoneRing() {
 // УПРАВЛЕНИЕ
 // =============================================
 // Здесь храним, какие кнопки сейчас зажаты
-const keys = { left: false, right: false, jump: false, throw: false };
+const keys = { left: false, right: false, jump: false };
 // Отдельно — кнопки с клавиатуры и с экрана, потом объединяем
-const kb = { left: false, right: false, jump: false, throw: false };
-const touch = { left: false, right: false, jump: false, throw: false };
+const kb = { left: false, right: false, jump: false, throw: false, plov: false };
+const touch = { left: false, right: false, jump: false, throw: false, wrench: false, plov: false, pause: false };
 // Касания и клики по самому экрану (не по кнопкам). Координаты — в пикселях игры.
 let taps = [];
 // Нажали ли «Прыжок» с прошлого шага. Запоминаем сразу в момент нажатия,
 // чтобы даже очень короткое нажатие не потерялось.
 let jumpHit = false;
-// То же для кнопки «Бросок» (бой с боссом)
+// То же для броска: гаечный ключ на уровне (E или X, кнопка «Ключ»)
+// и игрушка в бою с Васей и Настей (E или X, кнопка «Бросок»)
 let throwHit = false;
+// Бросок плова: F или кнопка «Плов» (сразу, без переключения оружия)
+let plovHit = false;
 // Пауза (кнопка ⏸, P, Esc), выбор в меню (стрелки вверх-вниз), подтверждение (Прыжок, Z, пробел, Enter)
 let pauseHit = false;
-// Смена оружия: C на клавиатуре (тап по значку в HUD ловится отдельно)
-let switchHit = false;
 let menuMove = 0;
 let confirmHit = false;
 
 // Какая клавиша за что отвечает.
 // Клавиши узнаём по МЕСТУ на клавиатуре (e.code: KeyZ, KeyX...), а не по букве (e.key).
-// Поэтому при русской раскладке всё работает так же: клавиша «Я» — это KeyZ, «Ч» — KeyX, «С» — KeyC.
+// Поэтому при русской раскладке всё работает так же: «Я» — это KeyZ, «У» — KeyE, «А» — KeyF, «Ч» — KeyX.
 const keyMap = {
   ArrowLeft: 'left',
   ArrowRight: 'right',
   KeyZ: 'jump',
   Space: 'jump',
   ArrowUp: 'jump',
-  KeyX: 'throw',
+  KeyE: 'throw',      // ключ (в бою с близнецами — игрушка)
+  KeyX: 'throw',      // запасная клавиша для ключа
+  KeyF: 'plov',       // плов
 };
 
 window.addEventListener('keydown', (e) => {
   unlockAudio();
   if (!e.repeat) {
     if (e.code === 'KeyP' || e.code === 'Escape') pauseHit = true;
-    if (e.code === 'KeyC') switchHit = true;
     if (e.code === 'ArrowUp') menuMove -= 1;
     if (e.code === 'ArrowDown') menuMove += 1;
     if (e.code === 'Enter' || e.code === 'KeyZ' || e.code === 'Space') confirmHit = true;
@@ -406,6 +408,7 @@ window.addEventListener('keydown', (e) => {
   if (action) {
     if (action === 'jump' && !e.repeat) jumpHit = true; // repeat — это автоповтор при удержании
     if (action === 'throw' && !e.repeat) throwHit = true;
+    if (action === 'plov' && !e.repeat) plovHit = true;
     kb[action] = true;
     e.preventDefault(); // чтобы пробел и стрелки не прокручивали страницу
   }
@@ -432,7 +435,7 @@ const buttons = document.querySelectorAll('.btn');
 function updateTouches(e) {
   e.preventDefault();
   unlockAudio();
-  touch.left = touch.right = touch.jump = touch.throw = false;
+  for (const k in touch) touch[k] = false;
   for (const t of e.touches) {
     const el = document.elementFromPoint(t.clientX, t.clientY);
     if (el && el.dataset && el.dataset.btn) {
@@ -445,7 +448,8 @@ function updateTouches(e) {
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const btn = el && el.dataset ? el.dataset.btn : undefined;
       if (btn === 'jump') { jumpHit = true; confirmHit = true; }
-      else if (btn === 'throw') throwHit = true;
+      else if (btn === 'throw' || btn === 'wrench') throwHit = true;   // «Бросок» у близнецов, «Ключ» на уровне
+      else if (btn === 'plov') plovHit = true;
       else if (btn === 'pause') pauseHit = true;
       else if (btn === 'left') menuMove -= 1;       // в меню ← и → двигают выбор
       else if (btn === 'right') menuMove += 1;
@@ -1270,7 +1274,7 @@ function drawHint() {
   drawText(ctx, hint.text, x + 5, y + 3, '#ffcd75');
 }
 
-// Значки оружия под HUD слева (уровень 2): «ключ x5» и «плов x1». Тап по значку — сменить оружие
+// Значки оружия под HUD слева (уровень 2): «ключ x5» и «плов x1» — сколько осталось
 const WEAPON_PANEL = { x: 2, y: HUD_H + 1, w: 54, h: 11 };
 
 // Где Филипп на всём уровне (а не только в текущей части)
@@ -1402,7 +1406,6 @@ const levelState = {
   // --- Уровень 2 ---
   keys: 0,           // гаечные ключи
   plov: 0,           // контейнеры плова
-  weapon: 'keys',    // что сейчас в руке: 'keys' — ключ, 'plov' — плов
   shots: [],         // летящие ключи и контейнеры плова
   plovs: [],         // плов на земле {x, y, w, timer}
   bikes: [],         // дети на великах {lane, x, y, dir, state, timer}
@@ -1467,7 +1470,6 @@ const levelState = {
     this.boxesTaken = copyTaken(this.saved.boxesTaken);
     this.keys = this.saved.keys;
     this.plov = this.saved.plov;
-    this.weapon = 'keys';
     // Новый уровень — кружки с прошлого уровня (не меньше 3). «ЕЩЁ РАЗ» — снова 3 кружки
     this.lives = fresh ? this.saved.lives : CONFIG.startLives;
     this.resetEffects();                              // и полный кураж, без кофе и пива
@@ -2072,29 +2074,28 @@ const levelState = {
     return { x: g.x, y: g.ground - 22, w: g.w, h: 22 };
   },
 
-  // Оружие: смена (C или тап по значку), бросок (X или кнопка «Бросок»), полёт ключей и плова
+  // Оружие: ключ (E или X, кнопка «Ключ») и плов (F, кнопка «Плов») — каждое своей кнопкой.
+  // Дальше — полёт ключей и плова
   updateWeapons(input) {
     if (!weaponsOn()) return;
-    for (const t of input.taps) {
-      const P = WEAPON_PANEL;
-      if (t.x >= 0 && t.x < P.x + P.w + 6 && t.y >= HUD_H - 4 && t.y < P.y + P.h + 8) {
-        this.weapon = t.x < P.x + P.w / 2 ? 'keys' : 'plov';
-      }
-    }
-    if (input.switchPressed) this.weapon = this.weapon === 'keys' ? 'plov' : 'keys';
     const canThrow = !player.lying && !this.gossipHold && !(player.stun > 0 && player.stunKind === 'trip');
+    const cx = player.x + player.w / 2;
     if (input.throwPressed && canThrow) {
-      const cx = player.x + player.w / 2;
-      if (this.weapon === 'keys' && this.keys > 0) {
+      if (this.keys > 0) {
         this.keys--;
         this.shots.push({ kind: 'wrench', x: cx + player.facing * 4, y: player.y + 13, t: 0,
                           vx: player.facing * CONFIG.wrenchSpeed, vy: -CONFIG.wrenchLift });
-      } else if (this.weapon === 'plov' && this.plov > 0) {
+      } else {
+        this.popup('КЛЮЧЕЙ НЕТ!', cx, player.y - 4);
+      }
+    }
+    if (input.plovPressed && canThrow) {
+      if (this.plov > 0) {
         this.plov--;
         this.shots.push({ kind: 'plov', x: cx + player.facing * 4, y: player.y + 9, t: 0,
                           vx: player.facing * 1.6, vy: -1.5 });
       } else {
-        this.popup('ПУСТО!', cx, player.y - 4);
+        this.popup('ПЛОВА НЕТ!', cx, player.y - 4);
       }
     }
     for (const sh of this.shots) {
@@ -2261,7 +2262,7 @@ const levelState = {
   // Бег, прыжки и столкновения Филиппа
   movePlayer(input) {
     // Лежит на диване: любая кнопка — встаёт
-    if (player.lying && (keys.left || keys.right || keys.jump || input.jumpPressed || input.throwPressed)) {
+    if (player.lying && (keys.left || keys.right || keys.jump || input.jumpPressed || input.throwPressed || input.plovPressed)) {
       player.lying = false;
       this.sofaIdle = 0;
     }
@@ -2822,21 +2823,15 @@ const levelState = {
     ctx.drawImage(ICONS.filipp.image, barX(playerGlobalX() + player.w / 2) - 4, HUD_H - 8);
     ctx.drawImage(ICONS.lera.image, barX(this.leraX) - 4, HUD_H - 8);
 
-    // Оружие (с уровня 2): «ключ x5» и «плов x1», активное — в жёлтой рамке
+    // Оружие (с уровня 2): «ключ x5» и «плов x1» — только для информации. Кончилось — число тусклое
     if (weaponsOn() && state !== bossState) {
       const P = WEAPON_PANEL;
       ctx.fillStyle = '#1a1c2c';
       ctx.fillRect(P.x, P.y, P.w, P.h);
-      [['keys', ICON_WRENCH, this.keys], ['plov', ICON_PLOV, this.plov]].forEach(([kind, img, n], i) => {
+      [[ICON_WRENCH, this.keys], [ICON_PLOV, this.plov]].forEach(([img, n], i) => {
         const x = P.x + i * (P.w / 2);
-        const active = this.weapon === kind;
-        ctx.fillStyle = active ? '#ffcd75' : '#333c57';
-        ctx.fillRect(x, P.y, P.w / 2 - 1, 1);
-        ctx.fillRect(x, P.y + P.h - 1, P.w / 2 - 1, 1);
-        ctx.fillRect(x, P.y, 1, P.h);
-        ctx.fillRect(x + P.w / 2 - 2, P.y, 1, P.h);
         ctx.drawImage(img, x + 2, P.y + 2);
-        drawText(ctx, 'X' + n, x + 12, P.y + 2, active ? '#ffcd75' : (n > 0 ? '#94b0c2' : '#566c86'));
+        drawText(ctx, 'X' + n, x + 12, P.y + 2, n > 0 ? '#f4f4f4' : '#566c86');
       });
     }
   },
@@ -3595,13 +3590,13 @@ function drawControls() {
     ['КЛАВИАТУРА:', '#94b0c2'],
     ['СТРЕЛКИ — БЕГ', '#f4f4f4'],
     ['Z ИЛИ ПРОБЕЛ — ПРЫЖОК', '#f4f4f4'],
-    ['X — БРОСОК', '#f4f4f4'],
-    ['C — СМЕНА ОРУЖИЯ', '#f4f4f4'],
+    ['E — КЛЮЧ (ЗАПАСНАЯ КЛАВИША — X)', '#f4f4f4'],
+    ['F — ПЛОВ', '#f4f4f4'],
     ['P ИЛИ ESC — ПАУЗА', '#f4f4f4'],
     ['(РАБОТАЕТ И ПРИ РУССКОЙ РАСКЛАДКЕ)', '#566c86'],
     ['IPAD:', '#94b0c2'],
-    ['КНОПКИ ВНИЗУ — БЕГ, ПРЫЖОК, БРОСОК', '#f4f4f4'],
-    ['ТАП ПО ЗНАЧКУ ОРУЖИЯ — СМЕНА', '#f4f4f4'],
+    ['СЛЕВА ВНИЗУ — БЕГ', '#f4f4f4'],
+    ['СПРАВА — ПРЫЖОК, КЛЮЧ, ПЛОВ', '#f4f4f4'],
     ['КНОПКА ВВЕРХУ СПРАВА — ПАУЗА', '#f4f4f4'],
   ];
   rows.forEach(([text, color], i) => drawText(ctx, text, 16, 21 + i * 9, color));
@@ -3745,12 +3740,12 @@ function update() {
   jumpHit = false;
   const throwPressed = throwHit;                   // «Бросок» только что нажали
   throwHit = false;
-  const switchPressed = switchHit;                 // C — сменить оружие
-  switchHit = false;
+  const plovPressed = plovHit;                     // F или кнопка «Плов»
+  plovHit = false;
   const input = {
     jumpPressed: jumpPressed,
     throwPressed: throwPressed,
-    switchPressed: switchPressed,
+    plovPressed: plovPressed,
     menuMove: menuMove,                             // стрелки вверх-вниз в меню
     confirm: confirmHit,                            // «Прыжок», Z, пробел, Enter — выбрать пункт
     taps: taps,                                     // касания экрана
@@ -3774,6 +3769,23 @@ function update() {
   }
 
   state.update(input);
+  updateWeaponButtons();
+}
+
+// Экранные кнопки «Ключ» и «Плов»: на них число оставшихся, кончилось — кнопка тусклая.
+// Меняем надпись, только когда число изменилось (так быстрее)
+const wrenchBtn = document.querySelector('.btn.wrench');
+const plovBtn = document.querySelector('.btn.plov');
+let shownAmmo = '';
+function updateWeaponButtons() {
+  if (!wrenchBtn || !plovBtn) return;
+  const ammo = levelState.keys + '/' + levelState.plov;
+  if (ammo === shownAmmo) return;
+  shownAmmo = ammo;
+  wrenchBtn.textContent = 'КЛЮЧ ' + levelState.keys;
+  plovBtn.textContent = 'ПЛОВ ' + levelState.plov;
+  wrenchBtn.classList.toggle('empty', levelState.keys === 0);
+  plovBtn.classList.toggle('empty', levelState.plov === 0);
 }
 
 // Логика всегда обновляется 60 раз в секунду, даже если
