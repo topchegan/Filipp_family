@@ -189,6 +189,14 @@
     addCard(officeRow, 40, 46, 6, 'Турникет — выход (E на фоне reception)', (g) => { bgc(g, 40, 46); drawTurnstile(g, 4, 12); });
     [0, 0.5, 1].forEach((p) => addCard(officeRow, 52, 48, 6, 'Окно: закат ' + (p === 0 ? 'в 19:00' : p === 0.5 ? 'в 19:15' : 'в 19:30'), (g) => { OFFICE_SUNSET = p; bgc(g, 52, 48); drawSunsetWindow(g, 4, 4, 44, 40); OFFICE_SUNSET = 0; }));
 
+    // Босс уровня 3: начальник
+    const chiefRow = addRow('Босс уровня 3 (начальник): что летит');
+    addCard(chiefRow, 14, 10, 6, 'Самолётик «СРОЧНО!»', (g) => { bgc(g, 14, 10); drawPlane(g, 2, 2, -1); });
+    addCard(chiefRow, 12, 13, 6, 'Красный лист «ПРАВКИ»', (g) => { bgc(g, 12, 13); drawRedSheet(g, 2, 2); });
+    addCard(chiefRow, 12, 10, 6, 'Степлер', (g) => { bgc(g, 12, 10); drawStapler(g, 2, 2, 'stapler', 0); });
+    addCard(chiefRow, 12, 10, 6, 'Дырокол', (g) => { bgc(g, 12, 10); drawStapler(g, 2, 2, 'punch', 0); });
+    addCard(chiefRow, 14, 11, 6, 'Готовый отчёт (несёт над головой)', (g) => { bgc(g, 14, 11); drawReport(g, 2, 2); });
+
     // Этап «За рулём»: вид сверху
     const driveRow = addRow('Этап «За рулём»: машины сверху (нос вверх), дорога, обочины');
     const road = (g, w, h) => { g.fillStyle = '#566c86'; g.fillRect(0, 0, w, h); };

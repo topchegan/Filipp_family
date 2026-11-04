@@ -165,6 +165,21 @@ const CONFIG = {
     forkliftSpeed: 0.4,      // погрузчик ездит туда-сюда
     pipeEverySeconds: 3.5,   // как часто катится труба, пока Филипп рядом
     pipeSpeed: 1.5,          // скорость трубы
+    // --- Босс уровня 3: начальник и годовой отчёт ---
+    bossPushBack: 6400,      // на сколько отлетает Лера при входе на арену (около 70–80 секунд на бой)
+    chiefTypeSeconds: 15,    // за сколько секунд у компьютера отчёт печатается от 0 до 100%
+    chiefWalkSpeed: 0.5,     // начальник ходит
+    chiefPlaneSeconds: 2.4,  // как часто летит самолётик «СРОЧНО!» (в каждой волне — чаще на 0,2 с)
+    chiefPlaneSpeed: 1.5,    // скорость самолётика
+    chiefPlanePush: 2,       // как сильно самолётик сбивает от стола (кружка цела)
+    chiefSheetSeconds: 3,    // волна 2+: как часто летит красный лист «ПРАВКИ»
+    chiefSheetFlightSeconds: 1.8, // сколько летит лист до компьютера
+    chiefSheetLoss: 0.1,     // лист долетел до компьютера — отчёт минус 10%
+    chiefWrenchLoss: 0.1,    // ключ в начальника — отчёт минус 10%
+    chiefStaplerSeconds: 3,  // волна 3: как часто летит степлер или дырокол (минус кружка)
+    chiefStaplerFlightSeconds: 1.3, // сколько летит степлер (высокая дуга — видно, куда упадёт)
+    chiefCarryMul: 0.8,      // пока Филипп несёт отчёт, всё летит чаще (0.8 — на четверть чаще)
+    chiefGravity: 0.08,      // как сильно дуга листов и степлеров загибается вниз
   },
 
   // ----- Оружие (есть с уровня 2) -----
@@ -261,6 +276,7 @@ function levelCfg(name) {
 
 // Какой экран босса у текущего уровня: 'boss' — Вася и Настя, 'mom' — мама
 function bossStateName() {
+  if (bossArena && bossArena.chief) return 'chief';
   return bossArena && bossArena.mama ? 'mom' : 'boss';
 }
 
@@ -782,7 +798,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (['level', 'boss', 'mom', 'drive'].indexOf(this.scene.background) !== -1) return false;
+      if (['level', 'boss', 'mom', 'drive', 'chief'].indexOf(this.scene.background) !== -1) return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -865,6 +881,7 @@ function createSceneState(defaultScene) {
         else if (this.scene.background === 'boss') bossState.draw();     // арена босса
         else if (this.scene.background === 'mom') momState.draw();       // арена мамы
         else if (this.scene.background === 'drive') driveState.draw();   // дорога («ЗА РУЛЁМ»)
+        else if (this.scene.background === 'chief') chiefState.draw();   // арена начальника
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
@@ -879,7 +896,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (['level', 'boss', 'mom', 'drive'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
+      if (['level', 'boss', 'mom', 'drive', 'chief'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -919,7 +936,7 @@ function createSceneState(defaultScene) {
     // На аренах боссов окно диалога сверху экрана, чтобы не закрывать персонажей внизу.
     // Возвращает, на сколько пикселей сдвинуть окно вверх (0 — окно на обычном месте, внизу)
     boxShift() {
-      return this.scene.background === 'boss' || this.scene.background === 'mom' ? 2 - BOX.y : 0;
+      return ['boss', 'mom', 'chief'].indexOf(this.scene.background) !== -1 ? 2 - BOX.y : 0;
     },
 
     drawDialog(step) {
@@ -1080,7 +1097,9 @@ const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'r
                         // босс уровня 2
                         'mama',
                         // уровень 3: коллеги, кресло, погрузчик, катящиеся трубы
-                        'smoker', 'chatter', 'coffeeguy', 'intern', 'chair', 'forklift', 'pipes'];
+                        'smoker', 'chatter', 'coffeeguy', 'intern', 'chair', 'forklift', 'pipes',
+                        // босс уровня 3
+                        'chief'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
 const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
@@ -1253,6 +1272,7 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'sprinkler') { lp.sprinklers.push({ x: tileX(c), y: tileY(r) }); continue; }
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'mama') { lp.mama = { x: tileX(c), y: tileY(r + 1) }; continue; }
+      if (thing === 'chief') { lp.chief = { x: tileX(c), y: tileY(r + 1) }; continue; }
       if (thing === 'lego') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
       if (thing === 'rake') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
@@ -1282,6 +1302,9 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'stairs') lp.stairs.push(x);
       if (def.car) lp.cars.push(item);
       if (def.copier) lp.copiers.push({ x: x, y: y, w: def.w * TILE, floor: tileY(r + 1) });
+      if (def.printer) lp.printer = { x: x, y: y, w: def.w * TILE };
+      if (def.computer) lp.computer = { x: x, y: y, w: def.w * TILE };
+      if (def.deliver) lp.office = { x: x, w: def.w * TILE };
       for (const p of furnitureParts(def)) {
         lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce, lie: !!def.lie,
                          step: !!def.step, conveyor: def.conveyor || 0, car: def.car ? item : null });
@@ -1298,7 +1321,9 @@ function buildPart(part, pi, isLast, isArena) {
   if (starts > 1) errors.push(pn + ': СТАРТОВ P ' + starts + ', А НУЖЕН ОДИН.');
   if (isArena) {
     if (lp.twins.length > 0 && lp.twins.length !== 2) errors.push(pn + ': НУЖНЫ ВАСЯ И НАСТЯ — РОВНО ПО ОДНОЙ.');
-    if (lp.twins.length === 0 && !lp.mama) errors.push(pn + ': НА АРЕНЕ НЕТ БОССА (ВАСИ И НАСТИ ИЛИ МАМЫ).');
+    if (lp.twins.length === 0 && !lp.mama && !lp.chief) errors.push(pn + ': НА АРЕНЕ НЕТ БОССА.');
+    if (lp.chief && (!lp.printer || !lp.computer || !lp.office)) errors.push(pn + ': НАЧАЛЬНИКУ НУЖНЫ ПРИНТЕР, СТОЛ С КОМПЬЮТЕРОМ И КАБИНЕТ.');
+    if (lp.chief && lp.office) { lp.chief.officeX = lp.office.x; lp.chief.officeW = lp.office.w; }
   } else if (isLast) {
     if (gates === 0) errors.push(pn + ': НЕТ ФИНИША E. В ПОСЛЕДНЕЙ ЧАСТИ НУЖНА ОДНА БУКВА E.');
     if (gates > 1) errors.push(pn + ': ФИНИШЕЙ E ' + gates + ', А НУЖЕН ОДИН.');
@@ -2258,7 +2283,8 @@ const levelState = {
   // Дальше — полёт ключей и плова
   updateWeapons(input) {
     if (!weaponsOn()) return;
-    const canThrow = !player.lying && !this.gossipHold && !(player.stun > 0 && player.stunKind === 'trip');
+    const canThrow = !player.lying && !this.gossipHold && !(player.stun > 0 && player.stunKind === 'trip') &&
+                     !(state === chiefState && chiefState.carrying);   // несёт отчёт — руки заняты
     const cx = player.x + player.w / 2;
     if (input.throwPressed && canThrow) {
       if (this.keys > 0) {
@@ -2285,6 +2311,7 @@ const levelState = {
       sh.y += sh.vy;
       const box = { x: sh.x - 4, y: sh.y - 4, w: 8, h: 8 };
       if (state === momState && momState.hitByShot(sh, box)) { sh.done = true; continue; }   // попал в маму
+      if (state === chiefState && chiefState.hitByShot(sh, box)) { sh.done = true; continue; } // начальник, самолётик, лист
       if (sh.kind === 'wrench' && !sh.bounced) {
         // Попал во врага — «БДЗЫНЬ!», враг сидит со звёздочками
         for (const e of this.enemies) {
@@ -3093,7 +3120,7 @@ const levelState = {
     }
 
     this.drawHud();
-    if (state === levelState || state === momState) drawHint();   // в сценках подсказку не показываем
+    if (state === levelState || state === momState || state === chiefState) drawHint();   // в сценках подсказку не показываем
   },
 
   // Лавка с бабушками: пунктирный полукруг «зоны сплетен», «БУ-БУ-БУ», реплики, когда Филипп застрял
@@ -3951,6 +3978,351 @@ const momState = {
 };
 
 // =============================================
+// ЭКРАН: БОСС УРОВНЯ 3 — НАЧАЛЬНИК И ГОДОВОЙ ОТЧЁТ
+// =============================================
+// Арена — один экран (boss уровня 3). Шкала «ОТЧЁТ» растёт, пока Филипп стоит у компьютера
+// и не двигается («ТЫК-ТЫК»). На 100% принтер печатает отчёт: добежать до принтера, взять листы
+// и донести в стеклянный кабинет начальника. Пока несёт — бросать нельзя, обстрел самый сильный.
+// ВОЛНЫ (сменяются на 33% и 66%):
+//   1 — начальник из кабинета пускает бумажные самолётики «СРОЧНО!» (сбивают, кружка цела);
+//   2 — ещё красные листы «ПРАВКИ» летят к компьютеру (долетел — отчёт минус 10%), приходят
+//       курильщик и болтушка;
+//   3 — начальник выходит из кабинета, ходит по арене, бросает степлер и дырокол (минус кружка).
+// Звонки клиентов и «СТРЕСС» работают и в бою. Лера идёт. Все числа — в CONFIG.level3.
+
+const chiefState = {
+  chief: null,      // начальник {x, y, w, h, ...}
+  flying: [],       // самолётики, листы «ПРАВКИ», степлеры и дыроколы
+  report: 0,        // шкала «ОТЧЁТ»: 0 — пусто, 1 — готово
+  wave: 1,          // текущая волна (1–3)
+  printed: false,   // принтер напечатал отчёт
+  carrying: false,  // Филипп несёт отчёт
+  typing: 0,        // сколько шагов подряд печатает
+  timers: {},       // когда следующий самолётик, лист, степлер
+  saved: null,      // начало арены — для «ЕЩЁ РАЗ»
+
+  // mode: 'intro' — первый вход (Лера отлетает), 'retry' — «ЕЩЁ РАЗ», 'fight' — вернулись после вступления
+  enter(mode) {
+    if (mode === 'fight') return;
+    if (mode === 'intro') {
+      levelState.leraX -= levelCfg('bossPushBack');   // может уйти за начало шкалы
+      this.saved = { leraX: levelState.leraX, leraSpeed: levelState.leraSpeed, clockSteps: clockSteps,
+                     keys: levelState.keys, plov: levelState.plov };
+    } else if (mode === 'retry') {
+      levelState.leraX = this.saved.leraX;
+      levelState.leraSpeed = this.saved.leraSpeed;
+      clockSteps = this.saved.clockSteps;
+      levelState.keys = this.saved.keys;
+      levelState.plov = this.saved.plov;
+      levelState.lives = CONFIG.startLives;
+      levelState.resetEffects();
+    }
+    this.reset();
+    if (mode === 'intro') {
+      const steps = [{ type: 'title', text: 'БОСС:\nНАЧАЛЬНИК', auto: 2 }].concat(SCENES.chiefIntro.steps);
+      setState('inLevelScene', { background: 'chief', next: 'chief', nextArg: 'fight', steps: steps });
+    }
+  },
+
+  // Арена в начальное положение
+  reset() {
+    level = bossArena;
+    partIndex = levelParts.length;
+    levelState.resetPart();
+    levelState.invuln = 0;
+    levelState.alarm = false;
+    levelState.ringing = -1;
+    levelState.stress = 0;
+    levelState.workTimer = Math.round(levelCfg('firstWorkCall') * 60);
+    levelState.placePlayer(level.start.x, level.start.y);
+    cameraX = 0;
+    const c = level.chief;
+    this.office = { x: c.officeX, w: c.officeW };
+    this.chief = { type: 'chief', x: c.x, y: c.y - 20, w: 14, h: 20, homeX: c.x, goalX: c.x, dir: -1,
+                   vx: 0, vy: 0, onGround: true, timer: 0, stunT: 0, slipT: 0, throwT: 0, angryT: 0 };
+    this.flying = [];
+    this.report = 0;
+    this.wave = 1;
+    this.printed = false;
+    this.carrying = false;
+    this.typing = 0;
+    this.timers = { plane: 120, sheet: 90, stapler: 60 };
+    this.colleaguesCame = false;
+    this.won = false;
+  },
+
+  update(input) {
+    levelState.tick++;
+    tickHint();
+    levelState.updateWork(input);                   // звонки клиентов, стресс, болтушка держит
+    levelState.movePlayer(input);
+    clockSteps++;
+    levelState.tickEffects();
+    if (levelState.invuln > 0) levelState.invuln--;
+    if (levelState.swingCool > 0) levelState.swingCool--;
+    levelState.popups = levelState.popups.filter((p) => ++p.t < 50);
+    levelState.updateWeapons(input);                // ключ и плов (попадания — hitByShot)
+    levelState.updateEnemies();                      // коллеги со своими приёмами
+
+    // Лера идёт и во время боя
+    levelState.leraX += levelState.leraSpeed;
+    if (levelState.leraX >= playerGlobalX()) { this.lose(); return; }
+    const wasAlarm = levelState.alarm;
+    levelState.alarm = playerGlobalX() - levelState.leraX < CONFIG.alarmDistance;
+    if (levelState.alarm) {
+      if (!wasAlarm) levelState.alarmTimer = 0;
+      if (levelState.alarmTimer % 60 === 0) vibrate();
+      levelState.alarmTimer++;
+    }
+    if (levelState.lives <= 0) { this.lose(); return; }
+
+    this.updateReport();
+    this.updateChief();
+    this.updateFlying();
+    if (this.won) return;
+  },
+
+  lose() {
+    setState('defeat', Object.assign({}, SCENES.defeat, { next: 'chief', nextArg: 'retry' }));
+  },
+
+  addReport(d) {
+    this.report = Math.max(0, Math.min(1, this.report + d));
+  },
+
+  // Печатаем у компьютера, принтер, несём отчёт в кабинет
+  updateReport() {
+    const comp = level.computer;
+    const pcx = player.x + player.w / 2;
+    if (!this.printed) {
+      const atPc = pcx > comp.x + 4 && pcx < comp.x + comp.w - 4 && player.onGround && player.stun === 0 &&
+                   Math.abs(player.vx) < 0.2 && !keys.left && !keys.right && !levelState.chatHold;
+      this.typing = atPc ? this.typing + 1 : 0;
+      if (atPc) {
+        this.addReport(1 / (levelCfg('chiefTypeSeconds') * 60));
+        if (this.typing % 8 === 0) tone(1500 + Math.random() * 400, audioCtx ? audioCtx.currentTime : 0, 0.02, 0.03);
+      }
+      // Волна по шкале: 33% и 66%
+      const w = this.report >= 0.66 ? 3 : this.report >= 0.33 ? 2 : 1;
+      if (w > this.wave) {
+        this.wave = w;
+        levelState.popup(w === 2 ? 'ВОЛНА 2: ПРАВКИ!' : 'ВОЛНА 3!', 120, HUD_H + 40);
+        if (w === 2 && !this.colleaguesCame) this.callColleagues();
+        if (w === 3) levelState.popup(CHIEF_TEXT.slides, this.chief.x + 7, this.chief.y - 4);
+      }
+      if (this.report >= 1) {
+        this.printed = true;
+        this.typing = 0;
+        levelState.popup(CHIEF_TEXT.printed, level.printer.x + 12, level.printer.y - 6);
+        knockSound();
+      }
+      return;
+    }
+    // Отчёт напечатан: взять у принтера
+    const pr = level.printer;
+    if (!this.carrying && overlaps(player, { x: pr.x - 4, y: pr.y - 8, w: pr.w + 8, h: 30 })) {
+      this.carrying = true;
+      pickupSound();
+      levelState.popup(CHIEF_TEXT.took, pcx, player.y - 4);
+    }
+    // Донёс до кабинета — победа
+    if (this.carrying && pcx > this.office.x + 8) this.win();
+  },
+
+  // Волна 2: приходят коллеги (курильщик и болтушка) из-за края экрана
+  callColleagues() {
+    this.colleaguesCame = true;
+    for (const [type, x] of [['smoker', 8], ['chatter', 64]]) {
+      const e = makeEnemy({ type: type, x: x, y: tileY(14) });
+      e.cool = 60;
+      levelState.enemies.push(e);
+    }
+  },
+
+  // Начальник: в волнах 1–2 — в кабинете, в волне 3 — ходит по арене. Бросает
+  updateChief() {
+    const c = this.chief;
+    c.timer++;
+    if (c.angryT > 0) c.angryT--;
+    if (c.throwT > 0) c.throwT--;
+    if (c.stunT > 0 || c.slipT > 0) {
+      if (c.stunT > 0) c.stunT--; else c.slipT--;
+      return;
+    }
+    if (levelState.onPlov(c)) {
+      c.slipT = Math.round(CONFIG.slipSeconds * 60);
+      levelState.popup('ШМЯК!', c.x + 7, c.y - 4);
+      return;
+    }
+    const pcx = player.x + player.w / 2;
+    const outside = this.wave >= 3 || this.carrying;
+    if (!outside) {
+      if (Math.abs(c.goalX - c.x) < 2 || c.timer % 150 === 0) c.goalX = this.office.x + 20 + Math.random() * (this.office.w - 36);
+    } else if (Math.abs(c.goalX - c.x) < 2 || c.timer % 120 === 0) {
+      c.goalX = Math.max(30, Math.min(W - 30, pcx + (Math.random() < 0.5 ? -80 : 80)));   // держится подальше
+    }
+    const dx = c.goalX - c.x;
+    c.walking = Math.abs(dx) > 1;
+    if (c.walking) { c.dir = Math.sign(dx); c.x += c.dir * Math.min(levelCfg('chiefWalkSpeed'), Math.abs(dx)); }
+    else c.dir = pcx < c.x + 7 ? -1 : 1;
+
+    // Чем больше отчёт, тем чаще бросает. Несёт отчёт — обстрел самый сильный
+    const k = this.carrying ? levelCfg('chiefCarryMul') : 1;
+    const due = (name, sec) => {
+      if (--this.timers[name] > 0) return false;
+      this.timers[name] = Math.round(sec * k * 60 * (0.8 + Math.random() * 0.4));
+      return true;
+    };
+    if (due('plane', levelCfg('chiefPlaneSeconds') - 0.2 * (this.wave - 1))) this.launch('plane');
+    if (this.wave >= 2 && !this.printed && due('sheet', levelCfg('chiefSheetSeconds'))) this.launch('sheet');
+    // Степлер — только издалека (вплотную не бросает), чтобы дугу было видно
+    if (this.wave >= 3 && Math.abs(pcx - (c.x + 7)) > 60 && due('stapler', levelCfg('chiefStaplerSeconds'))) this.launch(Math.random() < 0.5 ? 'stapler' : 'punch');
+  },
+
+  // Бросок: самолётик летит прямо к Филиппу, лист — по дуге к компьютеру, степлер — по дуге в Филиппа
+  launch(kind) {
+    const c = this.chief;
+    const x0 = c.x + 7, y0 = c.y + 4;
+    c.throwT = 20;
+    const gr = levelCfg('chiefGravity');
+    if (kind === 'plane') {
+      const ty = player.y + 6 + (Math.random() - 0.5) * 10;
+      const dir = player.x + player.w / 2 < x0 ? -1 : 1;
+      this.flying.push({ kind: kind, x: x0, y: y0 - 6, vx: dir * levelCfg('chiefPlaneSpeed'), vy: (ty - (y0 - 6)) / 90, w: 10, h: 6, t: 0 });
+      if (Math.random() < 0.3) levelState.popup(CHIEF_TEXT.urgent, x0, c.y - 4);
+      return;
+    }
+    let tx, T;
+    if (kind === 'sheet') {
+      tx = level.computer.x + level.computer.w / 2;
+      T = Math.round(levelCfg('chiefSheetFlightSeconds') * 60);
+    } else {
+      tx = player.x + player.w / 2;                  // летит туда, где Филипп сейчас: на бегу можно увернуться
+      T = Math.round(levelCfg('chiefStaplerFlightSeconds') * 60);
+    }
+    const landY = tileY(14) - 6;
+    this.flying.push({ kind: kind, x: x0, y: y0, vx: (tx - x0) / T, vy: (landY - y0 - gr * T * T / 2) / T, w: 8, h: kind === 'sheet' ? 9 : 6, t: 0, T: T });
+  },
+
+  // Полёт: самолётик сбивает, лист у компьютера — правки, степлер — минус кружка
+  updateFlying() {
+    const gr = levelCfg('chiefGravity');
+    const comp = level.computer;
+    for (const f of this.flying) {
+      f.t++;
+      if (f.kind !== 'plane') f.vy += gr;
+      f.x += f.vx;
+      f.y += f.vy;
+      const box = { x: f.x, y: f.y, w: f.w, h: f.h };
+      if (overlaps(player, box)) {
+        f.done = true;
+        if (f.kind === 'plane') {
+          levelState.shove('СРОЧНО!', f.x + f.w / 2, levelCfg('chiefPlanePush'));
+          this.typing = 0;
+        } else if (f.kind === 'sheet') {
+          pickupSound();
+          levelState.popup(CHIEF_TEXT.caught, f.x + 4, f.y - 2);   // перехватил телом
+        } else {
+          levelState.hurt('АЙ!', f.x + 4);
+        }
+        continue;
+      }
+      if (f.kind === 'sheet' && f.t >= f.T - 2 && Math.abs(f.x + 4 - (comp.x + comp.w / 2)) < comp.w / 2 + 6) {
+        f.done = true;
+        this.addReport(-levelCfg('chiefSheetLoss'));
+        levelState.popup(CHIEF_TEXT.edits, comp.x + comp.w / 2, comp.y - 8);
+        hurtSound();
+        continue;
+      }
+      if (f.y > tileY(14) + 4 || f.x < -20 || f.x > W + 20 || f.t > 400) f.done = true;
+      if (f.kind !== 'plane' && f.y + f.h >= tileY(14)) f.done = true;
+    }
+    this.flying = this.flying.filter((f) => !f.done);
+  },
+
+  // Ключ: сбивает самолётик и лист «ПРАВКИ», в начальника — «Я ВСЁ ЗАПОМНИЛ!» и отчёт минус 10%.
+  // Плов в начальника — просто пропал (на полу он поскальзывается сам). Возвращает true, если попал
+  hitByShot(sh, box) {
+    if (sh.kind === 'wrench') {
+      for (const f of this.flying) {
+        if (f.done || (f.kind !== 'plane' && f.kind !== 'sheet') || !overlaps(box, { x: f.x, y: f.y, w: f.w, h: f.h })) continue;
+        f.done = true;
+        clangSound();
+        levelState.popup('БДЗЫНЬ!', f.x + 4, f.y - 2);
+        return true;
+      }
+    }
+    const c = this.chief;
+    if (sh.bounced || !overlaps(box, c)) return false;
+    if (sh.kind === 'wrench') {
+      this.addReport(-levelCfg('chiefWrenchLoss'));
+      c.angryT = 90;
+      clangSound();
+      levelState.popup(CHIEF_TEXT.wrench, c.x + 7, c.y - 4);
+      return true;
+    }
+    return false;                                    // плов летит дальше и высыпается на пол
+  },
+
+  win() {
+    this.won = true;
+    this.flying = [];
+    this.carrying = false;
+    player.stun = 0;
+    levelState.alarm = false;
+    levelState.popups = [];
+    levelState.workCall = null;
+    setState('inLevelScene', SCENES.level3Win);
+  },
+
+  draw() {
+    levelState.draw();                               // фон, Филипп, коллеги, надписи, HUD
+    const c = this.chief;
+    // Отчёт в принтере / над головой
+    if (this.printed && !this.carrying && Math.floor(levelState.tick / 15) % 2 === 0) drawReport(ctx, level.printer.x + 7, level.printer.y - 4);
+    if (this.carrying) drawReport(ctx, Math.round(player.x), Math.round(player.y) - 9);
+    // Начальник
+    let anim = c.angryT > 0 ? 'angry' : (c.throwT > 0 ? 'throw' : (c.walking ? 'walk' : 'stand'));
+    const a = SPRITES.chief.anims[anim];
+    const frame = a.frames[Math.floor(levelState.tick / a.speed) % a.frames.length];
+    if (c.slipT > 0) {
+      ctx.save();
+      ctx.translate(Math.round(c.x) + 7, Math.round(c.y) + c.h - 9);
+      ctx.rotate(-Math.PI / 2 * c.dir);
+      ctx.drawImage(frame, -9, -10);
+      ctx.restore();
+    } else {
+      drawSprite(ctx, frame, Math.round(c.x) - 2, Math.round(c.y), c.dir < 0);
+    }
+    if (c.stunT > 0) drawStars(ctx, Math.round(c.x) + 7, Math.round(c.y) - 3, levelState.tick);
+    // Печатает: «ТЫК-ТЫК»
+    if (this.typing > 0 && Math.floor(this.typing / 10) % 2 === 0) {
+      drawTextCenteredShadow(CHIEF_TEXT.typing, Math.round(player.x) + 5, Math.round(player.y) - 12, '#f4f4f4', '#1a1c2c');
+    }
+    // Летящее
+    for (const f of this.flying) {
+      if (f.kind === 'plane') drawPlane(ctx, Math.round(f.x), Math.round(f.y), Math.sign(f.vx));
+      else if (f.kind === 'sheet') drawRedSheet(ctx, Math.round(f.x), Math.round(f.y));
+      else drawStapler(ctx, Math.round(f.x), Math.round(f.y), f.kind, f.t);
+    }
+    // Шкала «ОТЧЁТ» под строкой «СТРЕСС»: засечки на 33% и 66% — смена волны
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(60, HUD_H + 10, W - 60, 10);
+    const label = this.printed ? (this.carrying ? 'НЕСИ!' : 'ПРИНТЕР!') : 'ОТЧЁТ';
+    drawText(ctx, label, 64, HUD_H + 12, this.printed ? '#a7f070' : '#73eff7');
+    const bx = 112, bw = W - bx - 6;
+    ctx.fillStyle = '#333c57';
+    ctx.fillRect(bx, HUD_H + 13, bw, 5);
+    ctx.fillStyle = this.printed ? '#a7f070' : '#41a6f6';
+    ctx.fillRect(bx, HUD_H + 13, Math.round(bw * this.report), 5);
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fillRect(bx + Math.round(bw * 0.33), HUD_H + 12, 1, 7);
+    ctx.fillRect(bx + Math.round(bw * 0.66), HUD_H + 12, 1, 7);
+    drawText(ctx, 'В' + this.wave, W - 16, HUD_H + 22, '#566c86');
+  },
+};
+
+// =============================================
 // ЭКРАН: ЭТАП «ЗА РУЛЁМ» — минивэн едет в офис (вид сверху)
 // =============================================
 // Дорога из 3 полос едет сверху вниз, минивэн внизу экрана, нос вверх.
@@ -4481,7 +4853,7 @@ let dimImage = null;      // затемнение «сеточкой» (толь
 
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
 function canPause() {
-  return state === levelState || state === bossState || state === momState || state === driveState;
+  return state === levelState || state === bossState || state === momState || state === driveState || state === chiefState;
 }
 
 function autoPause() {
@@ -4491,7 +4863,7 @@ function autoPause() {
 function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
-    state === bossState || state === momState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
+    state === bossState || state === momState || state === chiefState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
       (state === driveState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
     'УПРАВЛЕНИЕ',
@@ -4512,6 +4884,7 @@ function updatePause(input) {
     if (state === bossState) setState('boss', 'retry');
     else if (state === momState) setState('mom', 'retry');
     else if (state === driveState) setState('drive', 'retry');
+    else if (state === chiefState) setState('chief', 'retry');
     else setState('level', 'lastCall');
   }
   if (choice === 2) setSound(!soundOn);
@@ -4665,6 +5038,7 @@ const states = {
   boss: bossState,                            // БОСС: Вася и Настя
   mom: momState,                              // БОСС УРОВНЯ 2: мама
   drive: driveState,                          // ЭТАП «ЗА РУЛЁМ»: минивэн едет в офис
+  chief: chiefState,                          // БОСС УРОВНЯ 3: начальник и годовой отчёт
   levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
 };
@@ -4678,8 +5052,8 @@ function setState(name, arg) {
   // Кнопка «Бросок» видна в бою с боссом и на уровнях с оружием, кнопка паузы — на уровне и в бою.
   // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
   document.body.classList.toggle('boss-fight', name === 'boss');
-  document.body.classList.toggle('armed', (name === 'level' || name === 'mom') && weaponsOn());
-  document.body.classList.toggle('playing', name === 'level' || name === 'boss' || name === 'mom' || name === 'drive');
+  document.body.classList.toggle('armed', (name === 'level' || name === 'mom' || name === 'chief') && weaponsOn());
+  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief'].indexOf(name) !== -1);
   // За рулём: «Прыжок» — тормоз, вместо бросков — «Гудок»
   document.body.classList.toggle('driving', name === 'drive');
   if (jumpBtn) jumpBtn.textContent = name === 'drive' ? 'Тормоз' : 'Прыжок';

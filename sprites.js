@@ -5045,3 +5045,231 @@ BACKGROUNDS.openSpace = function (g) {
   drawFurniture(g, FURNITURE.officeDesk, 4, 62);     // столы на заднем плане
   drawFurniture(g, FURNITURE.officeDesk, 196, 62);
 };
+
+// =============================================
+// БОСС УРОВНЯ 3: НАЧАЛЬНИК И ГОДОВОЙ ОТЧЁТ (v0.17)
+// =============================================
+// Начальник 18x20, смотрит ВПРАВО: низкий и крупный, густая тёмная борода и волосы,
+// белая рубашка, синий галстук, тёмно-синие брюки. Сердится — лицо краснеет.
+const CHIEF_STAND = [
+  '..................',
+  '.....00000000.....',
+  '....0000000000....',
+  '....0e44444440....',
+  '....04440440440...',
+  '....04444444440...',
+  '....0004444000....',
+  '....00002200000...',
+  '...00000000000....',
+  '..0cccccc9cccc0...',
+  '.0cccccc99ccccc0..',
+  '.0dcccccc9cccccc0.',
+  '.0dcccccc9ccccc40.',
+  '.0dccccccccccc00..',
+  '..0cccccccccc0....',
+  '..088888888880....',
+  '...0888008880.....',
+  '...0888008880.....',
+  '..0ee00.0ee0......',
+  '...00....00.......',
+];
+const CHIEF_WALK = [
+  '..................',
+  '.....00000000.....',
+  '....0000000000....',
+  '....0e44444440....',
+  '....04440440440...',
+  '....04444444440...',
+  '....0004444000....',
+  '....00002200000...',
+  '...00000000000....',
+  '..0cccccc9cccc0...',
+  '.0cccccc99ccccc0..',
+  '.0dcccccc9cccccc0.',
+  '.0dcccccc9ccccc40.',
+  '.0dccccccccccc00..',
+  '..0cccccccccc0....',
+  '..088888888880....',
+  '..088800008880....',
+  '.08880....08880...',
+  '.0ee0......0ee0...',
+  '..00........00....',
+];
+const CHIEF_THROW = [
+  '..................',
+  '.....00000000.....',
+  '....0000000000....',
+  '....0e44444440....',
+  '....04440440440...',
+  '....04444444440...',
+  '....0004444000....',
+  '....00002200000...',
+  '...00000000000.00.',
+  '..0cccccc9cccc0440',
+  '.0cccccc99cccccc40',
+  '.0dcccccc9ccccc00.',
+  '.0dcccccc9ccccc0..',
+  '.0dccccccccccc0...',
+  '..0cccccccccc0....',
+  '..088888888880....',
+  '...0888008880.....',
+  '...0888008880.....',
+  '..0ee00.0ee0......',
+  '...00....00.......',
+];
+const CHIEF_ANGRY = [
+  '..................',
+  '.....00000000.....',
+  '....0000000000....',
+  '....0e22222200....',
+  '....02220220220...',
+  '....02222222220...',
+  '....0002002000....',
+  '....00002200000...',
+  '...00000000000....',
+  '..0cccccc9cccc0...',
+  '.0cccccc99ccccc0..',
+  '.0dcccccc9cccccc0.',
+  '.0dcccccc9ccccc40.',
+  '.0dccccccccccc00..',
+  '..0cccccccccc0....',
+  '..088888888880....',
+  '...0888008880.....',
+  '...0888008880.....',
+  '..0ee00.0ee0......',
+  '...00....00.......',
+];
+
+SPRITES.chief = buildCharacter('Начальник', 18, 20, {
+  stand: { name: 'Стоит', speed: 60, frames: [CHIEF_STAND] },
+  walk:  { name: 'Ходит', speed: 12, frames: [CHIEF_STAND, CHIEF_WALK] },
+  throw: { name: 'Бросает «СРОЧНО!»', speed: 60, frames: [CHIEF_THROW] },
+  angry: { name: 'Сердится «Я ВСЁ ЗАПОМНИЛ!»', speed: 60, frames: [CHIEF_ANGRY] },
+});
+
+// Бумажный самолётик «СРОЧНО!» 10x6. dir: -1 — летит влево
+function drawPlane(g, x, y, dir) {
+  const R = (px, py, w, h, c) => { g.fillStyle = c; g.fillRect(dir < 0 ? x + 10 - px - w : x + px, y + py, w, h); };
+  R(0, 2, 10, 2, '#1a1c2c');
+  R(1, 0, 3, 6, '#1a1c2c');
+  R(1, 2, 8, 1, '#f4f4f4');
+  R(2, 1, 1, 4, '#f4f4f4');
+  R(3, 3, 6, 1, '#94b0c2');
+}
+
+// Красный лист «ПРАВКИ» 8x9
+function drawRedSheet(g, x, y) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y, 8, 9);
+  g.fillStyle = '#b13e53';
+  g.fillRect(x + 1, y + 1, 6, 7);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 2, y + 2, 4, 1);
+  g.fillRect(x + 2, y + 4, 3, 1);
+  g.fillRect(x + 2, y + 6, 4, 1);
+}
+
+// Степлер и дырокол 8x6 (крутятся в полёте)
+function drawStapler(g, x, y, kind, t) {
+  const up = Math.floor(t / 6) % 2;
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y + up, 8, 6 - up);
+  g.fillStyle = kind === 'punch' ? '#566c86' : '#b13e53';
+  g.fillRect(x + 1, y + 1 + up, 6, 2);
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x + 1, y + 4, 6, 1);
+  if (kind === 'punch') { g.fillStyle = '#1a1c2c'; g.fillRect(x + 2, y + 3, 1, 1); g.fillRect(x + 5, y + 3, 1, 1); }
+}
+
+// Пачка отчёта 10x7 (лежит в принтере и Филипп несёт её над головой)
+function drawReport(g, x, y) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y, 10, 7);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x + 1, y + 1, 8, 5);
+  g.fillStyle = '#3b5dc9';
+  g.fillRect(x + 2, y + 2, 6, 1);
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x + 2, y + 4, 5, 1);
+}
+
+// ---------- ПРЕДМЕТЫ АРЕНЫ НАЧАЛЬНИКА ----------
+Object.assign(FURNITURE, {
+  // Принтер: на 100% печатает отчёт. Твёрдый, на него можно встать
+  printer: {
+    name: 'Принтер (печатает отчёт)', w: 3, h: 2, printer: true,
+    parts: [{ x: 0, y: 4, w: 24, h: 12 }],
+    draw(g, x, y) {
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y + 4, 24, 12);
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 2, y + 4, 20, 3);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 4, y + 9, 16, 2);               // выход бумаги
+      g.fillStyle = '#a7f070';
+      g.fillRect(x + 19, y + 12, 2, 2);
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + 6, y + 1, 12, 3);               // лоток с бумагой
+    },
+  },
+  // Стол Филиппа с компьютером: сквозь него проходишь — стоишь у компьютера и печатаешь
+  myDesk: {
+    name: 'Стол Филиппа с компьютером (тут печатать)', w: 5, h: 3, parts: [], computer: true,
+    draw(g, x, y) {
+      g.fillStyle = '#566c86';
+      g.fillRect(x + 2, y + 13, 3, 11);
+      g.fillRect(x + 35, y + 13, 3, 11);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y + 10, 40, 3);                  // столешница
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 12, y - 4, 16, 13);             // большой монитор
+      g.fillStyle = '#29366f';
+      g.fillRect(x + 13, y - 3, 14, 10);
+      g.fillStyle = '#f4f4f4';                        // на экране — отчёт
+      for (let j = 0; j < 4; j++) g.fillRect(x + 15, y - 1 + j * 2, 6 + (j * 3) % 5, 1);
+      g.fillStyle = '#333c57';
+      g.fillRect(x + 18, y + 9, 4, 1);
+      g.fillRect(x + 6, y + 9, 8, 1);                // клавиатура
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 31, y + 6, 4, 4);               // кружка
+    },
+  },
+  // Стеклянный кабинет начальника: стены-стёкла, дверь, табличка. Сюда несут отчёт
+  glassOffice: {
+    name: 'Стеклянный кабинет начальника (сюда — отчёт)', w: 7, h: 7, parts: [], deliver: true,
+    draw(g, x, y) {
+      g.fillStyle = '#41a6f6';
+      for (let j = 8; j < 56; j += 2) for (let i = (j % 4 ? 2 : 0); i < 56; i += 4) g.fillRect(x + i, y + j, 1, 1);   // стекло
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x, y + 6, 56, 2);                   // рама
+      g.fillRect(x, y + 6, 2, 50);
+      g.fillRect(x + 54, y + 6, 2, 50);
+      g.fillRect(x + 14, y + 22, 2, 34);             // дверь
+      g.fillRect(x + 2, y + 22, 12, 2);
+      g.fillStyle = '#ffcd75';
+      g.fillRect(x + 11, y + 38, 2, 2);              // ручка
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 18, y, 36, 9);
+      drawText(g, 'БОСС', x + 24, y + 1, '#ffcd75');  // табличка
+      g.fillStyle = '#5d275d';
+      g.fillRect(x + 26, y + 40, 24, 4);             // стол начальника
+      g.fillRect(x + 28, y + 44, 2, 12);
+      g.fillRect(x + 46, y + 44, 2, 12);
+    },
+  },
+});
+
+// Фон арены: ночной офис, огни города в окнах
+LEVEL_BACKGROUNDS.chiefArena = { name: 'Офис ночью (арена: начальник)', tile: FLOOR_OFFICE, shelf: ['#94b0c2', '#566c86'],
+  draw(g, x, y) {
+    const keep = OFFICE_SUNSET;
+    OFFICE_SUNSET = 1;                               // на арене уже ночь
+    g.fillStyle = '#333c57';
+    g.fillRect(x, y, 240, 120);
+    g.fillStyle = '#29366f';
+    g.fillRect(x, y + 80, 240, 32);
+    for (const wx of [10, 70, 130]) drawSunsetWindow(g, x + wx, y + 22, 44, 40);
+    OFFICE_SUNSET = keep;
+    g.fillStyle = '#94b0c2';                         // лампы
+    for (const lx of [40, 160]) g.fillRect(x + lx, y, 30, 2);
+  } };
