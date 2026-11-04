@@ -126,6 +126,47 @@ const CONFIG = {
     momPlovGift: 3,          // сколько плова мама даёт в конце
   },
 
+  // ----- УРОВЕНЬ 3 «Вечер. Офис»: свои числа. Чего здесь нет — берётся из настроек выше -----
+  level3: {
+    leraHeadStart: 5,        // фора Леры в начале уровня, секунд
+    leraSpeed: 0.95,         // скорость Леры по шкале
+    leraSpeedUp: 0.1,        // ускорение после каждого звонка
+    callPushBack: 200,       // на сколько Леру отбрасывает звонок
+    clockStartHour: 19,      // уровень 3 начинается в 19:00...
+    clockStartMinute: 0,
+    secondsPerGameMinute: 2.4, // ...одна игровая минута — столько секунд (весь уровень — около получаса)
+    // Звонки клиентов и шкала «СТРЕСС»
+    firstWorkCall: 8,        // первый звонок клиента — через столько секунд после начала
+    workCallEvery: 9,        // примерно раз в столько секунд звонит рабочий телефон...
+    workCallJitter: 3,       // ...плюс-минус столько секунд
+    stressFillSeconds: 7,    // пока звонит, стресс растёт: от нуля до полного за столько секунд
+    answerSeconds: 1.5,      // ответить — постоять на месте столько секунд
+    stressAnswerDrop: 0.4,   // ответил — стресс падает на столько (0.4 = 40% шкалы)
+    stressDecaySeconds: 60,  // сам стресс тает: от полного до нуля за столько секунд
+    panicSeconds: 3,         // стресс полный — «А-А-А!», Филипп столько секунд держится за голову
+    // Коллеги
+    colleagueSpeed: 0.35,    // коллеги ходят
+    colleagueComeSpeed: 0.9, // коллега заметил Филиппа и идёт к нему
+    colleagueSeeDistance: 80,// с какого расстояния коллега замечает Филиппа
+    colleagueCooldown: 8,    // после встречи коллега столько секунд не пристаёт
+    smokeSeconds: 3,         // «ПОКУРИМ?»: столько секунд стоите курите...
+    smokeCourage: 0.3,       // ...и кураж +30%
+    coffeeTogetherSeconds: 2,// «КОФЕ?»: столько секунд стоите, потом эффект кофе
+    chatNods: 6,             // «ТЫ СЛЫШАЛ, ЧТО...»: сколько раз нажать Прыжок, чтобы вырваться
+    internSpeed: 1.2,        // стажёр бежит хвостом за Филиппом
+    internSlowMul: 0.7,      // пока стажёр рядом, Филипп медленнее (0.7 — на 30%)
+    internWriteSeconds: 3,   // после ключа стажёр столько секунд записывает «ВАЖНО!»
+    // Офисные предметы и склад
+    chairPush: 2.2,          // как сильно откатывается толкнутое кресло
+    chairFriction: 0.04,     // как быстро кресло останавливается
+    copierEverySeconds: 4,   // как часто ксерокс выплёвывает пачку листов, пока Филипп рядом
+    paperSpeed: 1.8,         // скорость пачки листов по полу
+    paperTripSeconds: 1,     // сколько секунд Филипп лежит, сбитый листами
+    forkliftSpeed: 0.4,      // погрузчик ездит туда-сюда
+    pipeEverySeconds: 3.5,   // как часто катится труба, пока Филипп рядом
+    pipeSpeed: 1.5,          // скорость трубы
+  },
+
   // ----- Оружие (есть с уровня 2) -----
   weaponsFromLevel: 2,       // с какого уровня есть оружие и видна кнопка «Бросок»
   keysStart: 5,              // гаечных ключей в начале уровня 2
@@ -391,6 +432,13 @@ function sirenSound() {
   if (!audioCtx) return;
   const t0 = audioCtx.currentTime;
   for (let i = 0; i < 6; i++) tone(i % 2 ? 600 : 950, t0 + i * 0.18, 0.16, 0.035);
+}
+
+// Рабочий телефон клиента: короткое «дзынь» пониже, чем телефон Леры
+function workPhoneSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  for (let i = 0; i < 6; i++) tone(i % 2 ? 700 : 850, t0 + i * 0.04, 0.04, 0.04);
 }
 
 // Гудок минивэна «БИ-БИП!»
@@ -1030,7 +1078,9 @@ const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'r
                         // лавка с 2 и с 3 бабушками, ящик с ключами
                         'neighbor', 'dog', 'biker', 'scooter', 'sprinkler', 'gossip2', 'gossip3', 'keybox',
                         // босс уровня 2
-                        'mama'];
+                        'mama',
+                        // уровень 3: коллеги, кресло, погрузчик, катящиеся трубы
+                        'smoker', 'chatter', 'coffeeguy', 'intern', 'chair', 'forklift', 'pipes'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
 const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
@@ -1156,6 +1206,9 @@ function buildPart(part, pi, isLast, isArena) {
     gossips: [],       // лавки с бабушками {x, y, w, n}: вокруг «зона сплетен»
     cars: [],          // машины (для сигнализации)
     mama: null,        // арена уровня 2: где стоит мама {x, y} (y — где ноги)
+    chairs: [],        // уровень 3: офисные кресла {x, y}
+    copiers: [],       // ксероксы {x, y, w}: плюются пачками листов
+    pipeLanes: [],     // откуда катятся трубы {x, y}
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
     start: null,       // старт Филиппа {x, y}
@@ -1189,12 +1242,14 @@ function buildPart(part, pi, isLast, isArena) {
       }
       if (thing === 'beer') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
       if (thing === 'cig' || thing === 'coffee') { lp.boosts.push({ kind: thing, x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
-      if (thing === 'kirill' || thing === 'cat' || thing === 'vacuum' || thing === 'neighbor' || thing === 'dog' || thing === 'scooter') {
+      if (['kirill', 'cat', 'vacuum', 'neighbor', 'dog', 'scooter', 'smoker', 'chatter', 'coffeeguy', 'intern', 'forklift'].indexOf(thing) !== -1) {
         lp.spawns.push({ type: thing, x: tileX(c), y: tileY(r + 1) });
         continue;
       }
       if (thing === 'keybox') { lp.keyBoxes.push({ x: tileX(c), y: tileY(r + 1) - 8 }); continue; }
       if (thing === 'biker') { lp.bikeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'pipes') { lp.pipeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'chair') { lp.chairs.push({ x: tileX(c) - 2, y: tileY(r + 1) - 14 }); continue; }
       if (thing === 'sprinkler') { lp.sprinklers.push({ x: tileX(c), y: tileY(r) }); continue; }
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'mama') { lp.mama = { x: tileX(c), y: tileY(r + 1) }; continue; }
@@ -1226,6 +1281,7 @@ function buildPart(part, pi, isLast, isArena) {
       lp.furniture.push(item);
       if (thing === 'stairs') lp.stairs.push(x);
       if (def.car) lp.cars.push(item);
+      if (def.copier) lp.copiers.push({ x: x, y: y, w: def.w * TILE, floor: tileY(r + 1) });
       for (const p of furnitureParts(def)) {
         lp.solids.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h, bounce: !!def.bounce, lie: !!def.lie,
                          step: !!def.step, conveyor: def.conveyor || 0, car: def.car ? item : null });
@@ -1292,7 +1348,7 @@ let clockSteps = 0;
 // Время на игровых часах строкой, например «09:47»
 function clockText() {
   const total = levelCfg('clockStartHour') * 60 + levelCfg('clockStartMinute') +
-                Math.floor(clockSteps / (60 * CONFIG.secondsPerGameMinute));
+                Math.floor(clockSteps / (60 * levelCfg('secondsPerGameMinute')));
   const hh = Math.floor(total / 60) % 24;
   const mm = total % 60;
   return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
@@ -1337,6 +1393,9 @@ function drawHint() {
   drawText(ctx, hint.text, x + 5, y + 3, '#ffcd75');
 }
 
+// Коллеги в офисе (уровень 3)
+const OFFICE_COLLEAGUES = ['smoker', 'chatter', 'coffeeguy', 'intern'];
+
 // Значки оружия под HUD слева (уровень 2): «ключ x5» и «плов x1» — сколько осталось
 const WEAPON_PANEL = { x: 2, y: HUD_H + 1, w: 54, h: 11 };
 
@@ -1372,6 +1431,11 @@ const ENEMY_SIZES = {
   neighbor: { w: 10, h: 20 },   // соседи с сумками (уровень 2)
   dog:      { w: 12, h: 7 },    // собачка
   scooter:  { w: 10, h: 17 },   // ребёнок на самокате
+  smoker:    { w: 8, h: 20 },   // коллеги (уровень 3)
+  chatter:   { w: 8, h: 20 },
+  coffeeguy: { w: 8, h: 20 },
+  intern:    { w: 8, h: 20 },
+  forklift:  { w: 18, h: 22 },  // погрузчик: хитбокс — корпус с кабиной, вилы спереди
 };
 
 // Новый враг из точки появления на карте
@@ -1499,10 +1563,13 @@ const levelState = {
       player.lying = false;
       return;
     }
-    if (mode === 'nextLevel') {
-      // Запоминаем, что унести с собой, и собираем следующий уровень
-      this.carry = { lives: this.lives, keys: this.keys, plov: this.plov, armed: weaponsOn() };
-      loadLevel(currentLevelIndex + 1);
+    if (mode === 'nextLevel' || /^level\d$/.test(mode || '')) {
+      // Запоминаем, что унести с собой, и собираем следующий уровень ('level3' — уровень 3).
+      // После этапа «За рулём» переносится и кураж
+      this.carry = { lives: this.lives, keys: this.keys, plov: this.plov, armed: weaponsOn(),
+                     courage: this.keepCourage ? this.courage : undefined };
+      this.keepCourage = false;
+      loadLevel(mode === 'nextLevel' ? currentLevelIndex + 1 : Number(mode.slice(5)) - 1);
     }
     const fresh = mode !== 'lastCall' || !this.saved;
     if (fresh) {
@@ -1519,7 +1586,8 @@ const levelState = {
                      boxesTaken: levelParts.map((p) => p.keyBoxes.map(() => false)),
                      keys: armed ? c.keys : CONFIG.keysStart,
                      plov: armed ? c.plov : CONFIG.plovStart,
-                     lives: c ? Math.max(CONFIG.startLives, c.lives) : CONFIG.startLives };
+                     lives: c ? Math.max(CONFIG.startLives, c.lives) : CONFIG.startLives,
+                     courage: c ? c.courage : undefined };
     }
     // Восстанавливаем всё как было на старте или в момент последнего звонка
     partIndex = this.saved.part;
@@ -1536,6 +1604,9 @@ const levelState = {
     // Новый уровень — кружки с прошлого уровня (не меньше 3). «ЕЩЁ РАЗ» — снова 3 кружки
     this.lives = fresh ? this.saved.lives : CONFIG.startLives;
     this.resetEffects();                              // и полный кураж, без кофе и пива
+    if (fresh && this.saved.courage !== undefined) this.courage = this.saved.courage;   // кураж с дороги
+    this.stress = 0;
+    this.workTimer = Math.round(levelCfg('firstWorkCall') * 60);
     this.invuln = 0;
     this.resetPart();
     clockSteps = this.saved.clockSteps;
@@ -1569,6 +1640,17 @@ const levelState = {
     for (const g of level.gossips) { g.angry = 0; g.released = false; }
     for (const sp of level.sprinklers) { sp.timer = 0; sp.dir = 0; }
     for (const c of level.cars) c.alarm = 0;
+    // Уровень 3: кресла, ксероксы, трубы, звонки клиентов
+    this.chairs = level.chairs.map((c) => ({ x: c.x, y: c.y, w: 12, h: 14, vx: 0, vy: 0, dir: 1, onGround: false, homeX: c.x }));
+    this.papers = [];
+    this.pipes = [];
+    this.pipeTimers = level.pipeLanes.map(() => 0);
+    for (const cp of level.copiers) cp.timer = 60;
+    this.chatHold = null;
+    this.workCall = null;
+    this.panic = 0;
+    this.smoking = null;
+    if (this.workTimer === undefined || this.workTimer <= 0) this.workTimer = Math.round(levelCfg('firstWorkCall') * 60);
   },
 
   // Кураж полный, никаких кофе, пива и дыма
@@ -1596,6 +1678,7 @@ const levelState = {
     if (this.coffee > 0) k *= CONFIG.coffeeSpeedMul;
     else if (this.coffeeCrash > 0) k *= CONFIG.coffeeCrashMul;
     if (this.slowT > 0) k *= CONFIG.dogSlowMul;
+    if (this.internNear) k *= levelCfg('internSlowMul');
     return k;
   },
 
@@ -1724,6 +1807,7 @@ const levelState = {
     tickHint();
     if (weaponsOn()) showHint('weapons', HINTS.weapons);   // уровень 2: впервые есть оружие
     this.updateGossip(input);                         // бабушки на лавке держат — кнопки не слушаются
+    this.updateWork(input);                           // уровень 3: звонки клиентов, стресс, коллеги держат
     this.movePlayer(input);
     clockSteps++;
     this.tickEffects();
@@ -1739,6 +1823,7 @@ const levelState = {
     this.updateBikes();
     this.updateSprinklers();
     this.updateYard();
+    this.updateOffice();
     this.popups = this.popups.filter((p) => ++p.t < 50);
 
     // Кружки кончились — Лера догоняет
@@ -1830,10 +1915,14 @@ const levelState = {
 
   // Отмазки и ответы Леры для текущего уровня (scenes.js). Для уровня 2 — свои, если они есть
   callExcuses() {
-    return currentLevelIndex === 1 && typeof CALL_EXCUSES_2 !== 'undefined' ? CALL_EXCUSES_2 : CALL_EXCUSES;
+    if (currentLevelIndex === 1 && typeof CALL_EXCUSES_2 !== 'undefined') return CALL_EXCUSES_2;
+    if (currentLevelIndex === 2 && typeof CALL_EXCUSES_3 !== 'undefined') return CALL_EXCUSES_3;
+    return CALL_EXCUSES;
   },
   callAnswers() {
-    return currentLevelIndex === 1 && typeof CALL_ANSWERS_2 !== 'undefined' ? CALL_ANSWERS_2 : CALL_ANSWERS;
+    if (currentLevelIndex === 1 && typeof CALL_ANSWERS_2 !== 'undefined') return CALL_ANSWERS_2;
+    if (currentLevelIndex === 2 && typeof CALL_ANSWERS_3 !== 'undefined') return CALL_ANSWERS_3;
+    return CALL_ANSWERS;
   },
 
   // Толчок без потери кружки: соседи «ОСТОРОЖНО!», самокаты, поливалка. srcX — откуда толкнули
@@ -1864,6 +1953,17 @@ const levelState = {
     if (e.type === 'kirill' || e.type === 'dog' || e.type === 'cat') { e.state = 'walk'; e.timer = 0; }
     clangSound();
     this.popup('БДЗЫНЬ!', e.x + e.w / 2, e.y - 6);
+    if (OFFICE_COLLEAGUES.indexOf(e.type) !== -1) {
+      if (e.state === 'act') this.releaseColleague(e);   // отпустил Филиппа
+      e.state = 'walk'; e.timer = 0;
+      if (e.type === 'intern') {
+        // Стажёр садится записывать «ВАЖНО!» и отстаёт
+        e.stunT = Math.round(levelCfg('internWriteSeconds') * 60);
+        e.cool = e.stunT + 180;
+        e.homeX = e.x;
+        this.popup('ВАЖНО!', e.x + e.w / 2, e.y - 14);
+      }
+    }
   },
 
   // Враги: Кирилл, Туся, пылесос (уровень 1), соседи, собачка, самокаты (уровень 2)
@@ -1886,10 +1986,27 @@ const levelState = {
         continue;
       }
       // Наступил на плов — поскользнулся и упал
-      if (e.type !== 'vacuum' && e.state !== 'bite' && e.onGround && this.onPlov(e)) {
+      if (e.type !== 'vacuum' && e.type !== 'forklift' && e.state !== 'bite' && e.state !== 'act' && e.onGround && this.onPlov(e)) {
         e.slipT = Math.round(CONFIG.slipSeconds * 60);
         this.popup('ШМЯК!', ecx, e.y - 6);
         continue;
+      }
+
+      if (OFFICE_COLLEAGUES.indexOf(e.type) !== -1) this.updateColleague(e, dx, sameRow, ecx);
+
+      if (e.type === 'forklift') {
+        // Погрузчик ездит туда-сюда. На вилах и крыше можно прокатиться, сбоку — отталкивает
+        const oldX = e.x;
+        if (Math.abs(e.x - e.homeX) > 56) e.dir = e.x > e.homeX ? -1 : 1;
+        e.vx = e.dir * levelCfg('forkliftSpeed');
+        moveEnemy(e, true);
+        if (player.standingOn === e) {
+          player.x += e.x - oldX;
+          player.y = this.rideRects(e)[player.rideIndex || 0].y - player.h;
+        } else if (e.cool === 0 && overlaps(player, e)) {
+          this.shove('БИП-БИП!', ecx, CONFIG.neighborPush);
+          e.cool = 50;
+        }
       }
 
       if (e.type === 'neighbor') {
@@ -2312,6 +2429,227 @@ const levelState = {
     if (this.thought && --this.thought.t <= 0) this.thought = null;
   },
 
+  // ---------- УРОВЕНЬ 3: ОФИС ----------
+
+  // Где можно стоять на «едущей» вещи: пылесос — крыша; погрузчик — крыша кабины и вилы; кресло — сиденье
+  rideRects(e) {
+    if (e.type === 'forklift') {
+      const forksX = e.dir > 0 ? e.x + e.w : e.x - 10;
+      return [{ x: e.x, y: e.y, w: e.w }, { x: forksX, y: e.y + e.h - 4, w: 10 }];
+    }
+    if (e.type === undefined) return [{ x: e.x, y: e.y + 6, w: e.w }];   // кресло
+    return [{ x: e.x, y: e.y, w: e.w }];
+  },
+
+  // Коллега отпустил Филиппа (докурили, допили кофе, наболтались или ключ)
+  releaseColleague(e) {
+    e.state = 'walk';
+    e.timer = 0;
+    e.cool = Math.round(levelCfg('colleagueCooldown') * 60);
+    e.dir = e.x < player.x ? -1 : 1;                 // уходит в другую сторону
+    if (this.chatHold === e) this.chatHold = null;
+    if (this.smoking === e) this.smoking = null;
+    player.stun = 0;
+  },
+
+  // Курильщик, болтушка, кофеман, стажёр
+  updateColleague(e, dx, sameRow, ecx) {
+    const T = OFFICE_TEXT;
+    if (e.type === 'intern') {
+      if (e.state === 'follow') {
+        // Хвостом за Филиппом. Филипп запрыгнул повыше (на стол) — стажёр отстаёт
+        const goal = player.x - player.facing * 12;
+        e.dir = goal > e.x ? 1 : -1;
+        e.vx = Math.abs(goal - e.x) > 2 ? e.dir * levelCfg('internSpeed') : 0;
+        if (e.timer % 90 === 0) this.popup(e.timer % 180 ? T.internAsk[0] : T.internAsk[1], ecx, e.y - 6);
+        const high = e.y + e.h - (player.y + player.h) > 12 && player.onGround;
+        if (high || Math.abs(dx) > 150) {
+          e.state = 'walk'; e.timer = 0; e.cool = 240; e.homeX = e.x;
+          if (high) this.popup(T.internLost, ecx, e.y - 6);
+        }
+      } else {
+        if (Math.abs(e.x - e.homeX) > 40) e.dir = e.x > e.homeX ? -1 : 1;
+        e.vx = e.dir * levelCfg('colleagueSpeed');
+        if (e.cool === 0 && sameRow && Math.abs(dx) < 70) {
+          e.state = 'follow'; e.timer = 0;
+          this.popup(T.internAsk[0], ecx, e.y - 6);
+        }
+      }
+      moveEnemy(e, true);
+      return;
+    }
+    if (e.state === 'act') {
+      // Стоят вместе: курят или пьют кофе (болтушку отпускают кивки — в updateWork)
+      e.vx = 0;
+      if (e.type === 'smoker' && e.timer >= levelCfg('smokeSeconds') * 60) {
+        this.courage = Math.min(1, this.courage + levelCfg('smokeCourage'));
+        this.smoke = Math.round(CONFIG.smokeSeconds * 60);
+        this.popup('+КУРАЖ', player.x + player.w / 2, player.y - 4);
+        this.releaseColleague(e);
+      }
+      if (e.type === 'coffeeguy' && e.timer >= levelCfg('coffeeTogetherSeconds') * 60) {
+        this.coffee = Math.round(CONFIG.coffeeSeconds * 60);
+        this.coffeeCrash = 0;
+        this.popup('КОФЕ!', player.x + player.w / 2, player.y - 4);
+        this.releaseColleague(e);
+      }
+      return;
+    }
+    if (e.state === 'come') {
+      e.dir = dx < 0 ? -1 : 1;
+      e.vx = e.dir * levelCfg('colleagueComeSpeed');
+      if (!sameRow || Math.abs(dx) > 130) { e.state = 'walk'; e.timer = 0; }
+    } else {
+      if (Math.abs(e.x - e.homeX) > 40) e.dir = e.x > e.homeX ? -1 : 1;
+      e.vx = e.dir * levelCfg('colleagueSpeed');
+      if (e.cool === 0 && sameRow && Math.abs(dx) < levelCfg('colleagueSeeDistance')) {
+        e.state = 'come'; e.timer = 0;
+        this.popup(T.hello[e.type], ecx, e.y - 6);
+      }
+    }
+    moveEnemy(e, true);
+    // Встретились: курильщик и кофеман — стоите вместе, болтушка — держит, пока не накиваешься
+    const busy = this.chatHold || this.smoking || this.gossipHold;
+    if (e.state === 'come' && !busy && player.stun === 0 && overlaps(player, e)) {
+      e.state = 'act'; e.timer = 0;
+      player.vx = 0;
+      if (e.type === 'chatter') {
+        this.chatHold = e;
+        this.nods = 0;
+        showHint('gossip', HINTS.gossip);
+      } else {
+        this.smoking = e;
+        player.stun = Math.round(levelCfg(e.type === 'smoker' ? 'smokeSeconds' : 'coffeeTogetherSeconds') * 60) + 2;
+        player.stunKind = 'colleague';
+        this.popup(e.type === 'smoker' ? T.smokeTogether : T.coffeeTogether, ecx, e.y - 6);
+      }
+    }
+  },
+
+  // Звонки клиентов, стресс, болтушка держит
+  updateWork(input) {
+    if (this.chatHold) {
+      // Болтушка: стоишь, кнопки не слушаются, «кивай» Прыжком
+      player.stun = Math.max(player.stun, 2);
+      player.stunKind = 'gossip';
+      player.vx = 0;
+      if (input.jumpPressed) {
+        this.nods++;
+        this.nodTimer = 8;
+        if (this.nods >= levelCfg('chatNods')) {
+          this.popup(OFFICE_TEXT.chatBye, player.x + player.w / 2, player.y - 4);
+          this.releaseColleague(this.chatHold);
+        }
+      }
+    }
+    if (currentLevelIndex !== 2) return;                // звонки клиентов — только в офисе
+    const T = OFFICE_TEXT;
+    this.stress = Math.max(0, (this.stress || 0) - 1 / (levelCfg('stressDecaySeconds') * 60));
+    if (this.panic > 0) {
+      // «А-А-А!» — держится за голову
+      this.panic--;
+      player.stun = Math.max(player.stun, 2);
+      player.stunKind = 'panic';
+      player.vx = 0;
+      return;
+    }
+    const nextCall = () => Math.round((levelCfg('workCallEvery') + (Math.random() * 2 - 1) * levelCfg('workCallJitter')) * 60);
+    if (!this.workCall) {
+      if (--this.workTimer <= 0) {
+        this.workCall = { t: 0, answer: 0 };
+        workPhoneSound();
+        showHint('workCall', HINTS.workCall);
+      }
+      return;
+    }
+    const call = this.workCall;
+    call.t++;
+    if (call.t % 70 === 0) workPhoneSound();
+    this.stress = Math.min(1, this.stress + 1 / (levelCfg('stressFillSeconds') * 60));
+    // Ответить: постоять на месте
+    const still = player.onGround && Math.abs(player.vx) < 0.2 && !keys.left && !keys.right && player.stun === 0;
+    call.answer = still ? call.answer + 1 : 0;
+    if (call.answer >= levelCfg('answerSeconds') * 60) {
+      this.stress = Math.max(0, this.stress - levelCfg('stressAnswerDrop'));
+      this.thought = { text: takeFromBag('client', CLIENT_LINES), t: 150 };
+      pickupSound();
+      this.workCall = null;
+      this.workTimer = nextCall();
+      return;
+    }
+    if (this.stress >= 1) {
+      this.panic = Math.round(levelCfg('panicSeconds') * 60);
+      this.stress = 0.5;
+      this.workCall = null;
+      this.workTimer = nextCall();
+      hurtSound();
+      this.popup(T.panic, player.x + player.w / 2, player.y - 4);
+    }
+  },
+
+  // Кресла на колёсиках, ксероксы и пачки листов, катящиеся трубы
+  updateOffice() {
+    const C = (n) => levelCfg(n);
+    // Кресла: толкнёшь — откатываются; едут, пока не остановит трение или стена
+    for (const ch of this.chairs) {
+      const oldX = ch.x;
+      if (player.standingOn !== ch && player.stun === 0 && overlaps(player, ch) && player.y + player.h > ch.y + 7) {
+        const dir = player.x + player.w / 2 < ch.x + ch.w / 2 ? 1 : -1;
+        if (Math.abs(ch.vx) < 1) ch.vx = dir * C('chairPush');
+        player.x = dir > 0 ? Math.min(player.x, ch.x - player.w) : Math.max(player.x, ch.x + ch.w);
+      }
+      if (ch.vx > 0) ch.vx = Math.max(0, ch.vx - C('chairFriction'));
+      if (ch.vx < 0) ch.vx = Math.min(0, ch.vx + C('chairFriction'));
+      moveEnemy(ch, false);
+      if (player.standingOn === ch) { player.x += ch.x - oldX; player.y = ch.y + 6 - player.h; }
+    }
+    // Ксерокс: пока Филипп рядом, иногда выплёвывает пачку листов в его сторону
+    for (const cp of level.copiers) {
+      const pcx = player.x + player.w / 2;
+      if (Math.abs(pcx - (cp.x + cp.w / 2)) > 200) continue;
+      if (--cp.timer > 0) continue;
+      cp.timer = Math.round(C('copierEverySeconds') * 60);
+      const dir = pcx < cp.x + cp.w / 2 ? -1 : 1;
+      this.papers.push({ x: dir > 0 ? cp.x + cp.w : cp.x - 10, y: cp.floor - 4, vx: dir * C('paperSpeed'), t: 0 });
+      this.popup('ВЖЖ-ЖЖ!', cp.x + cp.w / 2, cp.y - 2);
+    }
+    for (const pa of this.papers) {
+      pa.t++;
+      pa.x += pa.vx;
+      const box = { x: pa.x, y: pa.y, w: 10, h: 4 };
+      if (level.solids.some((o) => overlaps(box, o)) || pa.t > 240) { pa.gone = true; continue; }
+      if (player.onGround && this.coffee === 0 && overlaps(player, box)) {
+        pa.gone = true;
+        player.stun = Math.round(C('paperTripSeconds') * 60);   // поскользнулся на листах — упал
+        player.stunKind = 'trip';
+        player.vx = 0;
+        hurtSound();
+        this.popup('ШУРХ!', player.x + player.w / 2, player.y - 4);
+      }
+    }
+    this.papers = this.papers.filter((pa) => !pa.gone);
+    // Трубы: пока Филипп рядом, раз в несколько секунд катится труба справа. Удар — минус кружка
+    level.pipeLanes.forEach((lane, i) => {
+      const near = player.x > lane.x - 240 && player.x < lane.x + 40;
+      if (!near) { this.pipeTimers[i] = 40; return; }
+      if (--this.pipeTimers[i] > 0) return;
+      this.pipeTimers[i] = Math.round(C('pipeEverySeconds') * 60);
+      this.pipes.push({ x: Math.round(cameraX) + W + 2, y: lane.y - 10, t: 0, hit: false });
+      knockSound();
+    });
+    for (const pp of this.pipes) {
+      pp.t++;
+      pp.x -= C('pipeSpeed');
+      const box = { x: pp.x + 1, y: pp.y + 2, w: 8, h: 8 };
+      if (!pp.hit && overlaps(player, box)) { pp.hit = true; this.hurt('БАЦ!', pp.x + 5); }
+      if (pp.x < cameraX - 20) pp.gone = true;
+    }
+    this.pipes = this.pipes.filter((pp) => !pp.gone);
+    // Стажёр рядом — Филипп медленнее
+    this.internNear = this.enemies.some((e) => e.type === 'intern' && e.state === 'follow' && e.stunT === 0 &&
+                                               Math.abs(e.x - player.x) < 26 && Math.abs(e.y + e.h - player.y - player.h) < 8);
+  },
+
   // Переход в следующую часть: сценка выхода (если есть), затемнение, титр с названием части
   startPartTransition() {
     const next = levelParts[partIndex + 1];
@@ -2448,15 +2786,19 @@ const levelState = {
     // Если прыгаем снизу — пролетаем насквозь. Пылесос сверху — тоже такая платформа (едет).
     player.standingOn = null;
     if (player.vy >= 0) {
-      for (const e of this.enemies) {
-        if (e.type !== 'vacuum') continue;
-        const sideBySide = player.x + player.w > e.x && player.x < e.x + e.w;
-        if (oldBottom <= e.y + 1 && player.y + player.h >= e.y && sideBySide) {
-          player.y = e.y - player.h;
-          player.vy = 0;
-          player.onGround = true;
-          player.standingOn = e;
-        }
+      // На чём можно ехать: пылесос, погрузчик (вилы и крыша), офисное кресло
+      const riders = this.enemies.filter((e) => e.type === 'vacuum' || e.type === 'forklift').concat(this.chairs || []);
+      for (const e of riders) {
+        this.rideRects(e).forEach((rr, ri) => {
+          const sideBySide = player.x + player.w > rr.x && player.x < rr.x + rr.w;
+          if (oldBottom <= rr.y + 1 && player.y + player.h >= rr.y && sideBySide) {
+            player.y = rr.y - player.h;
+            player.vy = 0;
+            player.onGround = true;
+            player.standingOn = e;
+            player.rideIndex = ri;
+          }
+        });
       }
       for (const t of level.tops) {
         const above = oldBottom <= t.y;                     // ноги были выше полки
@@ -2533,6 +2875,8 @@ const levelState = {
 
   draw() {
     const cam = Math.round(cameraX); // целые пиксели — без размытия
+    // Уровень 3: закат в окнах темнеет с часами (за полчаса игрового времени — до ночи)
+    if (currentLevelIndex === 2) OFFICE_SUNSET = Math.min(1, clockSteps / (60 * levelCfg('secondsPerGameMinute') * 30));
 
     // Экраны, которые сейчас видны (обычно два соседних)
     const first = Math.floor(cam / SCREEN_W);
@@ -2570,7 +2914,9 @@ const levelState = {
     // Калитка (на уровне 2 — арка) и предметы (с тёмным контуром)
     if (level.gate) {
       const scr = level.screens[Math.floor(level.gate.x / SCREEN_W)];
-      if (LEVEL_BACKGROUNDS[scr.bg].gateLook === 'arch') drawArch(ctx, level.gate.x - cam, level.gate.y);
+      const look = LEVEL_BACKGROUNDS[scr.bg].gateLook;
+      if (look === 'arch') drawArch(ctx, level.gate.x - cam, level.gate.y);
+      else if (look === 'turnstile') drawTurnstile(ctx, level.gate.x - cam, level.gate.y);
       else drawGate(ctx, level.gate.x - cam, level.gate.y);
     }
     for (const f of level.furniture) {
@@ -2634,6 +2980,10 @@ const levelState = {
       drawSprite(ctx, frame, Math.round(b.x) - cam, b.y - 18, b.dir < 0);
       if (b.state === 'fall') drawStars(ctx, Math.round(b.x) - cam + 10, b.y - 14, this.tick);
     }
+    // Уровень 3: кресла, пачки листов, трубы
+    for (const ch of this.chairs || []) drawOfficeChair(ctx, Math.round(ch.x) - cam, Math.round(ch.y));
+    for (const pa of this.papers || []) drawPaperPack(ctx, Math.round(pa.x) - cam, pa.y, pa.t);
+    for (const pp of this.pipes || []) drawPipe(ctx, Math.round(pp.x) - cam, pp.y, pp.t);
     // Летящие ключи (крутятся) и контейнеры плова
     for (const sh of this.shots) {
       if (sh.kind === 'wrench') drawWrench(ctx, sh.x - cam, sh.y, sh.t * 0.5);
@@ -2666,8 +3016,14 @@ const levelState = {
       for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) drawSprite(ctx, glow, sx + ox, sy + oy, player.facing === -1);
     }
     if (!blinkOff) {
-      if (this.gossipHold) {
-        // Застрял у бабушек: стоит и кивает
+      if (this.panic > 0) {
+        // «А-А-А!» — трясётся, держится за голову
+        drawSprite(ctx, SPRITES.filipp.anims.idle.frames[0], sx + ((this.tick >> 1) % 2 ? 1 : -1), sy, player.facing === -1);
+        ctx.fillStyle = '#ffcd75';
+        ctx.fillRect(sx + 2, sy + 2, 3, 3);
+        ctx.fillRect(sx + 11, sy + 2, 3, 3);
+      } else if (this.gossipHold || this.chatHold) {
+        // Застрял у бабушек или у болтушки: стоит и кивает
         drawSprite(ctx, SPRITES.filipp.anims.idle.frames[0], sx, sy + (this.nodTimer > 4 ? 1 : 0), player.facing === -1);
       } else if (player.lying || (player.stun > 0 && player.stunKind === 'trip')) {
         // Споткнулся о Тусю: лежит на полу (картинка повёрнута на бок)
@@ -2694,10 +3050,23 @@ const levelState = {
 
     // Мысль над Филиппом («ЭТО ПРАВДА.») и подсказка «КИВАЙ!» у бабушек
     if (this.thought) {
-      drawTextCenteredShadow(this.thought.text, Math.max(30, Math.min(W - 30, sx + 8)), Math.max(HUD_H + 14, sy - 12), '#ffcd75', '#1a1c2c');
+      const half = Math.ceil(textWidth(this.thought.text) / 2) + 2;    // длинная фраза не вылезает за край
+      drawTextCenteredShadow(this.thought.text, Math.max(half, Math.min(W - half, sx + 8)), Math.max(HUD_H + 14, sy - 12), '#ffcd75', '#1a1c2c');
     }
-    if (this.gossipHold) {
-      const hint = 'КИВАЙ! ' + this.nods + '/' + CONFIG.gossipNods;
+    // Уровень 3: звонит рабочий телефон клиента (оранжевый) и полоска «отвечаю»
+    if (this.workCall) {
+      drawWorkPhone(ctx, sx - 8, Math.max(HUD_H + 12, sy - 12), this.tick);
+      if (Math.floor(this.tick / 12) % 2) drawText(ctx, 'ДЗЫНЬ', sx - 20, Math.max(HUD_H + 3, sy - 22), '#ef7d57');
+      if (this.workCall.answer > 0) {
+        const p = this.workCall.answer / (levelCfg('answerSeconds') * 60);
+        ctx.fillStyle = '#1a1c2c';
+        ctx.fillRect(sx - 8, sy - 3, 16, 3);
+        ctx.fillStyle = '#a7f070';
+        ctx.fillRect(sx - 8, sy - 3, Math.round(16 * p), 3);
+      }
+    }
+    if (this.gossipHold || this.chatHold) {
+      const hint = 'КИВАЙ! ' + this.nods + '/' + (this.chatHold ? levelCfg('chatNods') : CONFIG.gossipNods);
       drawTextCenteredShadow(hint, Math.max(30, Math.min(W - 30, sx + 8)), Math.max(HUD_H + 14, sy - 12), '#ffcd75', '#1a1c2c');
     }
     // Собачка держит шлёпанец
@@ -2769,6 +3138,30 @@ const levelState = {
   drawEnemy(e, cam) {
     const ex = Math.round(e.x) - cam, ey = Math.round(e.y);
     if (ex < -20 || ex > W + 20) return;
+    if (e.type === 'forklift') {
+      drawForklift(ctx, e.dir > 0 ? ex : ex - 10, ey, e.dir, this.tick);
+      if (e.stunT > 0) drawStars(ctx, ex + 9, ey - 3, this.tick);
+      return;
+    }
+    if (OFFICE_COLLEAGUES.indexOf(e.type) !== -1) {
+      const anim = SPRITES[e.type].anims[e.state === 'act' || (e.type === 'intern' && e.stunT > 0) ? 'act' : 'walk'];
+      const still = e.stunT > 0 || e.slipT > 0 || e.vx === 0;
+      const frame = anim.frames[still ? 0 : Math.floor(this.tick / anim.speed) % anim.frames.length];
+      const fx = ex + Math.round((e.w - frame.width) / 2);
+      const fy = ey + e.h - frame.height;
+      if (e.slipT > 0) {
+        ctx.save();
+        ctx.translate(ex + e.w / 2, ey + e.h - frame.width / 2);
+        ctx.rotate(-Math.PI / 2 * (e.dir < 0 ? -1 : 1));
+        ctx.drawImage(frame, -frame.width / 2, -frame.height / 2);
+        ctx.restore();
+        return;
+      }
+      drawSprite(ctx, frame, fx, fy, e.dir < 0);
+      if (e.stunT > 0 && e.type !== 'intern') drawStars(ctx, ex + e.w / 2, fy - 3, this.tick);
+      if (e.state === 'act' && e.type === 'smoker') drawSmokePuff(ctx, fx + (e.dir < 0 ? 2 : 10), fy - 2 - (this.tick >> 3) % 6, ((this.tick >> 3) % 6) / 6);
+      return;
+    }
     if (e.type === 'neighbor' || e.type === 'dog' || e.type === 'scooter') {
       const key = e.type === 'neighbor' ? (e.variant ? 'neighborM' : 'neighborW') :
                   e.type === 'dog' ? 'dog' : (e.variant ? 'scooterB' : 'scooterA');
@@ -2886,6 +3279,18 @@ const levelState = {
     ctx.drawImage(ICONS.filipp.image, barX(playerGlobalX() + player.w / 2) - 4, HUD_H - 8);
     ctx.drawImage(ICONS.lera.image, barX(this.leraX) - 4, HUD_H - 8);
 
+    // Уровень 3: шкала «СТРЕСС» под HUD справа. Звонит клиент — мигает
+    if (currentLevelIndex === 2 && state !== bossState && state !== momState) {
+      ctx.fillStyle = '#1a1c2c';
+      ctx.fillRect(60, HUD_H, W - 60, 10);
+      const ringing = this.workCall && Math.floor(this.tick / 10) % 2 === 0;
+      drawText(ctx, 'СТРЕСС', 64, HUD_H + 2, ringing ? '#ef7d57' : '#94b0c2');
+      const bx = 104, bw = W - bx - 6;
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(bx, HUD_H + 3, bw, 5);
+      ctx.fillStyle = this.stress > 0.75 ? '#b13e53' : '#ef7d57';
+      ctx.fillRect(bx, HUD_H + 3, Math.round(bw * (this.stress || 0)), 5);
+    }
     // Оружие (с уровня 2): «ключ x5» и «плов x1» — только для информации. Кончилось — число тусклое
     if (weaponsOn() && state !== bossState) {
       const P = WEAPON_PANEL;
@@ -3887,6 +4292,7 @@ const driveState = {
     this.outro++;
     this.x += Math.sign(LANES[1] - 8 - this.x) * Math.min(1, Math.abs(LANES[1] - 8 - this.x));
     if (this.outro > 60) {
+      levelState.keepCourage = true;                 // кураж с дороги переносится в офис
       setState('inLevelScene', SCENES.driveWin);
     }
   },

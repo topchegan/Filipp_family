@@ -178,6 +178,17 @@
       addCard(momRow, 18, 15, 6, 'Просьба: ' + label, (g) => { g.fillStyle = '#73eff7'; g.fillRect(0, 0, 18, 15); drawRequest(g, 2, 2, kind); });
     }
 
+    // Уровень 3: офис
+    const officeRow = addRow('Уровень 3: офис и склад');
+    const bgc = (g, w, h) => { g.fillStyle = '#566c86'; g.fillRect(0, 0, w, h); };
+    addCard(officeRow, 16, 18, 6, 'Офисное кресло (h): толкается, на нём можно прокатиться', (g) => { bgc(g, 16, 18); drawOfficeChair(g, 2, 2); });
+    addCard(officeRow, 14, 8, 6, 'Пачка листов из ксерокса', (g) => { bgc(g, 14, 8); drawPaperPack(g, 2, 2, 0); });
+    addCard(officeRow, 14, 14, 6, 'Катящаяся труба (p)', (g) => { bgc(g, 14, 14); drawPipe(g, 2, 2, 0); });
+    addCard(officeRow, 44, 28, 6, 'Погрузчик (f): вправо и влево', (g) => { bgc(g, 44, 28); drawForklift(g, 0, 3, 1, 0); drawForklift(g, 16, 3, -1, 0); });
+    addCard(officeRow, 30, 18, 6, 'Рабочий телефон клиента (оранжевый) и телефон Леры', (g) => { g.fillStyle = '#566c86'; g.fillRect(0, 0, 30, 18); drawWorkPhone(g, 2, 6, 0); drawPhonePickup(g, 18, 4, 0); });
+    addCard(officeRow, 40, 46, 6, 'Турникет — выход (E на фоне reception)', (g) => { bgc(g, 40, 46); drawTurnstile(g, 4, 12); });
+    [0, 0.5, 1].forEach((p) => addCard(officeRow, 52, 48, 6, 'Окно: закат ' + (p === 0 ? 'в 19:00' : p === 0.5 ? 'в 19:15' : 'в 19:30'), (g) => { OFFICE_SUNSET = p; bgc(g, 52, 48); drawSunsetWindow(g, 4, 4, 44, 40); OFFICE_SUNSET = 0; }));
+
     // Этап «За рулём»: вид сверху
     const driveRow = addRow('Этап «За рулём»: машины сверху (нос вверх), дорога, обочины');
     const road = (g, w, h) => { g.fillStyle = '#566c86'; g.fillRect(0, 0, w, h); };
@@ -257,7 +268,8 @@
     // Фоны 240x136 — они большие, поэтому увеличиваем не в 6, а в 3 раза
     const BG_NAMES = { livingRoom: 'Гостиная утром', extension: 'Двор с пристройкой',
                        grannyRoom: 'Квартира бабушки: ковёр, ламповый телевизор показывает',
-                       jackYard: 'Двор Филиппа: минивэн на домкрате' };
+                       jackYard: 'Двор Филиппа: минивэн на домкрате',
+                       openSpace: 'Офис: open space, вывеска «МЕТАЛЛ-ТОРГ»' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
     addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
