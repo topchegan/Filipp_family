@@ -182,6 +182,41 @@ const CONFIG = {
     chiefGravity: 0.08,      // как сильно дуга листов и степлеров загибается вниз
   },
 
+  // ----- УРОВЕНЬ 4 «Ночь. Путь на дачу»: свои числа -----
+  level4: {
+    leraHeadStart: 5,        // фора Леры в начале уровня, секунд
+    leraSpeed: 1.1,          // скорость Леры по шкале (уровень 4 строже прошлых)
+    leraSpeedUp: 0.1,        // ускорение после каждого звонка
+    callPushBack: 200,       // на сколько Леру отбрасывает звонок
+    clockStartHour: 20,      // уровень 4 начинается в 20:30...
+    clockStartMinute: 30,
+    secondsPerGameMinute: 2.3, // ...одна игровая минута — столько секунд (весь уровень — около получаса)
+    lampRadius: 40,          // радиус круга света от фонаря
+    chatNods: 6,             // «ШНЫРНЁМСЯ?»: сколько раз нажать Прыжок, чтобы вырваться
+    // Наркоманы (мультяшные)
+    junkieSpeed: 0.35,       // бродят
+    junkieComeSpeed: 0.8,    // идут к Филиппу «ШНЫРНЁМСЯ?»
+    junkieSeeDistance: 120,  // с какого расстояния замечают Филиппа и бросают шприцы
+    junkieGrabDistance: 50,  // ближе — идут обниматься «ШНЫРНЁМСЯ?»
+    syringeEverySeconds: 2.2,// как часто бросают шприц
+    syringeFlightSeconds: 1, // сколько шприц летит (дуга)
+    junkieCooldown: 8,       // после «НЕ-НЕ-НЕ!» столько секунд не пристают
+    // Бродячие собаки
+    dogBarkSeconds: 2.5,     // как часто лают
+    dogLungeDistance: 70,    // с какого расстояния делают рывок
+    dogLungeSpeed: 2.4,      // скорость рывка
+    dogEatSeconds: 5,        // плов: собака ест столько секунд и забывает про Филиппа
+    dogCooldown: 3,          // после укуса или рывка — передышка
+    fenceDogLera: 20,        // собака за забором выдала Филиппа: Лера ближе на столько (один раз на собаку)
+    // Пар из теплотрассы и поезд
+    steamEverySeconds: 3,    // как часто бьёт пар...
+    steamSeconds: 1,         // ...и сколько секунд
+    steamHeight: 40,         // высота струи
+    trainEverySeconds: 7,    // как часто идёт поезд, пока Филипп рядом с переездом
+    trainWarnSeconds: 2,     // за сколько секунд мигает светофор и звенит сигнал
+    trainPassSeconds: 2.5,   // сколько секунд идёт поезд
+  },
+
   // ----- Оружие (есть с уровня 2) -----
   weaponsFromLevel: 2,       // с какого уровня есть оружие и видна кнопка «Бросок»
   keysStart: 5,              // гаечных ключей в начале уровня 2
@@ -1099,10 +1134,12 @@ const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'r
                         // уровень 3: коллеги, кресло, погрузчик, катящиеся трубы
                         'smoker', 'chatter', 'coffeeguy', 'intern', 'chair', 'forklift', 'pipes',
                         // босс уровня 3
-                        'chief'];
+                        'chief',
+                        // уровень 4: наркоман, бродячая собака, собака за забором, пар, переезд
+                        'junkie', 'strayDog', 'fenceDog', 'steamVent', 'crossing'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
-const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
+const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 }, crossing: { w: 6, h: 5 },
                         gossip2: { w: 4, h: 2 }, gossip3: { w: 5, h: 2 } };
 
 // Легенда текущего уровня (буква → что это). Ставится в buildLevel
@@ -1228,6 +1265,10 @@ function buildPart(part, pi, isLast, isArena) {
     chairs: [],        // уровень 3: офисные кресла {x, y}
     copiers: [],       // ксероксы {x, y, w}: плюются пачками листов
     pipeLanes: [],     // откуда катятся трубы {x, y}
+    lamps: [],         // уровень 4: фонари {x, y} — центр круга света
+    vents: [],         // пар из теплотрассы {x, y}
+    crossings: [],     // переезды {x, y, w}: y — земля
+    fenceDogs: [],     // собаки за заборами {x, y}
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
     start: null,       // старт Филиппа {x, y}
@@ -1261,7 +1302,7 @@ function buildPart(part, pi, isLast, isArena) {
       }
       if (thing === 'beer') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
       if (thing === 'cig' || thing === 'coffee') { lp.boosts.push({ kind: thing, x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
-      if (['kirill', 'cat', 'vacuum', 'neighbor', 'dog', 'scooter', 'smoker', 'chatter', 'coffeeguy', 'intern', 'forklift'].indexOf(thing) !== -1) {
+      if (['kirill', 'cat', 'vacuum', 'neighbor', 'dog', 'scooter', 'smoker', 'chatter', 'coffeeguy', 'intern', 'forklift', 'junkie', 'strayDog'].indexOf(thing) !== -1) {
         lp.spawns.push({ type: thing, x: tileX(c), y: tileY(r + 1) });
         continue;
       }
@@ -1269,6 +1310,8 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'biker') { lp.bikeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'pipes') { lp.pipeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'chair') { lp.chairs.push({ x: tileX(c) - 2, y: tileY(r + 1) - 14 }); continue; }
+      if (thing === 'steamVent') { lp.vents.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
+      if (thing === 'fenceDog') { lp.fenceDogs.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'sprinkler') { lp.sprinklers.push({ x: tileX(c), y: tileY(r) }); continue; }
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'mama') { lp.mama = { x: tileX(c), y: tileY(r + 1) }; continue; }
@@ -1291,6 +1334,7 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'gate') { gates++; lp.gate = { x: x, y: y }; continue; }
       if (thing === 'exit') { exits++; lp.exit = { x: x, y: y }; continue; }
       if (thing === 'lera') { lp.npcs.push({ x: x, y: y }); continue; }
+      if (thing === 'crossing') { lp.crossings.push({ x: x, y: tileY(r + 1), w: size.w * TILE }); continue; }
       if (thing === 'gossip2' || thing === 'gossip3') {
         lp.gossips.push({ x: x, y: y, w: size.w * TILE, n: thing === 'gossip3' ? 3 : 2, ground: tileY(r + 1) });
         continue;
@@ -1303,6 +1347,7 @@ function buildPart(part, pi, isLast, isArena) {
       if (def.car) lp.cars.push(item);
       if (def.copier) lp.copiers.push({ x: x, y: y, w: def.w * TILE, floor: tileY(r + 1) });
       if (def.printer) lp.printer = { x: x, y: y, w: def.w * TILE };
+      if (def.lamp) lp.lamps.push({ x: x + 9, y: tileY(r + 1) - 18 });
       if (def.computer) lp.computer = { x: x, y: y, w: def.w * TILE };
       if (def.deliver) lp.office = { x: x, w: def.w * TILE };
       for (const p of furnitureParts(def)) {
@@ -1429,6 +1474,14 @@ function playerGlobalX() {
   return level.offset + player.x;
 }
 
+// Ночь (уровень 4): слой темноты и тёмные силуэты врагов (готовим один раз)
+let nightLayer = null, nightPatterns = null;
+const darkCache = new Map();
+function darkOf(frame) {
+  if (!darkCache.has(frame)) darkCache.set(frame, makeSilhouette(frame, '#1a1c2c'));
+  return darkCache.get(frame);
+}
+
 // Жёлтый силуэт кадра — для свечения от кофе (готовим один раз на каждый кадр)
 const glowCache = new Map();
 function glowOf(frame) {
@@ -1461,6 +1514,8 @@ const ENEMY_SIZES = {
   coffeeguy: { w: 8, h: 20 },
   intern:    { w: 8, h: 20 },
   forklift:  { w: 18, h: 22 },  // погрузчик: хитбокс — корпус с кабиной, вилы спереди
+  junkie:    { w: 8, h: 20 },   // уровень 4
+  strayDog:  { w: 14, h: 8 },
 };
 
 // Новый враг из точки появления на карте
@@ -1644,6 +1699,7 @@ const levelState = {
   // Враги и ловушки текущей части — в начальное положение
   resetPart() {
     this.enemies = level.spawns.map((sp) => makeEnemy(sp));
+    for (const e of this.enemies) if (e.type === 'strayDog') e.state = 'idle';
     for (const r of level.rakes) r.timer = 0;
     this.popups = [];
     this.swingCool = 0;
@@ -1675,6 +1731,11 @@ const levelState = {
     this.workCall = null;
     this.panic = 0;
     this.smoking = null;
+    // Уровень 4: шприцы, пар, поезда, собаки за заборами
+    this.syringes = [];
+    for (const v of level.vents) v.timer = (v.x * 7) % 180;
+    for (const cr of level.crossings) { cr.state = 'idle'; cr.timer = 120; }
+    this.fenceDogs = level.fenceDogs.map((fd) => ({ x: fd.x, y: fd.y, told: false, jump: 0 }));
     if (this.workTimer === undefined || this.workTimer <= 0) this.workTimer = Math.round(levelCfg('firstWorkCall') * 60);
   },
 
@@ -1842,6 +1903,7 @@ const levelState = {
 
     // --- Враги, ловушки, пиво ---
     this.updateEnemies();
+    this.enemies = this.enemies.filter((e) => !e.gone);
     this.updateTraps();
     // --- Уровень 2: оружие, велики, поливалки, машины, ящики с ключами, граффити ---
     this.updateWeapons(input);
@@ -1849,6 +1911,7 @@ const levelState = {
     this.updateSprinklers();
     this.updateYard();
     this.updateOffice();
+    this.updateNight();
     this.popups = this.popups.filter((p) => ++p.t < 50);
 
     // Кружки кончились — Лера догоняет
@@ -1942,11 +2005,13 @@ const levelState = {
   callExcuses() {
     if (currentLevelIndex === 1 && typeof CALL_EXCUSES_2 !== 'undefined') return CALL_EXCUSES_2;
     if (currentLevelIndex === 2 && typeof CALL_EXCUSES_3 !== 'undefined') return CALL_EXCUSES_3;
+    if (currentLevelIndex === 3 && typeof CALL_EXCUSES_4 !== 'undefined') return CALL_EXCUSES_4;
     return CALL_EXCUSES;
   },
   callAnswers() {
     if (currentLevelIndex === 1 && typeof CALL_ANSWERS_2 !== 'undefined') return CALL_ANSWERS_2;
     if (currentLevelIndex === 2 && typeof CALL_ANSWERS_3 !== 'undefined') return CALL_ANSWERS_3;
+    if (currentLevelIndex === 3 && typeof CALL_ANSWERS_4 !== 'undefined') return CALL_ANSWERS_4;
     return CALL_ANSWERS;
   },
 
@@ -1978,6 +2043,14 @@ const levelState = {
     if (e.type === 'kirill' || e.type === 'dog' || e.type === 'cat') { e.state = 'walk'; e.timer = 0; }
     clangSound();
     this.popup('БДЗЫНЬ!', e.x + e.w / 2, e.y - 6);
+    if (e.type === 'junkie' && e.state === 'act') this.releaseColleague(e);
+    if (e.type === 'strayDog') {
+      // Собака от ключа убегает, скуля, и больше не возвращается
+      e.stunT = 0;
+      e.state = 'flee'; e.timer = 0;
+      e.dir = e.x + e.w / 2 < player.x + player.w / 2 ? -1 : 1;
+      this.popup('СКУ-СКУ!', e.x + e.w / 2, e.y - 14);
+    }
     if (OFFICE_COLLEAGUES.indexOf(e.type) !== -1) {
       if (e.state === 'act') this.releaseColleague(e);   // отпустил Филиппа
       e.state = 'walk'; e.timer = 0;
@@ -2011,13 +2084,15 @@ const levelState = {
         continue;
       }
       // Наступил на плов — поскользнулся и упал
-      if (e.type !== 'vacuum' && e.type !== 'forklift' && e.state !== 'bite' && e.state !== 'act' && e.onGround && this.onPlov(e)) {
+      if (e.type !== 'vacuum' && e.type !== 'forklift' && e.type !== 'strayDog' && e.state !== 'bite' && e.state !== 'act' && e.onGround && this.onPlov(e)) {
         e.slipT = Math.round(CONFIG.slipSeconds * 60);
         this.popup('ШМЯК!', ecx, e.y - 6);
         continue;
       }
 
       if (OFFICE_COLLEAGUES.indexOf(e.type) !== -1) this.updateColleague(e, dx, sameRow, ecx);
+      if (e.type === 'junkie') this.updateJunkie(e, dx, sameRow, ecx);
+      if (e.type === 'strayDog') this.updateStrayDog(e, dx, sameRow, ecx);
 
       if (e.type === 'forklift') {
         // Погрузчик ездит туда-сюда. На вилах и крыше можно прокатиться, сбоку — отталкивает
@@ -2472,7 +2547,7 @@ const levelState = {
   releaseColleague(e) {
     e.state = 'walk';
     e.timer = 0;
-    e.cool = Math.round(levelCfg('colleagueCooldown') * 60);
+    e.cool = Math.round(levelCfg(e.type === 'junkie' ? 'junkieCooldown' : 'colleagueCooldown') * 60);
     e.dir = e.x < player.x ? -1 : 1;                 // уходит в другую сторону
     if (this.chatHold === e) this.chatHold = null;
     if (this.smoking === e) this.smoking = null;
@@ -2675,6 +2750,160 @@ const levelState = {
     // Стажёр рядом — Филипп медленнее
     this.internNear = this.enemies.some((e) => e.type === 'intern' && e.state === 'follow' && e.stunT === 0 &&
                                                Math.abs(e.x - player.x) < 26 && Math.abs(e.y + e.h - player.y - player.h) < 8);
+  },
+
+  // ---------- УРОВЕНЬ 4: НОЧЬ ----------
+
+  // Освещена ли точка фонарём (в темноте враги — силуэты с горящими глазами)
+  isLit(x, y) {
+    const r = levelCfg('lampRadius');
+    return level.lamps.some((l) => (x - l.x) * (x - l.x) + (y - l.y) * (y - l.y) < r * r);
+  },
+
+  // Наркоман (мультяшный): издалека бросает шприцы, вблизи — «ШНЫРНЁМСЯ?» и держит
+  updateJunkie(e, dx, sameRow, ecx) {
+    const C = (n) => levelCfg(n);
+    if (e.state === 'act') { e.vx = 0; moveEnemy(e, true); return; }   // держит Филиппа (кивки — в updateWork)
+    if (e.throwT > 0) e.throwT--;
+    const near = sameRow && Math.abs(dx) < C('junkieSeeDistance');
+    if (e.cool === 0 && near && Math.abs(dx) < C('junkieGrabDistance')) {
+      e.state = 'come';
+      e.dir = dx < 0 ? -1 : 1;
+      e.vx = e.dir * C('junkieComeSpeed');
+      if (e.timer % 120 === 1) this.popup(LEVEL4_TEXT.junkieHello, ecx, e.y - 6);
+    } else {
+      if (e.state === 'come') { e.state = 'walk'; e.timer = 0; }
+      if (Math.abs(e.x - e.homeX) > 40) e.dir = e.x > e.homeX ? -1 : 1;
+      e.vx = near ? 0 : e.dir * C('junkieSpeed');
+      if (near) e.dir = dx < 0 ? -1 : 1;
+      // Шприц по дуге туда, где Филипп
+      e.throwTimer = (e.throwTimer || 60) - 1;
+      if (near && e.throwTimer <= 0 && Math.abs(dx) > 30) {
+        e.throwTimer = Math.round(C('syringeEverySeconds') * 60);
+        e.throwT = 20;
+        const T = Math.round(C('syringeFlightSeconds') * 60);
+        const x0 = ecx, y0 = e.y + 6, tx = player.x + player.w / 2, ty = player.y + player.h - 4;
+        this.syringes.push({ x: x0, y: y0, vx: (tx - x0) / T, vy: (ty - y0 - 0.1 * T * T) / T, t: 0 });
+      }
+    }
+    moveEnemy(e, true);
+    const busy = this.chatHold || this.smoking || this.gossipHold;
+    if (e.state === 'come' && !busy && player.stun === 0 && overlaps(player, e)) {
+      e.state = 'act'; e.timer = 0;
+      this.chatHold = e;
+      this.nods = 0;
+      player.vx = 0;
+      this.popup(LEVEL4_TEXT.no, player.x + player.w / 2, player.y - 4);
+      showHint('gossip', HINTS.gossip);
+    }
+  },
+
+  // Бродячая собака: стоит или лежит и лает, вблизи — рывок (укус — минус кружка).
+  // Ключ — убегает, плов — ест и забывает про Филиппа
+  updateStrayDog(e, dx, sameRow, ecx) {
+    const C = (n) => levelCfg(n);
+    if (e.state === 'flee') {
+      e.vx = e.dir * C('dogLungeSpeed');
+      moveEnemy(e, false);
+      if (e.timer > 240) e.gone = true;
+      return;
+    }
+    if (e.state === 'eat') {
+      e.vx = 0;
+      moveEnemy(e, true);
+      if (e.timer % 40 === 0) this.popup(LEVEL4_TEXT.dogEat, ecx, e.y - 6);
+      if (e.timer >= C('dogEatSeconds') * 60) {
+        e.state = 'idle'; e.timer = 0; e.cool = 120;
+        if (e.plov) e.plov.timer = 0;                 // доела
+      }
+      return;
+    }
+    // Плов рядом — идёт есть
+    const plov = this.plovs.find((pl) => Math.abs(pl.x + pl.w / 2 - ecx) < 60 && Math.abs(pl.y - (e.y + e.h)) < 8);
+    if (plov) {
+      const gx = plov.x + plov.w / 2 - e.w / 2;
+      if (Math.abs(gx - e.x) < 3) { e.state = 'eat'; e.timer = 0; e.plov = plov; plov.timer = Math.max(plov.timer, C('dogEatSeconds') * 60 + 10); }
+      else { e.dir = gx > e.x ? 1 : -1; e.vx = e.dir * 1.2; }
+      moveEnemy(e, true);
+      return;
+    }
+    if (e.state === 'lunge') {
+      e.vx = e.dir * C('dogLungeSpeed');
+      moveEnemy(e, true);
+      if (this.coffee === 0 && overlaps(player, e)) {
+        this.hurt(LEVEL4_TEXT.bite, ecx);
+        e.state = 'idle'; e.timer = 0; e.cool = Math.round(C('dogCooldown') * 60);
+      } else if (e.timer > 60 || e.vx === 0) {
+        e.state = 'idle'; e.timer = 0; e.cool = Math.round(C('dogCooldown') * 60);
+      }
+      return;
+    }
+    // Стоит или лежит, лает
+    e.vx = 0;
+    e.dir = dx < 0 ? -1 : 1;
+    moveEnemy(e, true);
+    if (Math.abs(dx) < 160 && e.timer % Math.round(C('dogBarkSeconds') * 60) === 0) {
+      barkSound();
+      this.popup(LEVEL4_TEXT.bark, ecx, e.y - 6);
+    }
+    if (e.cool === 0 && sameRow && Math.abs(dx) < C('dogLungeDistance')) {
+      e.state = 'lunge'; e.timer = 0;
+      barkSound();
+    }
+  },
+
+  // Ночь: шприцы, пар, поезда, собаки за заборами
+  updateNight() {
+    if (currentLevelIndex !== 3) return;
+    const C = (n) => levelCfg(n);
+    const pcx = player.x + player.w / 2;
+    // Шприцы по дуге: попал — минус кружка (можно перепрыгнуть)
+    for (const sy of this.syringes) {
+      sy.t++;
+      sy.vy += 0.2;
+      sy.x += sy.vx;
+      sy.y += sy.vy;
+      if (overlaps(player, { x: sy.x - 4, y: sy.y - 1, w: 8, h: 3 })) { sy.done = true; this.hurt('АЙ!', sy.x); continue; }
+      if (level.solids.some((o) => overlaps({ x: sy.x - 4, y: sy.y, w: 8, h: 3 }, o)) || sy.t > 200) sy.done = true;
+    }
+    this.syringes = this.syringes.filter((sy) => !sy.done);
+    // Пар из теплотрассы: иногда бьёт вверх — отталкивает
+    const every = Math.round(C('steamEverySeconds') * 60), dur = Math.round(C('steamSeconds') * 60);
+    for (const v of level.vents) {
+      v.timer = (v.timer + 1) % every;
+      v.on = v.timer < dur;
+      if (v.on && this.swingCool === 0 && overlaps(player, { x: v.x - 2, y: v.y - C('steamHeight'), w: 12, h: C('steamHeight') })) {
+        this.shove(LEVEL4_TEXT.steam, v.x + 4, CONFIG.neighborPush);
+        player.vy = -3;
+        this.swingCool = 40;
+      }
+    }
+    // Переезд: светофор мигает и звенит, опускается шлагбаум, проходит поезд
+    for (const cr of level.crossings) {
+      const near = pcx > cr.x - 260 && pcx < cr.x + cr.w + 60;
+      if (cr.state === 'idle') {
+        if (near && --cr.timer <= 0) { cr.state = 'warn'; cr.timer = Math.round(C('trainWarnSeconds') * 60); }
+      } else if (cr.state === 'warn') {
+        if (cr.timer % 30 === 0) bellSound();
+        if (--cr.timer <= 0) { cr.state = 'pass'; cr.timer = Math.round(C('trainPassSeconds') * 60); }
+      } else if (cr.state === 'pass') {
+        cr.shift = (cr.shift || 0) + 6;
+        if (overlaps(player, { x: cr.x, y: cr.y - 40, w: cr.w, h: 40 })) {
+          this.hurt(LEVEL4_TEXT.train, cr.x + cr.w / 2);
+          player.vx = (pcx < cr.x + cr.w / 2 ? -1 : 1) * 3;
+          player.x = pcx < cr.x + cr.w / 2 ? cr.x - player.w - 1 : cr.x + cr.w + 1;
+        }
+        if (--cr.timer <= 0) { cr.state = 'idle'; cr.timer = Math.round(C('trainEverySeconds') * 60); }
+      }
+    }
+    // Собаки за заборами: лают и бросаются на забор — выдают Филиппа (Лера чуть ближе)
+    for (const fd of this.fenceDogs) {
+      if (fd.jump > 0) fd.jump--;
+      if (Math.abs(pcx - fd.x - 8) < 70) {
+        if (fd.jump === 0) { fd.jump = 24; barkSound(); this.popup(LEVEL4_TEXT.fenceDog, fd.x + 8, fd.y - 24); }
+        if (!fd.told) { fd.told = true; this.leraX += C('fenceDogLera'); }
+      }
+    }
   },
 
   // Переход в следующую часть: сценка выхода (если есть), затемнение, титр с названием части
@@ -2904,6 +3133,12 @@ const levelState = {
     const cam = Math.round(cameraX); // целые пиксели — без размытия
     // Уровень 3: закат в окнах темнеет с часами (за полчаса игрового времени — до ночи)
     if (currentLevelIndex === 2) OFFICE_SUNSET = Math.min(1, clockSteps / (60 * levelCfg('secondsPerGameMinute') * 30));
+    // Уровень 4: ночь темнеет с часами, дымок мангала ближе с каждым шагом
+    const night = currentLevelIndex === 3;
+    if (night) {
+      NIGHT = Math.min(1, clockSteps / (60 * levelCfg('secondsPerGameMinute') * 30));
+      NIGHT_PROGRESS = Math.min(1, playerGlobalX() / totalLength);
+    }
 
     // Экраны, которые сейчас видны (обычно два соседних)
     const first = Math.floor(cam / SCREEN_W);
@@ -2944,6 +3179,7 @@ const levelState = {
       const look = LEVEL_BACKGROUNDS[scr.bg].gateLook;
       if (look === 'arch') drawArch(ctx, level.gate.x - cam, level.gate.y);
       else if (look === 'turnstile') drawTurnstile(ctx, level.gate.x - cam, level.gate.y);
+      else if (look === 'turn') drawDachaTurn(ctx, level.gate.x - cam, level.gate.y, this.tick);
       else drawGate(ctx, level.gate.x - cam, level.gate.y);
     }
     for (const f of level.furniture) {
@@ -2984,6 +3220,21 @@ const levelState = {
       const lift = r.timer > 40 ? (60 - r.timer) / 20 : r.timer / 40;   // быстро встали, медленно легли
       drawRake(ctx, r.x - cam, r.y - 4, Math.max(0, lift));
     }
+    // Уровень 4: переезды, пар, собаки за заборами — и ТЕМНОТА с кругами света от фонарей
+    if (night) {
+      for (const cr of level.crossings) {
+        drawCrossing(ctx, cr.x - cam, cr.y - 40, cr.w, cr.state !== 'idle', cr.state !== 'idle', this.tick);
+        if (cr.state === 'pass') drawTrainPass(ctx, cr.x - cam, cr.y - 40, cr.w, cr.shift || 0);
+        if (cr.state === 'warn' && Math.floor(this.tick / 10) % 2) drawTextCenteredShadow(LEVEL4_TEXT.ding, cr.x - cam + cr.w / 2, cr.y - 52, '#ffcd75', '#1a1c2c');
+      }
+      for (const v of level.vents) if (v.on) drawSteamJet(ctx, v.x - cam + 4, v.y - 2, this.tick, levelCfg('steamHeight'));
+      for (const fd of this.fenceDogs || []) {
+        const frame = SPRITES.strayDog.anims.stand.frames[0];
+        drawSprite(ctx, frame, fd.x - cam, fd.y - 10 - (fd.jump > 12 ? 6 : fd.jump > 0 ? 3 : 0), player.x < fd.x);
+        drawFurniture(ctx, FURNITURE.dachaFence, fd.x - cam - 8, fd.y - 16, 0);   // забор перед собакой
+      }
+      this.drawDarkness(cam);
+    }
     // Пиво, которое ещё не выпито (покачивается)
     const beers = this.beersTaken[partIndex] || [];
     level.beers.forEach((b, i) => {
@@ -3007,6 +3258,8 @@ const levelState = {
       drawSprite(ctx, frame, Math.round(b.x) - cam, b.y - 18, b.dir < 0);
       if (b.state === 'fall') drawStars(ctx, Math.round(b.x) - cam + 10, b.y - 14, this.tick);
     }
+    // Уровень 4: шприцы
+    for (const sy of this.syringes || []) drawSyringe(ctx, Math.round(sy.x) - 4 - cam, Math.round(sy.y));
     // Уровень 3: кресла, пачки листов, трубы
     for (const ch of this.chairs || []) drawOfficeChair(ctx, Math.round(ch.x) - cam, Math.round(ch.y));
     for (const pa of this.papers || []) drawPaperPack(ctx, Math.round(pa.x) - cam, pa.y, pa.t);
@@ -3161,10 +3414,74 @@ const levelState = {
     }
   },
 
+  // Темнота на уровне 4: «сеточка» тёмного цвета, к ночи гуще. Вокруг фонарей — круги света
+  drawDarkness(cam) {
+    if (!nightLayer) {
+      nightLayer = document.createElement('canvas');
+      nightLayer.width = W; nightLayer.height = H;
+      nightPatterns = [1, 2, 3].map((k) => {
+        const c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        const g = c.getContext('2d');
+        g.fillStyle = '#1a1c2c';
+        for (let y = HUD_H; y < H; y++) for (let x = 0; x < W; x++) {
+          const m = (x % 2) + (y % 2) * 2;                     // 4 точки в квадрате 2x2
+          if ((k === 1 && m === 0) || (k === 2 && (m === 0 || m === 3)) || (k === 3 && m !== 3)) g.fillRect(x, y, 1, 1);
+        }
+        return c;
+      });
+    }
+    const g = nightLayer.getContext('2d');
+    g.clearRect(0, 0, W, H);
+    g.drawImage(nightPatterns[NIGHT < 0.35 ? 0 : NIGHT < 0.7 ? 1 : 2], 0, 0);
+    g.globalCompositeOperation = 'destination-out';
+    const r = levelCfg('lampRadius');
+    for (const l of level.lamps) {
+      const lx = l.x - cam;
+      if (lx < -r || lx > W + r) continue;
+      // Круг света — только ниже лампы (светит вниз, на землю)
+      for (let dy = -6; dy <= r; dy++) {
+        const half = Math.round(Math.sqrt(r * r - dy * dy));
+        g.clearRect(lx - half, l.y + dy, half * 2, 1);
+      }
+    }
+    g.globalCompositeOperation = 'source-over';
+    ctx.drawImage(nightLayer, 0, 0);
+  },
+
   // Рисуем одного врага. Картинка — по центру хитбокса, ноги — по низу
   drawEnemy(e, cam) {
     const ex = Math.round(e.x) - cam, ey = Math.round(e.y);
     if (ex < -20 || ex > W + 20) return;
+    if (e.type === 'junkie' || e.type === 'strayDog') {
+      let anim;
+      if (e.type === 'junkie') anim = SPRITES.junkie.anims[e.state === 'act' ? 'act' : (e.throwT > 0 ? 'throw' : 'walk')];
+      else anim = SPRITES.strayDog.anims[e.state === 'eat' ? 'eat' : (e.state === 'lunge' || e.state === 'flee' ? 'run' : ((e.homeX >> 3) % 2 ? 'lie' : 'stand'))];
+      const still = e.stunT > 0 || e.slipT > 0 || (e.vx === 0 && anim.frames.length > 1 && e.state !== 'eat');
+      const frame = anim.frames[still ? 0 : Math.floor(this.tick / anim.speed) % anim.frames.length];
+      const fx = ex + Math.round((e.w - frame.width) / 2);
+      const fy = ey + e.h - frame.height;
+      const lit = this.isLit(e.x + e.w / 2, e.y + e.h / 2);
+      if (e.slipT > 0) {
+        ctx.save();
+        ctx.translate(ex + e.w / 2, ey + e.h - frame.width / 2);
+        ctx.rotate(-Math.PI / 2 * (e.dir < 0 ? -1 : 1));
+        ctx.drawImage(lit ? frame : darkOf(frame), -frame.width / 2, -frame.height / 2);
+        ctx.restore();
+        return;
+      }
+      // В темноте — чёрный силуэт с горящими глазами
+      drawSprite(ctx, lit ? frame : darkOf(frame), fx, fy, e.dir < 0);
+      if (!lit) {
+        ctx.fillStyle = e.type === 'junkie' ? '#a7f070' : '#b13e53';
+        const eyeY = e.type === 'junkie' ? fy + 4 : fy + 3;
+        const eyeX = e.type === 'junkie' ? (e.dir < 0 ? fx + 4 : fx + 6) : (e.dir < 0 ? fx + 2 : fx + 12);
+        ctx.fillRect(eyeX, eyeY, 1, 1);
+        ctx.fillRect(eyeX + 2, eyeY, 1, 1);
+      }
+      if (e.stunT > 0) drawStars(ctx, ex + e.w / 2, fy - 3, this.tick);
+      return;
+    }
     if (e.type === 'forklift') {
       drawForklift(ctx, e.dir > 0 ? ex : ex - 10, ey, e.dir, this.tick);
       if (e.stunT > 0) drawStars(ctx, ex + 9, ey - 3, this.tick);
