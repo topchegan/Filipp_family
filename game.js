@@ -241,7 +241,7 @@ const CONFIG = {
       { at: 0.36, side: 0, text: 'ШИНО-\nМОНТАЖ' },
       { at: 0.66, side: 1, text: 'ПЕЛЬМЕНИ\nДОМАШНИЕ' },
     ],
-    timeLimitSeconds: 115,     // через сколько секунд клиент уходит — поражение
+    timeLimitSeconds: 105,     // через сколько секунд клиент уходит — поражение (начальник «догоняет»)
     warnAt: 0.85,              // на этой доле времени звонит начальник «ТЫ ГДЕ?»
     startHour: 15,             // часы этапа: начало в 15:30...
     startMinute: 30,
@@ -4051,7 +4051,7 @@ const driveState = {
       for (let lane = 0; lane < 3; lane++) {
         if (lane === free) continue;
         // Вся пробка появляется сразу (за 150 пикселей до начала): ряды едут вместе и не съезжаются
-        this.spawns.push({ at: jamStart - 150, pos: pos, lane: lane, kind: rnd() < 0.8 ? 'sedan' : 'zhiguli',
+        this.spawns.push({ at: jamStart - 150, pos: pos, lane: lane, jam: true, kind: rnd() < 0.8 ? 'sedan' : 'zhiguli',
                            color: Math.floor(rnd() * SEDAN_COLORS.length), speed: D.jamSpeed });
       }
     }
@@ -4184,11 +4184,11 @@ const driveState = {
   honk() {
     const D = CONFIG.drive;
     const lane = this.laneOf(this.x + 8);
-    const ahead = this.cars.filter((c) => c.lane === lane && c.pos - c.h > this.dist - 4 && c.pos - c.h - this.dist < D.hornReach)
+    const ahead = this.cars.filter((c) => !c.leaving && c.lane === lane && c.pos - c.h > this.dist - 4 && c.pos - c.h - this.dist < D.hornReach)
                            .sort((a, b) => a.pos - b.pos)[0];
     if (!ahead) return;
     const options = [lane - 1, lane + 1].filter((l) => l >= 0 && l <= 2 &&
-      !this.cars.some((o) => o !== ahead && o.lane === l && Math.abs(o.pos - ahead.pos) < ahead.h + o.h + 8));
+      !this.cars.some((o) => o !== ahead && !o.leaving && o.lane === l && Math.abs(o.pos - ahead.pos) < ahead.h + o.h + 8));
     if (options.length === 0) { this.popup('НЕКУДА!', ahead.x + ahead.w / 2, this.screenY(ahead.pos) - 2); return; }
     const to = options[Math.floor(Math.random() * options.length)];
     ahead.lane = to;
@@ -4205,16 +4205,27 @@ const driveState = {
       if (this.cars.some((o) => o.lane === s.lane && Math.abs(o.pos - pos) < size.h + o.h)) continue;
       const col = SEDAN_COLORS[s.color];
       this.cars.push({ kind: s.kind, lane: s.lane, w: size.w, h: size.h, x: LANES[s.lane] - size.w / 2,
-                       targetX: LANES[s.lane] - size.w / 2, pos: pos, speed: s.speed, base: s.speed,
+                       targetX: LANES[s.lane] - size.w / 2, pos: pos, speed: s.speed, base: s.speed, jam: !!s.jam,
                        body: s.kind === 'sedan' ? col[0] : undefined, shade: s.kind === 'sedan' ? col[1] : undefined });
     }
     for (const c of this.cars) {
+      // Попутная машина догнала пробку — сворачивает с дороги во двор (иначе забьёт просветы в пробке)
+      if (!c.jam && !c.leaving && this.cars.some((o) => o.jam && o.lane === c.lane && (o.pos - o.h) - c.pos >= 0 && (o.pos - o.h) - c.pos < 10)) {
+        c.leaving = true;
+        c.targetX = c.x + c.w / 2 < ROAD_X + 1.5 * LANE_W ? ROAD_X - c.w - 6 : ROAD_X + 3 * LANE_W + 6;
+      }
+      if (c.leaving) {
+        c.pos += c.speed;
+        c.x += Math.sign(c.targetX - c.x) * 1.2;
+        if (c.x + c.w < ROAD_X - 2 || c.x > ROAD_X + 3 * LANE_W + 2) c.gone = true;
+        continue;
+      }
       // На красный машины тоже стоят у стоп-линии
       let speed = c.base;
       for (const l of this.lights) if (l.state !== 'green' && c.pos < l.pos && l.pos - c.pos < 24) speed = 0;
       // Не въезжать в машину впереди в той же полосе
       for (const o of this.cars) {
-        if (o === c || o.lane !== c.lane) continue;
+        if (o === c || o.lane !== c.lane || o.leaving) continue;
         const gap = (o.pos - o.h) - c.pos;
         if (gap >= 0 && gap < 8) speed = Math.min(speed, o.speed);
       }
@@ -4233,7 +4244,7 @@ const driveState = {
       }
     }
     // Уехали далеко вниз — убираем. У офиса машины сворачивают — тоже убираем
-    this.cars = this.cars.filter((c) => this.screenY(c.pos) < H + 20 && c.pos - c.h < D.length);
+    this.cars = this.cars.filter((c) => !c.gone && this.screenY(c.pos) < H + 20 && c.pos - c.h < D.length);
   },
 
   // Ямы, лужи, кофе, сигареты
