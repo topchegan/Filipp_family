@@ -162,7 +162,52 @@ const CONFIG = {
   slideSpeed: 2.6,           // как быстро съезжаешь с горки
   carouselSpeed: 0.8,        // как сильно карусель тащит влево
   carAlarmSeconds: 3,        // сколько секунд воет сигнализация «УИ-УИ-УИ!»
+
+  // ----- Этап «ЗА РУЛЁМ» (минивэн едет в офис, вид сверху) -----
+  drive: {
+    length: 11000,             // длина этапа в пикселях дороги (без ошибок — около 1,5 минуты)
+    maxSpeed: 2.4,             // наибольшая скорость минивэна (пикселей за шаг)
+    accel: 0.02,               // скорость растёт сама: на столько за шаг
+    brake: 0.09,               // тормоз («Прыжок»)
+    steer: 1.4,                // руль: на сколько пикселей за шаг сдвигается вбок
+    carSpeedMin: 1.0,          // попутные машины едут медленнее: от...
+    carSpeedMax: 1.7,          // ...до (автобус и грузовик ещё медленнее)
+    trafficEvery: 170,         // в среднем через столько пикселей пути появляется машина
+    crashSpeed: 0.3,           // скорость после столкновения «БАЦ!»
+    crashSkidSeconds: 0.6,     // сколько секунд заносит после удара
+    potholes: 8,               // сколько ям на дороге
+    potholeSpeedMul: 0.4,      // яма: скорость умножается на это число
+    puddles: 6,                // сколько луж
+    puddleSkidSeconds: 0.5,    // лужа: сколько секунд заносит вбок...
+    puddleDrift: 1.0,          // ...и как сильно
+    hornCooldown: 3,           // перезарядка гудка, секунд
+    hornReach: 120,            // гудок слышат машины не дальше этого
+    jamAt: 0.5,                // где пробка (0.5 — на середине пути)
+    jamLength: 900,            // длина пробки
+    jamSpeed: 0.5,             // скорость машин в пробке
+    jamRowGap: 84,             // расстояние между рядами машин в пробке (просвет между рядами узкий)
+    lights: [0.28, 0.75],      // где светофоры (доля пути)
+    lightWarnDistance: 260,    // за сколько пикселей до светофора загорается жёлтый, потом красный
+    lightRedSeconds: 3,        // сколько горит красный
+    inspectorDelay: 1,         // через сколько секунд после проезда на красный появляется инспектор
+    inspectorSeconds: 4,       // штраф ГИБДД: столько секунд стоим «ДОКУМЕНТЫ!»
+    coffeeAt: [0.18, 0.62],    // где кофе (доля пути)
+    coffeeSeconds: 4,          // кофе: столько секунд быстрее...
+    coffeeSpeedMul: 1.3,       // ...во столько раз
+    cigsAt: [0.4, 0.88],       // где сигареты (+кураж, кураж переносится дальше)
+    billboards: [              // рекламные щиты: где (доля пути), с какой стороны (0 — слева), текст
+      { at: 0.1, side: 1, text: 'МЕТАЛЛО-\nПРОКАТ —\nЗВОНИТЕ!' },
+      { at: 0.36, side: 0, text: 'ШИНО-\nМОНТАЖ' },
+      { at: 0.66, side: 1, text: 'ПЕЛЬМЕНИ\nДОМАШНИЕ' },
+    ],
+    timeLimitSeconds: 115,     // через сколько секунд клиент уходит — поражение
+    warnAt: 0.85,              // на этой доле времени звонит начальник «ТЫ ГДЕ?»
+    startHour: 15,             // часы этапа: начало в 15:30...
+    startMinute: 30,
+    secondsPerMinute: 3,       // ...одна игровая минута — 3 секунды (1,5 минуты езды — полчаса)
+  },
 };
+
 
 // Какой уровень сейчас собран: 0 — уровень 1, 1 — уровень 2
 let currentLevelIndex = 0;
@@ -348,6 +393,22 @@ function sirenSound() {
   for (let i = 0; i < 6; i++) tone(i % 2 ? 600 : 950, t0 + i * 0.18, 0.16, 0.035);
 }
 
+// Гудок минивэна «БИ-БИП!»
+function hornSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  tone(330, t0, 0.12, 0.07);
+  tone(392, t0 + 0.15, 0.18, 0.07);
+}
+
+// Свисток инспектора
+function whistleSound() {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  for (let i = 0; i < 8; i++) tone(i % 2 ? 2600 : 2900, t0 + i * 0.04, 0.04, 0.04);
+  tone(2800, t0 + 0.4, 0.3, 0.04);
+}
+
 // Звонок телефона: «ДЗЫНЬ-ДЗЫНЬ» — две трели из быстро чередующихся нот
 function phoneRing() {
   if (!audioCtx) return;
@@ -366,7 +427,7 @@ function phoneRing() {
 const keys = { left: false, right: false, jump: false };
 // Отдельно — кнопки с клавиатуры и с экрана, потом объединяем
 const kb = { left: false, right: false, jump: false, throw: false, plov: false };
-const touch = { left: false, right: false, jump: false, throw: false, wrench: false, plov: false, pause: false };
+const touch = { left: false, right: false, jump: false, throw: false, wrench: false, plov: false, horn: false, pause: false };
 // Касания и клики по самому экрану (не по кнопкам). Координаты — в пикселях игры.
 let taps = [];
 // Нажали ли «Прыжок» с прошлого шага. Запоминаем сразу в момент нажатия,
@@ -431,6 +492,7 @@ function toGameCoords(clientX, clientY) {
 // сейчас лежат на каких кнопках. Так работает мультитач
 // и можно вести палец с ← на →.
 const buttons = document.querySelectorAll('.btn');
+const jumpBtn = document.querySelector('.btn.jump');   // за рулём на ней надпись «Тормоз»
 
 function updateTouches(e) {
   e.preventDefault();
@@ -448,7 +510,7 @@ function updateTouches(e) {
       const el = document.elementFromPoint(t.clientX, t.clientY);
       const btn = el && el.dataset ? el.dataset.btn : undefined;
       if (btn === 'jump') { jumpHit = true; confirmHit = true; }
-      else if (btn === 'throw' || btn === 'wrench') throwHit = true;   // «Бросок» у близнецов, «Ключ» на уровне
+      else if (btn === 'throw' || btn === 'wrench' || btn === 'horn') throwHit = true;   // «Бросок», «Ключ», «Гудок»
       else if (btn === 'plov') plovHit = true;
       else if (btn === 'pause') pauseHit = true;
       else if (btn === 'left') menuMove -= 1;       // в меню ← и → двигают выбор
@@ -672,7 +734,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (this.scene.background === 'level' || this.scene.background === 'boss' || this.scene.background === 'mom') return false;
+      if (['level', 'boss', 'mom', 'drive'].indexOf(this.scene.background) !== -1) return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -754,6 +816,7 @@ function createSceneState(defaultScene) {
         if (this.scene.background === 'level') levelState.draw();
         else if (this.scene.background === 'boss') bossState.draw();     // арена босса
         else if (this.scene.background === 'mom') momState.draw();       // арена мамы
+        else if (this.scene.background === 'drive') driveState.draw();   // дорога («ЗА РУЛЁМ»)
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
@@ -768,7 +831,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (['level', 'boss', 'mom'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
+      if (['level', 'boss', 'mom', 'drive'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -3483,6 +3546,476 @@ const momState = {
 };
 
 // =============================================
+// ЭКРАН: ЭТАП «ЗА РУЛЁМ» — минивэн едет в офис (вид сверху)
+// =============================================
+// Дорога из 3 полос едет сверху вниз, минивэн внизу экрана, нос вверх.
+// ← → — руль, скорость растёт сама, «Прыжок» — тормоз, «Бросок» — гудок «БИ-БИП!».
+// Мешают: попутные машины (столкновение — «БАЦ!», скорость почти ноль), ямы, лужи, пробка,
+// светофор (проехал на красный — инспектор ГИБДД, 4 секунды «ДОКУМЕНТЫ!»).
+// Угроза — время: начальник ждёт. Иконка начальника ползёт по шкале пути, как Лера на уровне.
+// Все числа — в CONFIG.drive.
+
+const ROAD_X = 72;                       // левый край дороги
+const LANE_W = 32;                       // ширина полосы
+const LANES = [88, 120, 152];            // середины полос
+const VAN_Y = 100;                       // где на экране нос минивэна
+
+// Генератор случайных чисел «с зерном»: каждый раз одна и та же дорога (для «ЕЩЁ РАЗ»)
+function seededRandom(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const driveState = {
+  dist: 0,          // сколько пикселей проехали (нос минивэна на дороге)
+  speed: 0,         // скорость минивэна
+  x: 0,             // левый край минивэна на экране
+  steps: 0,         // сколько шагов идёт этап (время)
+  cars: [],         // попутные машины на экране
+  spawns: [],       // когда появятся следующие машины {at, lane, kind, speed}
+  things: [],       // ямы, лужи, кофе, сигареты {kind, pos, x, taken}
+  decor: [],        // обочины: деревья, дома, щиты {pos, x, kind}
+  lights: [],       // светофоры {pos, state, timer}
+  popups: [],       // надписи «БАЦ!», «БИ-БИП!»
+  skid: 0, skidDir: 1,     // занос после удара
+  drift: 0, driftDir: 1,   // занос на луже
+  bump: 0,          // подбросило на яме
+  crashCool: 0,     // после удара немного не бьёмся снова
+  hornCool: 0,      // перезарядка гудка
+  coffee: 0,        // сколько шагов ещё действует кофе
+  inspector: 0,     // сколько шагов ещё стоим у инспектора
+  inspectorWait: 0, // через сколько шагов появится инспектор
+  warned: false,    // начальник уже звонил «ТЫ ГДЕ?»
+  outro: 0,         // финиш: минивэн заезжает на парковку
+  startCourage: 1,  // кураж в начале этапа (для «ЕЩЁ РАЗ»)
+  tick: 0,
+
+  // mode: 'new' — начать этап, 'retry' — «ЕЩЁ РАЗ» (с начала), 'resume' — после звонка начальника
+  enter(mode) {
+    if (mode === 'resume') return;
+    if (mode !== 'retry') this.startCourage = levelState.courage;
+    levelState.courage = this.startCourage;
+    this.build();
+    showHint('drive', HINTS.drive);
+  },
+
+  // Собираем дорогу: каждый раз одинаковую
+  build() {
+    const D = CONFIG.drive;
+    const rnd = seededRandom(15);
+    const L = D.length;
+    this.dist = 0;
+    this.speed = 0;
+    this.x = LANES[1] - CAR_TOP.van.w / 2;
+    this.steps = 0;
+    this.cars = [];
+    this.popups = [];
+    this.skid = this.drift = this.bump = this.crashCool = this.hornCool = this.coffee = 0;
+    this.inspector = this.inspectorWait = 0;
+    this.warned = false;
+    this.outro = 0;
+    // Светофоры и пробка
+    this.lights = D.lights.map((k) => ({ pos: Math.round(L * k), state: 'green', timer: 0, passed: false }));
+    const jamStart = Math.round(L * D.jamAt);
+    const near = (pos, gap) => this.lights.some((l) => Math.abs(l.pos - pos) < gap) ||
+                               (pos > jamStart - gap && pos < jamStart + D.jamLength + gap);
+    // Попутные машины: появляются сверху, когда до них доехали
+    this.spawns = [];
+    const kinds = ['sedan', 'sedan', 'sedan', 'sedan', 'zhiguli', 'zhiguli', 'bus', 'truck'];
+    let lastLane = -1;
+    for (let at = 300; at < L - 300; at += D.trafficEvery * (0.6 + rnd() * 0.8)) {
+      if (near(at + 120, 160)) continue;
+      let lane = Math.floor(rnd() * 3);
+      if (lane === lastLane) lane = (lane + 1 + Math.floor(rnd() * 2)) % 3;
+      lastLane = lane;
+      const kind = kinds[Math.floor(rnd() * kinds.length)];
+      const slow = kind === 'bus' || kind === 'truck' ? 0.7 : 1;
+      this.spawns.push({ at: Math.round(at), lane: lane, kind: kind, color: Math.floor(rnd() * SEDAN_COLORS.length),
+                         speed: (D.carSpeedMin + rnd() * (D.carSpeedMax - D.carSpeedMin)) * slow });
+    }
+    // Пробка: ряды медленных машин, в каждом ряду одна полоса свободна (узкий просвет)
+    let free = 1;
+    for (let pos = jamStart; pos < jamStart + D.jamLength; pos += D.jamRowGap) {
+      free = Math.max(0, Math.min(2, free + (rnd() < 0.5 ? -1 : 1)));
+      for (let lane = 0; lane < 3; lane++) {
+        if (lane === free) continue;
+        // Вся пробка появляется сразу (за 150 пикселей до начала): ряды едут вместе и не съезжаются
+        this.spawns.push({ at: jamStart - 150, pos: pos, lane: lane, kind: rnd() < 0.8 ? 'sedan' : 'zhiguli',
+                           color: Math.floor(rnd() * SEDAN_COLORS.length), speed: D.jamSpeed });
+      }
+    }
+    this.spawns.sort((a, b) => a.at - b.at);
+    // Ямы, лужи, кофе, сигареты
+    this.things = [];
+    const put = (kind, n) => {
+      for (let i = 0; i < n; i++) {
+        let pos;
+        do pos = 400 + rnd() * (L - 900); while (near(pos, 120));
+        this.things.push({ kind: kind, pos: Math.round(pos), x: LANES[Math.floor(rnd() * 3)], taken: false });
+      }
+    };
+    put('pothole', D.potholes);
+    put('puddle', D.puddles);
+    D.coffeeAt.forEach((k, i) => this.things.push({ kind: 'coffee', pos: Math.round(L * k), x: LANES[i % 3], taken: false }));
+    D.cigsAt.forEach((k, i) => this.things.push({ kind: 'cig', pos: Math.round(L * k), x: LANES[(i + 2) % 3], taken: false }));
+    // Обочины: деревья и дома, рекламные щиты
+    this.decor = [];
+    for (let pos = 0; pos < L + 200; pos += 34) {
+      for (const side of [0, 1]) {
+        const r = rnd();
+        const x = side === 0 ? 4 + Math.floor(rnd() * 40) : 174 + Math.floor(rnd() * 40);
+        if (r < 0.45) this.decor.push({ pos: pos, x: x + 10, kind: 'tree', r: 6 + Math.floor(rnd() * 5) });
+        else if (r < 0.62) this.decor.push({ pos: pos, x: x, kind: 'house', roof: ['#b13e53', '#5d275d', '#257179'][Math.floor(rnd() * 3)] });
+      }
+    }
+    D.billboards.forEach((b) => {
+      const pos = Math.round(L * b.at);
+      this.decor = this.decor.filter((d) => Math.abs(d.pos - pos) > 50 || (d.x < 120) !== (b.side === 0));
+      this.decor.push({ pos: pos, x: b.side === 0 ? 4 : 176, kind: 'board', text: b.text });
+    });
+  },
+
+  // Где на экране точка дороги pos (по высоте)
+  screenY(pos) {
+    return VAN_Y - (pos - this.dist);
+  },
+
+  // Хитбокс минивэна и машины на экране
+  vanBox() {
+    return { x: this.x + 1, y: VAN_Y - (this.bump > 0 ? 2 : 0), w: CAR_TOP.van.w - 2, h: CAR_TOP.van.h };
+  },
+  carBox(c) {
+    return { x: c.x + 1, y: this.screenY(c.pos), w: c.w - 2, h: c.h };
+  },
+
+  // В какой полосе точка x (номер 0–2)
+  laneOf(cx) {
+    return Math.max(0, Math.min(2, Math.round((cx - LANES[0]) / LANE_W)));
+  },
+
+  popup(text, x, y) {
+    levelState.popup.call(this, text, x, y);       // та же логика: не наезжают друг на друга
+  },
+
+  update(input) {
+    const D = CONFIG.drive;
+    this.tick++;
+    tickHint();
+    this.popups = this.popups.filter((p) => ++p.t < 50);
+    if (this.outro > 0) { this.updateOutro(); return; }
+    this.steps++;
+
+    // --- Время: начальник ждёт. Сначала звонок «ТЫ ГДЕ?», потом — опоздал ---
+    const limit = D.timeLimitSeconds * 60;
+    if (!this.warned && this.steps >= limit * D.warnAt) {
+      this.warned = true;
+      setState('inLevelScene', { background: 'drive', next: 'drive', nextArg: 'resume', steps: SCENES.driveCall.steps });
+      return;
+    }
+    if (this.steps >= limit) {
+      setState('defeat', Object.assign({}, SCENES.driveLose));
+      return;
+    }
+
+    // --- Минивэн: газ сам, тормоз, руль ---
+    if (this.crashCool > 0) this.crashCool--;
+    if (this.hornCool > 0) this.hornCool--;
+    if (this.bump > 0) this.bump--;
+    if (this.coffee > 0) this.coffee--;
+    const maxSpeed = D.maxSpeed * (this.coffee > 0 ? D.coffeeSpeedMul : 1);
+    if (this.inspectorWait > 0 && --this.inspectorWait === 0) {
+      this.inspector = Math.round(D.inspectorSeconds * 60);   // инспектор ГИБДД: стоим
+      whistleSound();
+    }
+    if (this.inspector > 0) {
+      this.inspector--;
+      this.speed = Math.max(0, this.speed - D.brake * 2);
+    } else if (keys.jump) {
+      this.speed = Math.max(0, this.speed - D.brake);
+    } else if (this.speed < maxSpeed) {
+      this.speed = Math.min(maxSpeed, this.speed + D.accel);
+    } else {
+      this.speed = Math.max(maxSpeed, this.speed - D.brake);  // кофе кончился — плавно сбавляем
+    }
+    if (this.skid > 0) {
+      this.skid--;
+      this.x += this.skidDir * 0.6;                  // занесло после удара
+    } else if (this.inspector === 0) {
+      let dir = 0;
+      if (keys.left) dir -= 1;
+      if (keys.right) dir += 1;
+      this.x += dir * D.steer;
+    }
+    if (this.drift > 0) { this.drift--; this.x += this.driftDir * D.puddleDrift; }
+    this.x = Math.max(ROAD_X + 1, Math.min(ROAD_X + 3 * LANE_W - CAR_TOP.van.w - 1, this.x));
+    this.dist += this.speed;
+
+    // --- Гудок «БИ-БИП!»: машина впереди в той же полосе перестраивается, если рядом свободно ---
+    if (input.throwPressed && this.hornCool === 0 && this.inspector === 0) {
+      this.hornCool = Math.round(D.hornCooldown * 60);
+      hornSound();
+      this.popup('БИ-БИП!', this.x + 8, VAN_Y - 2);
+      this.honk();
+    }
+
+    this.updateCars();
+    this.updateThings();
+    this.updateLights();
+
+    // --- Финиш: доехали до офиса ---
+    if (this.dist >= D.length) {
+      this.outro = 1;
+      this.speed = 1;
+    }
+  },
+
+  // Гудок: ближайшая машина впереди в нашей полосе уходит в соседнюю свободную
+  honk() {
+    const D = CONFIG.drive;
+    const lane = this.laneOf(this.x + 8);
+    const ahead = this.cars.filter((c) => c.lane === lane && c.pos - c.h > this.dist - 4 && c.pos - c.h - this.dist < D.hornReach)
+                           .sort((a, b) => a.pos - b.pos)[0];
+    if (!ahead) return;
+    const options = [lane - 1, lane + 1].filter((l) => l >= 0 && l <= 2 &&
+      !this.cars.some((o) => o !== ahead && o.lane === l && Math.abs(o.pos - ahead.pos) < ahead.h + o.h + 8));
+    if (options.length === 0) { this.popup('НЕКУДА!', ahead.x + ahead.w / 2, this.screenY(ahead.pos) - 2); return; }
+    const to = options[Math.floor(Math.random() * options.length)];
+    ahead.lane = to;
+    ahead.targetX = LANES[to] - ahead.w / 2;
+  },
+
+  // Попутные машины: появляются сверху, едут медленнее, перестраиваются, уезжают вниз
+  updateCars() {
+    const D = CONFIG.drive;
+    while (this.spawns.length && this.dist >= this.spawns[0].at) {
+      const s = this.spawns.shift();
+      const size = CAR_TOP[s.kind];
+      const pos = s.pos !== undefined ? s.pos : this.dist + VAN_Y - HUD_H + size.h + 4;   // сразу за верхним краем
+      if (this.cars.some((o) => o.lane === s.lane && Math.abs(o.pos - pos) < size.h + o.h)) continue;
+      const col = SEDAN_COLORS[s.color];
+      this.cars.push({ kind: s.kind, lane: s.lane, w: size.w, h: size.h, x: LANES[s.lane] - size.w / 2,
+                       targetX: LANES[s.lane] - size.w / 2, pos: pos, speed: s.speed, base: s.speed,
+                       body: s.kind === 'sedan' ? col[0] : undefined, shade: s.kind === 'sedan' ? col[1] : undefined });
+    }
+    for (const c of this.cars) {
+      // На красный машины тоже стоят у стоп-линии
+      let speed = c.base;
+      for (const l of this.lights) if (l.state !== 'green' && c.pos < l.pos && l.pos - c.pos < 24) speed = 0;
+      // Не въезжать в машину впереди в той же полосе
+      for (const o of this.cars) {
+        if (o === c || o.lane !== c.lane) continue;
+        const gap = (o.pos - o.h) - c.pos;
+        if (gap >= 0 && gap < 8) speed = Math.min(speed, o.speed);
+      }
+      c.speed = speed;
+      c.pos += speed;
+      if (c.x !== c.targetX) c.x += Math.sign(c.targetX - c.x) * Math.min(1, Math.abs(c.targetX - c.x));
+      // Столкновение с минивэном
+      if (this.crashCool === 0 && overlaps(this.vanBox(), this.carBox(c))) {
+        this.crashCool = 50;
+        this.speed = D.crashSpeed;
+        this.skid = Math.round(D.crashSkidSeconds * 60);
+        this.skidDir = this.x + 8 < c.x + c.w / 2 ? -1 : 1;
+        if (c.pos - c.h > this.dist - 10) c.pos = this.dist + c.h + 4;   // машину впереди чуть отталкивает
+        hurtSound();
+        this.popup('БАЦ!', this.x + 8, VAN_Y - 2);
+      }
+    }
+    // Уехали далеко вниз — убираем. У офиса машины сворачивают — тоже убираем
+    this.cars = this.cars.filter((c) => this.screenY(c.pos) < H + 20 && c.pos - c.h < D.length);
+  },
+
+  // Ямы, лужи, кофе, сигареты
+  updateThings() {
+    const D = CONFIG.drive;
+    const van = this.vanBox();
+    for (const t of this.things) {
+      if (t.taken) continue;
+      const y = this.screenY(t.pos);
+      if (y > H + 10 || y < -20) continue;
+      const box = t.kind === 'pothole' ? { x: t.x - 6, y: y, w: 12, h: 8 } :
+                  t.kind === 'puddle' ? { x: t.x - 8, y: y, w: 16, h: 8 } : { x: t.x - 5, y: y - 1, w: 10, h: 10 };
+      if (!overlaps(van, box)) continue;
+      t.taken = true;
+      if (t.kind === 'pothole') {
+        this.speed *= D.potholeSpeedMul;
+        this.bump = 14;
+        knockSound();
+        this.popup('БУМ!', this.x + 8, VAN_Y - 2);
+      } else if (t.kind === 'puddle') {
+        this.drift = Math.round(D.puddleSkidSeconds * 60);
+        this.driftDir = Math.random() < 0.5 ? -1 : 1;
+        this.popup('ВЖЖ!', this.x + 8, VAN_Y - 2);
+      } else if (t.kind === 'coffee') {
+        this.coffee = Math.round(D.coffeeSeconds * 60);
+        pickupSound();
+        this.popup('КОФЕ!', this.x + 8, VAN_Y - 2);
+      } else {
+        levelState.courage = Math.min(1, levelState.courage + CONFIG.cigCourage);
+        pickupSound();
+        this.popup('+КУРАЖ', this.x + 8, VAN_Y - 2);
+      }
+    }
+  },
+
+  // Светофоры: подъезжаешь — загорается жёлтый, потом красный, потом снова зелёный.
+  // Проехал стоп-линию на красный — через секунду инспектор ГИБДД
+  updateLights() {
+    const D = CONFIG.drive;
+    for (const l of this.lights) {
+      if (l.state === 'green' && !l.done && l.pos - this.dist < D.lightWarnDistance) { l.state = 'yellow'; l.timer = 30; }
+      else if (l.state === 'yellow' && --l.timer <= 0) { l.state = 'red'; l.timer = Math.round(D.lightRedSeconds * 60); }
+      else if (l.state === 'red' && --l.timer <= 0) { l.state = 'green'; l.done = true; }
+      if (!l.passed && this.dist >= l.pos) {
+        l.passed = true;
+        if (l.state === 'red') {
+          this.inspectorWait = Math.round(D.inspectorDelay * 60);
+          this.popup('ФЬЮ-ФЬЮТЬ!', this.x + 8, VAN_Y - 2);
+        }
+      }
+    }
+  },
+
+  // Финиш: минивэн заезжает на парковку, потом сценка
+  updateOutro() {
+    this.outro++;
+    this.x += Math.sign(LANES[1] - 8 - this.x) * Math.min(1, Math.abs(LANES[1] - 8 - this.x));
+    if (this.outro > 60) {
+      setState('inLevelScene', SCENES.driveWin);
+    }
+  },
+
+  draw() {
+    const D = CONFIG.drive;
+    // Трава и тротуары
+    ctx.fillStyle = '#38b764';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#94b0c2';
+    ctx.fillRect(ROAD_X - 8, 0, 8, H);
+    ctx.fillRect(ROAD_X + 3 * LANE_W, 0, 8, H);
+    // Обочины: дома, деревья, щиты
+    for (const d of this.decor) {
+      const y = this.screenY(d.pos);
+      if (y < -40 || y > H + 10) continue;
+      if (d.kind === 'tree') drawTreeTop(ctx, d.x, y, d.r);
+      else if (d.kind === 'house') drawHouseTop(ctx, d.x, y - 22, 26, 22, d.roof);
+      else drawBillboard(ctx, d.x, y - 28, d.text);
+    }
+    // Дорога и разметка (пунктир бежит вниз)
+    ctx.fillStyle = '#566c86';
+    ctx.fillRect(ROAD_X, 0, 3 * LANE_W, H);
+    ctx.fillStyle = '#f4f4f4';
+    ctx.fillRect(ROAD_X, 0, 2, H);
+    ctx.fillRect(ROAD_X + 3 * LANE_W - 2, 0, 2, H);
+    const phase = Math.floor(this.dist) % 16;
+    for (const lx of [ROAD_X + LANE_W, ROAD_X + 2 * LANE_W]) {
+      for (let y = -16 + phase; y < H; y += 16) ctx.fillRect(lx - 1, y, 2, 8);
+    }
+    // Офис и парковка в конце пути
+    const officeY = this.screenY(D.length + 30);      // низ здания; под ним — парковка
+    if (officeY > -70) drawOffice(ctx, officeY);
+    // Стоп-линии и светофоры
+    for (const l of this.lights) {
+      const y = this.screenY(l.pos);
+      if (y < -30 || y > H + 4) continue;
+      ctx.fillStyle = '#f4f4f4';
+      ctx.fillRect(ROAD_X, y, 3 * LANE_W, 3);
+      drawTrafficLight(ctx, ROAD_X - 12, y - 22, l.state);
+      drawTrafficLight(ctx, ROAD_X + 3 * LANE_W + 4, y - 22, l.state);
+    }
+    // Ямы, лужи, кофе, сигареты
+    for (const t of this.things) {
+      if (t.taken) continue;
+      const y = this.screenY(t.pos);
+      if (y < -12 || y > H + 4) continue;
+      if (t.kind === 'pothole') drawPothole(ctx, t.x - 6, y);
+      else if (t.kind === 'puddle') drawRoadPuddle(ctx, t.x - 8, y);
+      else if (t.kind === 'coffee') drawCoffee(ctx, t.x - 4, y, this.tick);
+      else drawCigs(ctx, t.x - 4, y);
+    }
+    // Машины
+    for (const c of this.cars) {
+      const y = this.screenY(c.pos);
+      if (y > H || y + c.h < 0) continue;
+      drawCarTop(ctx, c.kind, Math.round(c.x), Math.round(y), c.body, c.shade);
+    }
+    // Минивэн Филиппа: при ударе и на луже — повёрнут, на яме — подпрыгнул
+    const vy = VAN_Y - Math.min(26, Math.floor(this.outro / 2)) - (this.bump > 7 ? 2 : 0);   // финиш: заезжает на парковку
+    const angle = this.skid > 0 ? this.skidDir * 0.35 * Math.sin(this.skid / 3) : (this.drift > 0 ? this.driftDir * 0.2 : 0);
+    ctx.save();
+    ctx.translate(Math.round(this.x) + 8, vy + 15);
+    ctx.rotate(angle);
+    drawCarTop(ctx, 'van', -8, -15);
+    ctx.restore();
+    if (this.coffee > 0) drawSteam(ctx, Math.round(this.x) + 8, vy - 2, this.tick);
+    // Инспектор ГИБДД на обочине у минивэна
+    if (this.inspector > 0) {
+      drawSprite(ctx, SPRITES.inspector.anims.stand.frames[0], ROAD_X + 3 * LANE_W + 6, VAN_Y + 4, false);
+      drawTextCenteredShadow('ДОКУМЕНТЫ!', 180, VAN_Y - 10, '#ffcd75', '#1a1c2c');
+    }
+    // Впереди светофор (ещё не виден) — значок вверху дороги
+    for (const l of this.lights) {
+      const y = this.screenY(l.pos);
+      if (y < HUD_H && l.state !== 'green' && !l.passed) {
+        drawTrafficLight(ctx, ROAD_X + 3 * LANE_W / 2 - 4, HUD_H + 2, l.state);
+      }
+    }
+    // Надписи
+    for (const p of this.popups) {
+      const half = Math.ceil(textWidth(p.text) / 2) + 2;
+      const px = Math.max(half, Math.min(W - half, Math.round(p.x)));
+      drawTextCenteredShadow(p.text, px, Math.max(HUD_H + 2, Math.round(p.y - 10 - p.t / 3)), '#f4f4f4', '#b13e53');
+    }
+    this.drawHud();
+    if (state === driveState) drawHint();
+  },
+
+  // HUD: кураж, кофе, часы; шкала пути до офиса: минивэн, а за ним — начальник (время)
+  drawHud() {
+    const D = CONFIG.drive;
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, HUD_H);
+    drawText(ctx, 'КУРАЖ', 4, 1, '#94b0c2');
+    ctx.fillStyle = '#333c57';
+    ctx.fillRect(36, 3, 30, 3);
+    ctx.fillStyle = levelState.courage < 0.5 ? '#ffcd75' : '#a7f070';
+    ctx.fillRect(36, 3, Math.round(30 * levelState.courage), 3);
+    if (this.coffee > 0) {
+      drawCoffee(ctx, 72, 0, this.tick);
+      ctx.fillStyle = '#ffcd75';
+      ctx.fillRect(81, 3, Math.max(1, Math.round(16 * this.coffee / (D.coffeeSeconds * 60))), 2);
+    }
+    // Гудок: готов или перезаряжается
+    drawText(ctx, 'ГУДОК', 104, 1, this.hornCool > 0 ? '#566c86' : '#ffcd75');
+    drawText(ctx, VERSION, W - 31 - 6 - textWidth(VERSION), 1, '#566c86');
+    const total = D.startHour * 60 + D.startMinute + Math.floor(this.steps / (60 * D.secondsPerMinute));
+    drawText(ctx, String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0'), W - 31, 1, '#ffcd75');
+    // Шкала пути
+    const limit = D.timeLimitSeconds * 60;
+    const late = this.steps / limit;
+    const blink = late > D.warnAt && Math.floor(this.tick / 8) % 2 === 0;
+    ctx.fillStyle = blink ? '#b13e53' : '#566c86';
+    ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
+    const fx = BAR.x + BAR.w;
+    ctx.fillStyle = '#f4f4f4';                        // флажок — офис
+    ctx.fillRect(fx, BAR.y - 4, 1, BAR.h + 7);
+    ctx.fillRect(fx - 3, BAR.y - 4, 3, 3);
+    const vx = BAR.x + Math.round(BAR.w * Math.min(1, this.dist / D.length));
+    ctx.fillStyle = '#1a1c2c';                        // минивэн на шкале
+    ctx.fillRect(vx - 4, BAR.y - 3, 8, 6);
+    ctx.fillStyle = '#b13e53';
+    ctx.fillRect(vx - 3, BAR.y - 2, 6, 4);
+    ctx.drawImage(ICONS.nachalnik.image, BAR.x + Math.round(BAR.w * Math.min(1, late)) - 4, HUD_H - 8);
+  },
+};
+
+// =============================================
 // МЕНЮ: пункты выбираются пальцем (тап по пункту) или стрелками вверх-вниз и «Прыжком»
 // =============================================
 function createMenu() {
@@ -3531,7 +4064,7 @@ let dimImage = null;      // затемнение «сеточкой» (толь
 
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
 function canPause() {
-  return state === levelState || state === bossState || state === momState;
+  return state === levelState || state === bossState || state === momState || state === driveState;
 }
 
 function autoPause() {
@@ -3541,7 +4074,8 @@ function autoPause() {
 function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
-    state === bossState || state === momState ? 'НАЧАТЬ БОЙ ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА',
+    state === bossState || state === momState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
+      (state === driveState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
     'УПРАВЛЕНИЕ',
     'ВЫЙТИ В ГЛАВНОЕ МЕНЮ',
@@ -3560,6 +4094,7 @@ function updatePause(input) {
     paused = false;
     if (state === bossState) setState('boss', 'retry');
     else if (state === momState) setState('mom', 'retry');
+    else if (state === driveState) setState('drive', 'retry');
     else setState('level', 'lastCall');
   }
   if (choice === 2) setSound(!soundOn);
@@ -3593,6 +4128,7 @@ function drawControls() {
     ['E — КЛЮЧ (ЗАПАСНАЯ КЛАВИША — X)', '#f4f4f4'],
     ['F — ПЛОВ', '#f4f4f4'],
     ['P ИЛИ ESC — ПАУЗА', '#f4f4f4'],
+    ['ЗА РУЛЁМ: Z — ТОРМОЗ, E ИЛИ X — ГУДОК', '#f4f4f4'],
     ['(РАБОТАЕТ И ПРИ РУССКОЙ РАСКЛАДКЕ)', '#566c86'],
     ['IPAD:', '#94b0c2'],
     ['СЛЕВА ВНИЗУ — БЕГ', '#f4f4f4'],
@@ -3633,6 +4169,8 @@ const levelSelectState = {
         this.labels.push('УРОВЕНЬ ' + (li + 1) + ' — БОСС: ' + (lv.boss.name || '').toUpperCase());
       }
     });
+    this.entries.push({ drive: true });
+    this.labels.push('ЗА РУЛЁМ');
     this.entries.push({ back: true });
     this.labels.push('НАЗАД');
     this.menu.index = 0;
@@ -3642,6 +4180,7 @@ const levelSelectState = {
     if (choice === -1) return;
     const e = this.entries[choice];
     if (e.back) { setState('title'); return; }
+    if (e.drive) { setState('drive', 'new'); return; }
     loadLevel(e.level);
     setState('level');                              // всё с чистого листа
     if (e.boss) {
@@ -3708,6 +4247,7 @@ const states = {
   inLevelScene: createSceneState(),           // СЦЕНКА ПОВЕРХ УРОВНЯ: звонок-отмазка, переход между частями
   boss: bossState,                            // БОСС: Вася и Настя
   mom: momState,                              // БОСС УРОВНЯ 2: мама
+  drive: driveState,                          // ЭТАП «ЗА РУЛЁМ»: минивэн едет в офис
   levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
 };
@@ -3722,7 +4262,10 @@ function setState(name, arg) {
   // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
   document.body.classList.toggle('boss-fight', name === 'boss');
   document.body.classList.toggle('armed', (name === 'level' || name === 'mom') && weaponsOn());
-  document.body.classList.toggle('playing', name === 'level' || name === 'boss' || name === 'mom');
+  document.body.classList.toggle('playing', name === 'level' || name === 'boss' || name === 'mom' || name === 'drive');
+  // За рулём: «Прыжок» — тормоз, вместо бросков — «Гудок»
+  document.body.classList.toggle('driving', name === 'drive');
+  if (jumpBtn) jumpBtn.textContent = name === 'drive' ? 'Тормоз' : 'Прыжок';
 }
 
 // =============================================

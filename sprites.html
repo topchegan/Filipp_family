@@ -178,6 +178,22 @@
       addCard(momRow, 18, 15, 6, 'Просьба: ' + label, (g) => { g.fillStyle = '#73eff7'; g.fillRect(0, 0, 18, 15); drawRequest(g, 2, 2, kind); });
     }
 
+    // Этап «За рулём»: вид сверху
+    const driveRow = addRow('Этап «За рулём»: машины сверху (нос вверх), дорога, обочины');
+    const road = (g, w, h) => { g.fillStyle = '#566c86'; g.fillRect(0, 0, w, h); };
+    addCard(driveRow, 20, 34, 6, 'Минивэн Филиппа', (g) => { road(g, 20, 34); drawCarTop(g, 'van', 2, 2); });
+    SEDAN_COLORS.forEach((c, i) => addCard(driveRow, 18, 28, 6, 'Легковушка ' + (i + 1), (g) => { road(g, 18, 28); drawCarTop(g, 'sedan', 2, 2, c[0], c[1]); }));
+    addCard(driveRow, 18, 26, 6, '«Жигули»', (g) => { road(g, 18, 26); drawCarTop(g, 'zhiguli', 2, 2); });
+    addCard(driveRow, 24, 54, 6, 'Автобус', (g) => { road(g, 24, 54); drawCarTop(g, 'bus', 2, 2); });
+    addCard(driveRow, 24, 50, 6, 'Грузовик', (g) => { road(g, 24, 50); drawCarTop(g, 'truck', 2, 2); });
+    addCard(driveRow, 16, 12, 6, 'Яма', (g) => { road(g, 16, 12); drawPothole(g, 2, 2); });
+    addCard(driveRow, 20, 12, 6, 'Лужа', (g) => { road(g, 20, 12); drawRoadPuddle(g, 2, 2); });
+    addCard(driveRow, 40, 24, 6, 'Светофор: красный, жёлтый, зелёный', (g) => { ['red', 'yellow', 'green'].forEach((c, i) => drawTrafficLight(g, 2 + i * 13, 2, c)); });
+    addCard(driveRow, 60, 44, 6, 'Рекламный щит', (g) => { g.fillStyle = '#38b764'; g.fillRect(0, 0, 60, 44); drawBillboard(g, 4, 4, 'МЕТАЛЛО-\nПРОКАТ —\nЗВОНИТЕ!'); });
+    addCard(driveRow, 70, 34, 6, 'Деревья и дом сверху', (g) => { g.fillStyle = '#38b764'; g.fillRect(0, 0, 70, 34); drawTreeTop(g, 12, 14, 9); drawTreeTop(g, 30, 18, 6); drawHouseTop(g, 40, 6, 26, 22, '#b13e53'); });
+    addCard(driveRow, 240, 110, 3, 'Финиш: офис «МЕТАЛЛ-ТОРГ» и парковка', (g) => drawOffice(g, 62));
+    addCard(driveRow, 240, 136, 3, 'Картинка «ВЖУХ!» (колесо за 30 секунд)', (g) => PICTURES.wheelFix(g, 1, 0));
+
     // Бой с близнецами: игрушки, тень падения, сердечки
     const bossRow = addRow('Босс: игрушки, тень, сердечки');
     addCard(bossRow, 12, 12, 6, 'Мяч', (g) => drawToy(g, 'ball', 2, 2));
@@ -240,7 +256,8 @@
 
     // Фоны 240x136 — они большие, поэтому увеличиваем не в 6, а в 3 раза
     const BG_NAMES = { livingRoom: 'Гостиная утром', extension: 'Двор с пристройкой',
-                       grannyRoom: 'Квартира бабушки: ковёр, ламповый телевизор показывает' };
+                       grannyRoom: 'Квартира бабушки: ковёр, ламповый телевизор показывает',
+                       jackYard: 'Двор Филиппа: минивэн на домкрате' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
     addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,

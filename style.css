@@ -71,7 +71,8 @@ html, body {
    «Бросок» (бой с Васей и Настей, класс boss-fight) и «Ключ» (с уровня 2, класс armed) — прямо над «Прыжком»,
    «Плов» (с уровня 2) — слева от «Прыжка». Классы ставит game.js */
 .btn.throw,
-.btn.wrench {
+.btn.wrench,
+.btn.horn {
   right: 24px;
   bottom: calc(24px + 96px + 12px + env(safe-area-inset-bottom));
   width: 140px;
@@ -88,6 +89,7 @@ html, body {
   border-radius: 28px;
   display: none;
 }
+body.driving .btn.horn,
 body.boss-fight .btn.throw,
 body.armed .btn.wrench,
 body.armed .btn.plov {

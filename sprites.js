@@ -4044,3 +4044,261 @@ LEVEL_BACKGROUNDS.momYard = { name: 'Двор у арки (арена: мама)
     g.fillRect(x + 171, y + 64, 50, 12);
     drawText(g, 'МАГАЗИН', x + 175, y + 67, '#ffcd75');
   } };
+
+// =============================================
+// ЭТАП «ЗА РУЛЁМ» (v0.15): вид СВЕРХУ, нос машины смотрит ВВЕРХ
+// =============================================
+
+// Минивэн после ремонта: колесо на месте, домкрата нет (для картинки «ВЖУХ!»).
+// Берём обычный минивэн и переставляем в переднюю арку копию заднего колеса.
+function makeFixedMinivan() {
+  const rows = MINIVAN.map((r) => r.split(''));
+  for (let r = 26; r < 30; r++) for (let c = 50; c < 66; c++) rows[r][c] = '.';   // убираем домкрат
+  for (let r = 17; r < 30; r++) {
+    for (let c = 9; c < 22; c++) {
+      const ch = MINIVAN[r][c];
+      if (ch === '0' || ch === 'd' || ch === 'e') rows[r][c + 52] = ch;           // заднее колесо → переднее
+    }
+  }
+  return makeFrame(rows.map((r) => r.join('')), 80, 30, 'Минивэн с колесом');
+}
+const MINIVAN_FIXED = makeFixedMinivan();
+
+// Иконка начальника 8x8 для шкалы: тёмные волосы, густая борода
+const ICON_NACHALNIK = [
+  '.000000.',
+  '00000000',
+  '04444440',
+  '04044040',
+  '00444400',
+  '00022000',
+  '00000000',
+  '.0cc9c0.',
+];
+ICONS.nachalnik = { name: 'Начальник', image: makeFrame(ICON_NACHALNIK, 8, 8, 'Иконка начальника') };
+
+// Инспектор ГИБДД 12x20 (смотрит на нас): фуражка, салатовый жилет, полосатый жезл, свисток
+const INSPECTOR = [
+  '...000000...',
+  '..08888880..',
+  '.0222222220.',
+  '..0e8888e0..',
+  '..04444440..',
+  '..04044040..',
+  '..0444c440..',
+  '...044440...',
+  '..05555550..',
+  '.0555995550.',
+  '04555995554c',
+  '04555995550c',
+  '.0555555550c',
+  '..0999999002',
+  '..0990099002',
+  '..099009900c',
+  '..099009900.',
+  '..000000000.',
+  '..0000.0000.',
+  '............',
+];
+SPRITES.inspector = buildCharacter('Инспектор ГИБДД', 12, 20, {
+  stand: { name: 'Свистит «ДОКУМЕНТЫ!»', speed: 60, frames: [INSPECTOR] },
+});
+
+// Машина сверху. x, y — левый верхний угол, нос вверх.
+// kind: 'van' — минивэн Филиппа, 'sedan' — легковушка, 'zhiguli' — «жигули», 'bus' — автобус, 'truck' — грузовик
+const CAR_TOP = {
+  van:     { w: 16, h: 30, body: '#b13e53', shade: '#5d275d' },
+  sedan:   { w: 14, h: 24 },
+  zhiguli: { w: 14, h: 22, body: '#ffcd75', shade: '#ef7d57' },
+  bus:     { w: 20, h: 50, body: '#ef7d57', shade: '#b13e53' },
+  truck:   { w: 20, h: 46, body: '#3b5dc9', shade: '#29366f' },
+};
+function drawCarTop(g, kind, x, y, body, shade) {
+  const s = CAR_TOP[kind];
+  const w = s.w, h = s.h;
+  body = body || s.body;
+  shade = shade || s.shade;
+  g.fillStyle = '#1a1c2c';                           // контур и колёса
+  g.fillRect(x + 1, y, w - 2, h);
+  g.fillRect(x, y + 1, w, h - 2);
+  g.fillRect(x - 1, y + 4, 1, 5);
+  g.fillRect(x + w, y + 4, 1, 5);
+  g.fillRect(x - 1, y + h - 9, 1, 5);
+  g.fillRect(x + w, y + h - 9, 1, 5);
+  if (kind === 'truck') {
+    g.fillStyle = body;                              // кабина
+    g.fillRect(x + 1, y + 1, w - 2, 11);
+    g.fillStyle = '#29366f';
+    g.fillRect(x + 3, y + 2, w - 6, 3);              // лобовое стекло
+    g.fillStyle = '#94b0c2';                         // кузов-фургон
+    g.fillRect(x + 1, y + 14, w - 2, h - 15);
+    g.fillStyle = '#566c86';
+    for (let j = y + 18; j < y + h - 2; j += 5) g.fillRect(x + 2, j, w - 4, 1);
+    g.fillStyle = '#ffcd75';
+    g.fillRect(x + 2, y + 1, 2, 1);
+    g.fillRect(x + w - 4, y + 1, 2, 1);
+    return;
+  }
+  g.fillStyle = shade;
+  g.fillRect(x + 1, y + 1, w - 2, h - 2);            // борта (тень)
+  g.fillStyle = body;
+  g.fillRect(x + 2, y + 1, w - 4, h - 2);            // крыша и капот
+  if (kind === 'bus') {
+    g.fillStyle = '#29366f';
+    g.fillRect(x + 2, y + 2, w - 4, 3);              // лобовое стекло
+    g.fillStyle = shade;
+    for (let j = y + 10; j < y + h - 6; j += 12) g.fillRect(x + 6, j, w - 12, 4);   // люки на крыше
+    g.fillStyle = '#ffcd75';
+    g.fillRect(x + 2, y + 1, 2, 1);
+    g.fillRect(x + w - 4, y + 1, 2, 1);
+    return;
+  }
+  const front = kind === 'van' ? 6 : 5;              // длина капота
+  g.fillStyle = '#29366f';                           // лобовое стекло
+  g.fillRect(x + 2, y + front, w - 4, 4);
+  g.fillStyle = '#41a6f6';
+  g.fillRect(x + 3, y + front, 3, 1);                // блик
+  g.fillStyle = '#29366f';                           // заднее стекло
+  g.fillRect(x + 2, y + h - 6, w - 4, 2);
+  if (kind === 'van') {                              // багажник на крыше минивэна
+    g.fillStyle = shade;
+    g.fillRect(x + 4, y + front + 7, w - 8, 1);
+    g.fillRect(x + 4, y + front + 13, w - 8, 1);
+  }
+  g.fillStyle = '#ffcd75';                           // фары
+  g.fillRect(x + 2, y + 1, 2, 1);
+  g.fillRect(x + w - 4, y + 1, 2, 1);
+  g.fillStyle = '#b13e53';                           // задние фонари
+  g.fillRect(x + 2, y + h - 2, 2, 1);
+  g.fillRect(x + w - 4, y + h - 2, 2, 1);
+}
+
+// Цвета легковушек (кузов и тень)
+const SEDAN_COLORS = [['#3b5dc9', '#29366f'], ['#38b764', '#257179'], ['#f4f4f4', '#94b0c2'], ['#566c86', '#333c57'], ['#41a6f6', '#3b5dc9']];
+
+// Яма на дороге 12x8
+function drawPothole(g, x, y) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x + 2, y, 8, 8);
+  g.fillRect(x, y + 2, 12, 4);
+  g.fillStyle = '#333c57';
+  g.fillRect(x + 3, y + 2, 6, 4);
+  g.fillStyle = '#94b0c2';
+  g.fillRect(x + 1, y + 1, 2, 1);
+  g.fillRect(x + 9, y + 6, 2, 1);
+}
+
+// Лужа на дороге 16x8
+function drawRoadPuddle(g, x, y) {
+  g.fillStyle = '#3b5dc9';
+  g.fillRect(x + 2, y, 12, 8);
+  g.fillRect(x, y + 2, 16, 4);
+  g.fillStyle = '#41a6f6';
+  g.fillRect(x + 3, y + 2, 7, 2);
+  g.fillStyle = '#73eff7';
+  g.fillRect(x + 4, y + 2, 2, 1);
+}
+
+// Светофор над дорогой: color — 'red', 'yellow' или 'green'. x, y — левый верхний угол (8x20)
+function drawTrafficLight(g, x, y, color) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x, y, 8, 20);
+  const lamps = [['red', '#b13e53', '#5d275d'], ['yellow', '#ffcd75', '#566c86'], ['green', '#a7f070', '#257179']];
+  lamps.forEach(([name, on, off], i) => pixelCircle(g, x + 4, y + 4 + i * 6, 2, color === name ? on : off));
+}
+
+// Рекламный щит на обочине: столбы и доска с текстом в несколько строк (через \n)
+function drawBillboard(g, x, y, text) {
+  const lines = text.split('\n');
+  const w = Math.max(...lines.map((l) => textWidth(l))) + 6, h = lines.length * 8 + 4;
+  g.fillStyle = '#566c86';
+  g.fillRect(x + 4, y + h, 2, 8);
+  g.fillRect(x + w - 6, y + h, 2, 8);
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x - 1, y - 1, w + 2, h + 2);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(x, y, w, h);
+  lines.forEach((l, i) => drawText(g, l, x + 3, y + 2 + i * 8, '#b13e53'));
+}
+
+// Дерево сверху (крона кружком), дом сверху (крыша)
+function drawTreeTop(g, cx, cy, r) {
+  pixelCircle(g, cx + 1, cy + 2, r, '#1a1c2c');      // тень
+  pixelCircle(g, cx, cy, r, '#257179');              // крона темнее травы
+  pixelCircle(g, cx - 1, cy - 1, Math.max(1, r - 2), '#38b764');
+  pixelCircle(g, cx - 2, cy - 2, Math.max(1, r - 5), '#a7f070');
+}
+function drawHouseTop(g, x, y, w, h, roof) {
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x - 1, y - 1, w + 2, h + 2);
+  g.fillStyle = roof;
+  g.fillRect(x, y, w, h);
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(x + Math.floor(w / 2), y, 1, h);         // конёк крыши
+  g.fillStyle = '#566c86';
+  g.fillRect(x + 3, y + 3, 4, 4);                    // труба
+}
+
+// Офис «МЕТАЛЛ-ТОРГ» и парковка (финиш этапа). y — нижний край здания
+function drawOffice(g, y) {
+  g.fillStyle = '#566c86';
+  g.fillRect(0, y - 60, 240, 60);                    // стена офиса
+  g.fillStyle = '#41a6f6';
+  for (let i = 8; i < 240; i += 20) for (let j = y - 52; j < y - 22; j += 14) g.fillRect(i, j, 12, 8);
+  g.fillStyle = '#1a1c2c';
+  g.fillRect(62, y - 20, 116, 14);
+  g.fillStyle = '#ffcd75';
+  g.fillRect(63, y - 19, 114, 12);
+  drawTextCentered(g, 'МЕТАЛЛ-ТОРГ', 120, y - 16, '#b13e53');
+  g.fillStyle = '#333c57';
+  g.fillRect(0, y, 240, 70);                         // парковка
+  g.fillStyle = '#f4f4f4';
+  for (let i = 20; i < 240; i += 28) g.fillRect(i, y + 4, 2, 26);   // разметка мест
+}
+
+// Филиппов двор: стена дома с окном Леры, минивэн на домкрате (фон сценки перед этапом)
+BACKGROUNDS.jackYard = function (g) {
+  g.fillStyle = '#41a6f6';
+  g.fillRect(0, 0, 240, 86);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(170, 12, 24, 4);
+  g.fillRect(176, 9, 12, 3);
+  g.fillStyle = '#94b0c2';                           // стена дома слева
+  g.fillRect(0, 10, 70, 76);
+  g.fillStyle = '#566c86';
+  for (let j = 14; j < 86; j += 6) g.fillRect(0, j, 70, 1);
+  g.fillStyle = '#f4f4f4';                           // окно Леры
+  g.fillRect(16, 22, 26, 24);
+  g.fillStyle = '#29366f';
+  g.fillRect(18, 24, 22, 20);
+  g.fillStyle = '#f4f4f4';
+  g.fillRect(28, 24, 2, 20);
+  g.fillStyle = '#38b764';                           // трава
+  g.fillRect(0, 86, 240, 50);
+  g.fillStyle = '#257179';
+  for (let i = 3; i < 240; i += 9) g.fillRect(i, 90 + (i % 4) * 9, 2, 2);
+  drawFurniture(g, FURNITURE.minivan, 140, 54);      // минивэн на домкрате (низ на y = 86)
+};
+
+// Картинка «ВЖУХ!»: колесо на месте, домкрат убран, «КОЛЕСО ЗА 30 СЕКУНД. РЕКОРД!»
+PICTURES.wheelFix = function (g, p, t) {
+  BACKGROUNDS.jackYard(g);
+  if (p > 0.3) {
+    g.fillStyle = '#38b764';                          // стираем минивэн на домкрате...
+    g.fillRect(138, 54, 84, 34);
+    g.fillStyle = '#41a6f6';
+    g.fillRect(138, 54, 84, 32);
+    g.drawImage(MINIVAN_FIXED, 140, 56);              // ...и рисуем с колесом
+  }
+  if (p > 0.15 && p < 0.55) {                         // «ВЖУХ!» и полосы скорости
+    g.fillStyle = '#f4f4f4';
+    for (let i = 0; i < 6; i++) g.fillRect(110 + ((t * 7 + i * 23) % 110), 62 + i * 4, 14, 1);
+    drawTextCentered(g, 'ВЖУХ!', 180, 34, '#ffcd75', 2);
+  }
+  if (p > 0.55) {
+    g.fillStyle = '#1a1c2c';
+    g.fillRect(14, 104, 212, 20);
+    drawTextCentered(g, 'КОЛЕСО ЗА 30 СЕКУНД.', 120, 106, '#f4f4f4');
+    drawTextCentered(g, 'РЕКОРД!', 120, 115, '#ffcd75');
+  }
+};

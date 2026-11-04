@@ -163,10 +163,11 @@ const SCENES = {
   },
 
   // ПОБЕДА НАД МАМОЙ: плов с собой (сколько — в CONFIG.level2.momPlovGift в game.js),
-  // звонок начальника и конец уровня 2. Фон — арена мамы.
+  // звонок начальника и конец уровня 2. Фон — арена мамы. Потом — сценка у минивэна (driveIntro).
   level2Win: {
     background: 'mom',
-    next: 'title',              // потом — титульный экран
+    next: 'cutscene',           // потом — сценка...
+    nextArg: 'driveIntro',      // ...у минивэна на домкрате
     steps: [
       { type: 'say', who: 'mama',   text: 'Ладно, сантехника подождёт. Иди уже.' },
       { type: 'say', who: 'mama',   text: 'На вот, плов с собой. Друзей угостишь.' },
@@ -178,7 +179,52 @@ const SCENES = {
       { type: 'say', who: 'nachalnik', text: 'Двадцать минут! Ты лучший!' },
       { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%...' },
       { type: 'title', text: 'КОНЕЦ УРОВНЯ 2\nНА ЧАСАХ {ВРЕМЯ}' },
-      { type: 'title', text: 'ПРОДОЛЖЕНИЕ\nСЛЕДУЕТ...' },
+      { type: 'title', text: 'СУББОТА. 15:30' },
+    ],
+  },
+
+  // ЗА РУЛЁМ: Филиппов двор, минивэн на домкрате. Потом — этап «За рулём» (часы — в CONFIG.drive)
+  driveIntro: {
+    background: 'jackYard',     // фон: двор, минивэн на домкрате, окно Леры
+    next: 'drive',
+    nextArg: 'new',
+    actors: {
+      filipp: { x: 100, visible: true, facing: 'right' },
+    },
+    steps: [
+      { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: 'Машина на домкрате... Колесо!' },
+      { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: 'Главное — чтобы Лера не услышала.' },
+      { type: 'picture', picture: 'wheelFix', seconds: 3 },
+      { type: 'say', who: 'lera',   name: 'ЛЕРА (ИЗ ОКНА)', text: 'Филипп?! Это ты там?!' },
+      { type: 'say', who: 'filipp', text: 'По газам!' },
+    ],
+  },
+
+  // За рулём: начальник звонит, если едешь слишком долго (фон — замершая дорога)
+  driveCall: {
+    steps: [
+      { type: 'phone' },
+      { type: 'say', who: 'nachalnik', text: 'Филипп, ты где? Клиент уходит!' },
+    ],
+  },
+
+  // За рулём: опоздал — поражение, «ЕЩЁ РАЗ» — с начала этапа
+  driveLose: {
+    background: 'drive',
+    next: 'drive',
+    nextArg: 'retry',
+    steps: [
+      { type: 'caption', text: 'КЛИЕНТ УШЁЛ. НАЧАЛЬНИК ОСТАВИЛ ПОСЛЕ РАБОТЫ.', button: 'ЕЩЁ РАЗ' },
+    ],
+  },
+
+  // За рулём: доехал. Минивэн на парковке у офиса «МЕТАЛЛ-ТОРГ». Дальше — заглушка
+  driveWin: {
+    background: 'drive',
+    next: 'title',
+    steps: [
+      { type: 'say', who: 'filipp', text: 'ДВАДЦАТЬ МИНУТ. ТОЛЬКО ДВАДЦАТЬ МИНУТ.' },
+      { type: 'title', text: 'ДАЛЬШЕ — ОФИС\n(СКОРО)' },
     ],
   },
 };
@@ -276,4 +322,5 @@ const CALL_ANSWERS_2 = [
 const HINTS = {
   weapons: 'E — КЛЮЧ, F — ПЛОВ',                  // уровень 2, в самом начале
   gossip: 'ЖМИ ПРЫЖОК, ЧТОБЫ КИВАТЬ',             // первая лавка с бабушками
+  drive: '← → РУЛЬ, Z — ТОРМОЗ, E — ГУДОК',        // этап «За рулём», в начале
 };
