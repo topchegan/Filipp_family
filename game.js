@@ -231,7 +231,17 @@ const CONFIG = {
     tityaDashSpeed: 3.2,     // скорость рывка
     tityaDashDistance: 220,  // как далеко бежит рывком (если раньше не врезался)
     tityaFastMul: 1.25,      // фаза 3: всё быстрее во столько раз
-    tityaDownSeconds: 3,     // упал (столб или плов): лежит со звёздочками — запрыгни сверху!
+    tityaDownSeconds: [3, 2.5, 2], // упал (столб или плов): лежит со звёздочками в фазах 1, 2, 3 — запрыгни сверху!
+    tityaOvershoot: [48, 36, 28],  // перепрыгнул рывок — Титя пробегает дальше столько пикселей и тормозит
+                             // (в столб врезается, только если Филипп стоял у самого столба)
+    tityaHopChance: [0, 0.6, 0.9], // фазы 2–3: Филипп прыгнул над рывком слишком рано — Титя подпрыгивает следом «ОП!»
+    tityaEarlyJump: 36,      // «слишком рано» — это когда до Тити было больше стольких пикселей
+    tityaHopSpeed: 3.2,      // сила этого подскока
+    tityaLeapChance: [0, 0.25, 0.35], // фазы 2–3: доля приёмов «ОП-ПА!» — прыжок-атака по дуге туда, где Филипп
+    tityaLeapHeight: 30,     // высота прыжка-атаки
+    tityaLeapCrouchSeconds: 0.9, // присед перед «ОП-ПА!» (дольше обычного — успей отбежать)
+    tityaLeapSpeed: 2.2,     // быстрее этого вбок в прыжке-атаке не летит
+    tityaLandSeconds: 0.5,   // приземлился после «ОП-ПА!» — столько стоит (ключ попадает)
     tityaKeyDownSeconds: 2,  // упал от ключа
     tityaRiseSeconds: 0.8,   // встаёт (в это время ключ попадает)
     tityaPuffSeconds: 1,     // выдыхает дым (в это время ключ попадает)
@@ -240,9 +250,10 @@ const CONFIG = {
     syringePush: 2,          // ...и отталкивает
     cloudSeconds: 6,         // облако дыма плывёт и тает за столько секунд
     cloudSpeed: 0.3,         // как быстро плывёт облако
+    cloudRise: 0.06,         // как быстро облако тянется вверх-вниз к Филиппу (на крыше остановки не спрячешься)
     cloudSizes: [16, 18, 24],// радиус облака в фазах 1, 2, 3
     cloudCounts: [1, 2, 2],  // сколько облаков за один выдох в фазах 1, 2, 3
-    cloudDrain: 0.3,         // пока Филипп в облаке, ясность падает на столько в секунду
+    cloudDrain: 0.2,         // пока Филипп в облаке, ясность падает на столько в секунду
     glitchSeconds: 3,        // «ГЛЮКИ» после облака: ← и → поменяны местами
     tapSeconds: 1,           // колонка: постоять рядом столько секунд — «УМЫЛСЯ!»...
     tapClarity: 0.4,         // ...ясность плюс столько
@@ -4838,7 +4849,8 @@ const tityaState = {
     cameraX = 0;
     const s = level.titya;
     this.ground = s.y;
-    this.t = { x: s.x, y: s.y - 22, w: 8, h: 22, dir: -1, state: 'walk', timer: 0, action: 120, second: false };
+    this.t = { x: s.x, y: s.y - 22, w: 8, h: 22, dir: -1, state: 'walk', timer: 0, action: 120, second: false,
+               vx: 0, vy: 0, onGround: true, leap: false, hopped: false, passed: null };
     this.knocks = 0;
     this.clarity = 1;
     this.clouds = [];
@@ -4938,19 +4950,65 @@ const tityaState = {
     if (text === 'БОМ!') knockSound(); else clangSound();
   },
 
-  // Титя: ходит, выбирает приём, рывок, дым, шприцы; падает и встаёт
+  // Опора под ногами Тити: земля, лавка, крыша остановки (столбы — нет). Возвращает y верха или null
+  surfaceAt(t, fromY, toY) {
+    let best = null;
+    const check = (sx, sw, sy) => {
+      if (t.x + t.w <= sx || t.x >= sx + sw) return;
+      if (sy >= fromY - 0.01 && sy <= toY + 0.01 && (best === null || sy < best)) best = sy;
+    };
+    for (const s of level.solids) if (!level.poles.some((p) => p.x === s.x && p.y === s.y)) check(s.x, s.w, s.y);
+    for (const tp of level.tops) check(tp.x, tp.w, tp.y);
+    return best;
+  },
+
+  // Тяжесть: Титя падает, пока не встанет на опору. Ушёл с края крыши — падает вниз
+  physics() {
+    const t = this.t;
+    const feet = t.y + t.h;
+    if (t.onGround && this.surfaceAt(t, feet, feet) === null) t.onGround = false;
+    if (t.onGround) { t.vy = 0; return; }
+    t.vy = Math.min(CONFIG.maxFall, t.vy + CONFIG.gravity);
+    const nf = feet + t.vy;
+    const land = t.vy > 0 ? this.surfaceAt(t, feet, nf) : null;
+    if (land !== null) { t.y = land - t.h; t.vy = 0; t.onGround = true; }
+    else t.y += t.vy;
+  },
+
+  // Прыжок Тити: вверх на высоту up (пикселей) и вбок к точке tx за время полёта
+  jumpTo(tx, up) {
+    const t = this.t;
+    const g = CONFIG.gravity;
+    t.vy = -Math.sqrt(2 * g * Math.max(8, up + 6));
+    const fly = Math.abs(t.vy) / g * 2;                       // примерно столько шагов в воздухе
+    const vmax = levelCfg('tityaLeapSpeed');
+    t.vx = Math.max(-vmax, Math.min(vmax, (tx - (t.x + t.w / 2)) / fly));
+    t.onGround = false;
+    t.dir = t.vx < 0 ? -1 : 1;
+  },
+
+  // Филипп выше Тити (на лавке или крыше остановки)?
+  playerHigh() {
+    const t = this.t;
+    return player.onGround && player.y + player.h < t.y + t.h - 6;
+  },
+
+  // Титя: ходит, выбирает приём, рывок, прыжки, дым, шприцы; падает и встаёт
   updateTitya() {
     const t = this.t;
     const pcx = player.x + player.w / 2;
     const tcx = t.x + t.w / 2;
+    const ph = this.phase();
     t.timer++;
+    if (t.state !== 'leap' && t.state !== 'hop') this.physics();
     if (t.state === 'fall') {
-      if (t.timer >= 12) { t.state = 'down'; t.timer = 0; }
+      if (t.timer >= 12 && t.onGround) { t.state = 'down'; t.timer = 0; }
       return;
     }
     if (t.state === 'down') {
       // Запрыгнул сверху — нокдаун
-      const lying = { x: tcx - 12, y: this.ground - 10, w: 24, h: 10 };
+      const fy = t.y + t.h;
+      const lying = { x: tcx - 12, y: fy - 10, w: 24, h: 10 };
       const feet = player.y + player.h;
       if (player.vy > 0.3 && feet >= lying.y - 2 && feet <= lying.y + 7 && player.x + player.w > lying.x && player.x < lying.x + lying.w) {
         this.knockdown();
@@ -4959,13 +5017,42 @@ const tityaState = {
       if (t.timer >= t.downT) this.setT('rise');
       return;
     }
-    if (t.state === 'rise') {
-      if (t.timer >= levelCfg('tityaRiseSeconds') * 60) { this.setT('walk'); t.action = 60; }
+    if (t.state === 'rise' || t.state === 'land') {
+      const need = t.state === 'land' ? levelCfg('tityaLandSeconds') : levelCfg('tityaRiseSeconds');
+      if (t.timer >= need * 60) { t.angry = false; this.setT('walk'); t.action = t.state === 'land' ? 40 : 60; }
       return;
     }
     if (t.state === 'crouch') {
-      const need = t.second ? 18 : Math.round(levelCfg('tityaCrouchSeconds') * 60);
-      if (t.timer >= need) { this.setT('dash'); t.dashLeft = levelCfg('tityaDashDistance'); }
+      const need = t.second ? 18 : Math.round(levelCfg(t.leap ? 'tityaLeapCrouchSeconds' : 'tityaCrouchSeconds') * 60);
+      if (t.timer < need) return;
+      if (t.leap) {
+        // Прыжок-атака «ОП-ПА!»: по дуге туда, где сейчас Филипп
+        this.setT('leap');
+        this.jumpTo(pcx, levelCfg('tityaLeapHeight'));
+      } else {
+        this.setT('dash');
+        t.dashLeft = levelCfg('tityaDashDistance');
+        t.passed = null;
+        t.jumpGap = player.onGround ? null : -99;     // уже был в воздухе — не считается «рано»
+      }
+      return;
+    }
+    if (t.state === 'leap' || t.state === 'hop') {
+      // В прыжке: летит по дуге. Задел Филиппа — минус кружка. Столб — «БОМ!»
+      t.x = Math.max(2, Math.min(W - 2 - t.w, t.x + t.vx));
+      this.physics();
+      if (level.poles.some((p) => overlaps(t, p))) {
+        t.x -= t.vx;
+        this.fall('БОМ!', this.downSeconds());
+        return;
+      }
+      if (overlaps(player, t) && levelState.invuln === 0) levelState.hurt('БАЦ!', tcx);
+      if (t.onGround && t.timer > 2) {
+        t.vx = 0;
+        if (levelState.onPlov(t)) { this.fall('ШМЯК!', this.downSeconds()); return; }   // приземлился на плов
+        if (t.state === 'leap') this.setT('land');                                       // «ОХ» — ключ попадает
+        else { this.setT('walk'); t.action = 30; }
+      }
       return;
     }
     if (t.state === 'dash') {
@@ -4975,18 +5062,36 @@ const tityaState = {
       const box = this.dashBox();
       if (level.poles.some((p) => overlaps(box, p))) {             // врезался в столб
         t.x -= t.dir * sp;
-        this.fall('БОМ!', levelCfg('tityaDownSeconds'));
+        this.fall('БОМ!', this.downSeconds());
         return;
       }
-      if (levelState.onPlov(t)) { this.fall('ШМЯК!', levelCfg('tityaDownSeconds')); return; }   // поскользнулся на плове
-      let stop = t.x < 2 || t.x + t.w > W - 2 || t.dashLeft <= 0;
-      if (overlaps(player, box) && levelState.invuln === 0) {     // не увернулся — минус кружка
+      if (levelState.onPlov(t)) { this.fall('ШМЯК!', this.downSeconds()); return; }   // поскользнулся на плове
+      // Филипп перепрыгнул — Титя пробегает ещё немного и тормозит (у столба — не успевает)
+      if (t.passed === null && (t.dir > 0 ? tcx > pcx : tcx < pcx)) t.passed = t.x;
+      let stop = t.x < 2 || t.x + t.w > W - 2 || t.dashLeft <= 0 ||
+                 (t.passed !== null && Math.abs(t.x - t.passed) > levelCfg('tityaOvershoot')[ph - 1]);
+      // Фазы 2–3: Филипп прыгнул СЛИШКОМ РАНО (Титя был ещё далеко) — Титя видит и подпрыгивает следом «ОП!».
+      // Прыгнул в последний момент — Титя не успевает
+      const gap = t.dir > 0 ? player.x - (t.x + t.w) : t.x - (player.x + player.w);
+      if (player.onGround) t.jumpGap = null;
+      else if (t.jumpGap === null || t.jumpGap === undefined) t.jumpGap = gap;     // где был Титя, когда Филипп прыгнул
+      if (ph >= 2 && !t.hopped && !player.onGround && t.jumpGap > levelCfg('tityaEarlyJump') &&
+          Math.abs(pcx - tcx) < 22 && Math.random() < levelCfg('tityaHopChance')[ph - 1]) {
+        t.hopped = true;
+        t.vy = -levelCfg('tityaHopSpeed');
+        t.onGround = false;
+        levelState.popup('ОП!', tcx, t.y - 4);
+      }
+      if (!t.onGround) this.physics();
+      const hitBox = t.onGround ? box : t;
+      if (overlaps(player, hitBox) && levelState.invuln === 0) {     // не увернулся — минус кружка
         levelState.hurt('БАЦ!', tcx);
         stop = true;
       }
       if (stop) {
         t.x = Math.max(2, Math.min(W - 2 - t.w, t.x));
-        if (this.phase() === 3 && !t.second) { t.second = true; t.dir = -t.dir; this.setT('crouch'); }   // двойной рывок
+        t.hopped = false;
+        if (ph === 3 && !t.second) { t.second = true; t.dir = -t.dir; this.setT('crouch'); t.leap = false; }   // двойной рывок
         else { t.second = false; this.setT('walk'); t.action = 50; }
       }
       return;
@@ -5000,23 +5105,47 @@ const tityaState = {
       if (t.timer >= 24) this.setT('walk');
       return;
     }
-    // Ходит: держится на расстоянии от Филиппа, потом что-нибудь делает
+    // Ходит. Филипп забрался повыше (лавка, крыша) — Титя лезет следом «ОП!».
+    // На крыше догнал — толкает (минус кружка). Иначе держится на расстоянии и что-то делает
     t.dir = pcx < tcx ? -1 : 1;
     const dist = Math.abs(pcx - tcx);
+    const high = this.playerHigh();
+    const tHigh = t.y + t.h < this.ground - 4;               // сам стоит на лавке или крыше
     let move = 0;
-    if (dist > 110) move = t.dir;
+    if (high || tHigh) {
+      move = dist > 4 ? t.dir : 0;                           // идёт к Филиппу (с крыши — спрыгивает)
+      if (high && t.onGround && dist < 34 && t.timer > 20) {
+        this.setT('hop', 'ОП!');
+        this.jumpTo(pcx, t.y + t.h - (player.y + player.h));
+        return;
+      }
+      if (tHigh && overlaps(player, t) && levelState.invuln === 0) {
+        levelState.hurt('НА!', tcx);                          // толкнул на крыше
+        this.setT('walk');
+        t.action = 40;
+        return;
+      }
+    } else if (dist > 110) move = t.dir;
     else if (dist < 60) move = -t.dir;
-    t.x = Math.max(12, Math.min(W - 12 - t.w, t.x + move * this.C('tityaWalkSpeed')));
+    if (t.onGround) t.x = Math.max(12, Math.min(W - 12 - t.w, t.x + move * this.C('tityaWalkSpeed') * (high ? 1.6 : 1)));
     t.walking = move !== 0;
-    const every = levelCfg('tityaActionSeconds') * 60 * (this.phase() === 3 ? 0.8 : 1);
+    if (high || tHigh || !t.onGround) return;                // наверху — не до приёмов
+    const every = levelCfg('tityaActionSeconds') * 60 * (ph === 3 ? 0.8 : 1);
     if (--t.action > 0) return;
     t.action = Math.round(every * (0.8 + Math.random() * 0.4));
     const r = Math.random();
-    const maxClouds = levelCfg('cloudCounts')[this.phase() - 1] * 2;
-    if (r < 0.45) this.setT('crouch', 'ПОГНАЛИ!');
-    else if (r < 0.7 && this.clouds.length < maxClouds) this.setT('puff', 'ПФФ');
+    const maxClouds = levelCfg('cloudCounts')[ph - 1] * 2;
+    t.leap = false;
+    if (ph >= 2 && dist > 60 && r < levelCfg('tityaLeapChance')[ph - 1]) { t.leap = true; this.setT('crouch', 'ОП-ПА!'); }
+    else if (r < 0.5) this.setT('crouch', 'ПОГНАЛИ!');
+    else if (r < 0.72 && this.clouds.length < maxClouds) this.setT('puff', 'ПФФ');
     else if (dist > 40) { this.setT('throw'); this.throwSyringes(); }
     else this.setT('crouch', 'ПОГНАЛИ!');
+  },
+
+  // Сколько лежит после падения (в фазах 2 и 3 — меньше)
+  downSeconds() {
+    return levelCfg('tityaDownSeconds')[this.phase() - 1];
   },
 
   // Нокдаун: шкала Тити гаснет на деление, следующая фаза. Третий — нокаут
@@ -5026,7 +5155,7 @@ const tityaState = {
     player.vy = -3.5;                                 // отскочил от Тити
     player.onGround = false;
     clangSound();
-    levelState.popup('БАЦ!', t.x + 4, this.ground - 16);
+    levelState.popup('БАЦ!', t.x + 4, t.y + t.h - 16);
     if (this.knocks >= 3) {
       this.ko = 1;
       t.state = 'ko';
@@ -5038,6 +5167,7 @@ const tityaState = {
     }
     this.setT('rise');
     t.timer = -40;                                   // полежал ещё немного — и встаёт
+    t.angry = true;                                  // встаёт злой: ключ в это время его не берёт
     levelState.popup(this.knocks === 1 ? 'ТИТЯ ЗЛИТСЯ!' : 'ТИТЯ В ЯРОСТИ!', 120, HUD_H + 34);
     this.placeCoffee();
   },
@@ -5072,6 +5202,7 @@ const tityaState = {
       c.t++;
       c.x += c.vx;
       if (c.x < 10 || c.x > W - 10) c.vx = -c.vx;
+      c.y += Math.sign(pcy - c.y) * Math.min(levelCfg('cloudRise'), Math.abs(pcy - c.y));   // дым тянется к Филиппу и вверх
       const r = c.r * Math.min(1, 0.3 + c.t / 40);
       const dens = this.density(c);
       const dx = (pcx - c.x) / r, dy = (pcy - c.y) / (r * 0.7);
@@ -5142,9 +5273,9 @@ const tityaState = {
   hitByShot(sh, box) {
     const t = this.t;
     if (sh.kind !== 'wrench' || sh.bounced || t.state === 'ko') return false;
-    const body = t.state === 'down' || t.state === 'fall' ? { x: t.x - 8, y: this.ground - 10, w: 24, h: 10 } : t;
+    const body = t.state === 'down' || t.state === 'fall' ? { x: t.x - 8, y: t.y + t.h - 10, w: 24, h: 10 } : t;
     if (!overlaps(box, body)) return false;
-    if (t.state === 'puff' || t.state === 'rise') {
+    if (t.state === 'puff' || (t.state === 'rise' && !t.angry) || t.state === 'land') {
       clangSound();
       levelState.popup('БДЗЫНЬ!', t.x + 4, t.y - 4);
       this.fall('', levelCfg('tityaKeyDownSeconds'));
@@ -5170,10 +5301,12 @@ const tityaState = {
     const tcx = Math.round(t.x + t.w / 2);
     if (t.state === 'down' || t.state === 'ko' || (t.state === 'rise' && t.timer < 0)) {
       const fr = SPRITES.tityaDown.anims[t.state === 'ko' ? 'ko' : 'lie'].frames[0];
-      drawSprite(ctx, fr, tcx - 12, this.ground - 10, t.dir > 0);
-      if (t.state !== 'ko' || Math.floor(this.ko / 10) % 2) drawStars(ctx, tcx + (t.dir > 0 ? -8 : 8), this.ground - 14, levelState.tick);
+      const fy = Math.round(t.y + t.h);
+      drawSprite(ctx, fr, tcx - 12, fy - 10, t.dir > 0);
+      if (t.state !== 'ko' || Math.floor(this.ko / 10) % 2) drawStars(ctx, tcx + (t.dir > 0 ? -8 : 8), fy - 14, levelState.tick);
     } else {
-      const name = { walk: t.walking ? 'run' : 'stand', crouch: 'crouch', dash: 'dash', puff: 'puff', throw: 'throw', fall: 'fall', rise: 'crouch' }[t.state];
+      const name = { walk: t.walking ? 'run' : 'stand', crouch: 'crouch', dash: t.onGround ? 'dash' : 'fall', puff: 'puff', throw: 'throw',
+                     fall: 'fall', rise: 'crouch', land: 'crouch', leap: 'dash', hop: 'run' }[t.state];
       const a = SPRITES.titya.anims[name];
       const fr = a.frames[Math.floor(levelState.tick / a.speed) % a.frames.length];
       drawSprite(ctx, fr, Math.round(t.x) - 2, Math.round(t.y) - 2, t.dir < 0);
