@@ -5975,3 +5975,103 @@ BACKGROUNDS.homeNight = function (g) {
   g.fillRect(0, 86, 240, 50);
   g.drawImage(MINIVAN_FIXED, 130, 58);               // минивэн дома
 };
+
+// =============================================
+// ЭТАП «ПЕРЕХОД ДОРОГИ» (вид сверху)
+// =============================================
+// Филипп сверху 10x13: голова вверх, идёт вверх (через дорогу)
+const FTOP_STAND = [
+  '...0000...',
+  '..044440..',
+  '..04c440..',
+  '..0ffff0..',
+  '.00ffff00.',
+  '04cccccc40',
+  '04cccccc40',
+  '.0cccccd0.',
+  '.09999990.',
+  '.09900990.',
+  '.04400440.',
+  '.02200220.',
+  '..00..00..',
+];
+const FTOP_WALK1 = [
+  '.0.0000...',
+  '04044440..',
+  '0404c440..',
+  '.00ffff0..',
+  '.00ffff0..',
+  '04cccccc00',
+  '.0ccccccd4',
+  '.0ccccccd4',
+  '.099999900',
+  '.09900990.',
+  '.02200440.',
+  '..00.0220.',
+  '......00..',
+];
+const FTOP_WALK2 = [
+  '...0000.0.',
+  '..04444040',
+  '..04c44040',
+  '..0ffff00.',
+  '..0ffff00.',
+  '00cccccc40',
+  '4dcccccc0.',
+  '4dcccccc0.',
+  '009999990.',
+  '.09900990.',
+  '.04400220.',
+  '.0220.00..',
+  '..00......',
+];
+SPRITES.filippTop = buildCharacter('Филипп сверху (переход дороги)', 10, 13, {
+  stand: { name: 'Стоит', speed: 60, frames: [FTOP_STAND] },
+  walk:  { name: 'Идёт', speed: 6, frames: [FTOP_WALK1, FTOP_STAND, FTOP_WALK2, FTOP_STAND] },
+});
+
+// Машина боком (едет вправо dir = 1 или влево dir = -1). x, y — левый верхний угол.
+// Длина машины по x — это CAR_TOP[kind].h, ширина по y — CAR_TOP[kind].w.
+// Рисуем ту же машину сверху, только повёрнутую на четверть круга.
+function drawCarSide(g, kind, x, y, dir, body, shade) {
+  const s = CAR_TOP[kind];
+  g.save();
+  g.translate(x + s.h / 2, y + s.w / 2);
+  g.rotate(dir * Math.PI / 2);
+  drawCarTop(g, kind, -s.w / 2, -s.h / 2, body, shade);
+  g.restore();
+}
+
+// Свет фар перед машиной: жёлтый «конус» сеточкой. x — нос машины, cy — середина машины по высоте
+function drawHeadlights(g, x, cy, dir, len) {
+  g.fillStyle = '#ffcd75';
+  for (let i = 1; i <= len; i++) {
+    const half = 3 + Math.floor(i / 3);
+    for (let j = -half; j <= half; j++) {
+      if ((i + j) % 2 === 0 && (i < len / 2 || (i + j) % 4 === 0)) g.fillRect(x + dir * i, cy + j, 1, 1);
+    }
+  }
+}
+
+// Калитка дачи Сани сверху: забор, открытая калитка, свет фонаря, дымок мангала
+function drawSanyaGateTop(g, x, y, t) {
+  g.fillStyle = '#5d275d';                           // забор по обе стороны калитки
+  g.fillRect(x - 40, y, 36, 4);
+  g.fillRect(x + 24, y, 36, 4);
+  g.fillStyle = '#b13e53';
+  for (let i = -40; i < 60; i += 6) if (i < -4 || i >= 24) g.fillRect(x + i, y, 2, 4);
+  g.fillStyle = '#257179';                           // открытая калитка
+  g.fillRect(x - 4, y - 14, 3, 18);
+  g.fillStyle = '#ffcd75';                           // свет из калитки
+  for (let j = 0; j < 10; j++) for (let i = 0; i < 20; i++) if ((i + j) % 2 === 0) g.fillRect(x + 2 + i, y - 10 + j, 1, 1);
+  g.fillStyle = '#566c86';                           // мангал
+  g.fillRect(x + 34, y - 12, 12, 5);
+  g.fillStyle = Math.floor(t / 8) % 2 ? '#ef7d57' : '#b13e53';
+  g.fillRect(x + 35, y - 11, 10, 3);
+  g.fillStyle = '#94b0c2';                           // дымок
+  const k = Math.floor(t / 10) % 3;
+  g.fillRect(x + 38 + k, y - 16, 2, 2);
+  g.fillRect(x + 40 - k, y - 20, 2, 2);
+  g.fillRect(x + 39 + k, y - 24, 2, 2);
+  drawText(g, 'САНЯ', x + 1, y + 6, '#ffcd75');
+}

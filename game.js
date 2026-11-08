@@ -305,6 +305,36 @@ const CONFIG = {
     startMinute: 30,
     secondsPerMinute: 3,       // ...одна игровая минута — 3 секунды (1,5 минуты езды — полчаса)
   },
+
+  // ----- Этап «ПЕРЕХОД ДОРОГИ» (конец уровня 4, вид сверху) -----
+  cross: {
+    timeLimitSeconds: 50,      // через столько секунд Лера на минивэне находит Филиппа — поражение
+    hopFrames: 8,              // шаг через полосу длится столько шагов игры
+    walkSpeed: 1.2,            // скорость вбок (← →)
+    holdRepeat: 14,            // держишь «Вперёд» — следующий шаг через столько шагов игры
+    stunSeconds: 0.7,          // сбила машина: столько секунд лежит со звёздочками...
+    safeSeconds: 1,            // ...потом столько секунд машины его не задевают (мигает)
+    // Полосы снизу вверх: скорость (плюс — вправо, минус — влево), просвет между машинами (от и до),
+    // какие машины. Ближние полосы едут вправо, дальние (за разделительной полосой) — влево
+    lanes: [
+      { speed: 1.3,  gapMin: 70,  gapMax: 150, kinds: ['truck', 'bus', 'sedan'] },
+      { speed: 2.0,  gapMin: 70,  gapMax: 150, kinds: ['sedan', 'zhiguli', 'truck'] },
+      { speed: 2.6,  gapMin: 80,  gapMax: 170, kinds: ['sedan', 'zhiguli'] },
+      { speed: 3.2,  gapMin: 100, gapMax: 200, kinds: ['sedan', 'zhiguli'] },
+      { speed: -3.0, gapMin: 100, gapMax: 200, kinds: ['sedan', 'zhiguli'] },
+      { speed: -2.5, gapMin: 80,  gapMax: 170, kinds: ['zhiguli', 'sedan'] },
+      { speed: -1.9, gapMin: 70,  gapMax: 150, kinds: ['sedan', 'truck', 'zhiguli'] },
+      { speed: -1.2, gapMin: 70,  gapMax: 150, kinds: ['bus', 'truck', 'sedan'] },
+    ],
+    honkSeconds: 0.5,          // машина доедет до Филиппа быстрее, чем за столько секунд, — сигналит «БИ-И-П!»
+    leraEverySeconds: 11,      // как часто мимо проезжает Лера на минивэне (ищет Филиппа)
+    leraVanSpeed: 1.1,         // минивэн едет медленно — высматривает
+    leraNoticeDistance: 34,    // заметила, если Филипп на дороге рядом с минивэном (по x ближе этого)...
+    leraNoticePenalty: 6,      // ...тогда время Леры — на столько секунд ближе
+    startHour: 21,             // часы этапа: начало в 21:00...
+    startMinute: 0,
+    secondsPerMinute: 3,       // ...одна игровая минута — 3 секунды
+  },
 };
 
 
@@ -547,6 +577,8 @@ let throwHit = false;
 let plovHit = false;
 // Пауза (кнопка ⏸, P, Esc), выбор в меню (стрелки вверх-вниз), подтверждение (Прыжок, Z, пробел, Enter)
 let pauseHit = false;
+// Шаг назад на переходе дороги: стрелка вниз (на экране — кнопка «Назад»)
+let backHit = false;
 let menuMove = 0;
 let confirmHit = false;
 
@@ -569,7 +601,7 @@ window.addEventListener('keydown', (e) => {
   if (!e.repeat) {
     if (e.code === 'KeyP' || e.code === 'Escape') pauseHit = true;
     if (e.code === 'ArrowUp') menuMove -= 1;
-    if (e.code === 'ArrowDown') menuMove += 1;
+    if (e.code === 'ArrowDown') { menuMove += 1; backHit = true; }
     if (e.code === 'Enter' || e.code === 'KeyZ' || e.code === 'Space') confirmHit = true;
   }
   const action = keyMap[e.code];
@@ -599,7 +631,8 @@ function toGameCoords(clientX, clientY) {
 // сейчас лежат на каких кнопках. Так работает мультитач
 // и можно вести палец с ← на →.
 const buttons = document.querySelectorAll('.btn');
-const jumpBtn = document.querySelector('.btn.jump');   // за рулём на ней надпись «Тормоз»
+const jumpBtn = document.querySelector('.btn.jump');   // за рулём на ней надпись «Тормоз», на переходе — «Вперёд»
+const hornBtn = document.querySelector('.btn.horn');   // за рулём — «Гудок», на переходе дороги — «Назад»
 
 function updateTouches(e) {
   e.preventDefault();
@@ -841,7 +874,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (['level', 'boss', 'mom', 'drive', 'chief'].indexOf(this.scene.background) !== -1) return false;
+      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross'].indexOf(this.scene.background) !== -1) return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -924,6 +957,7 @@ function createSceneState(defaultScene) {
         else if (this.scene.background === 'boss') bossState.draw();     // арена босса
         else if (this.scene.background === 'mom') momState.draw();       // арена мамы
         else if (this.scene.background === 'drive') driveState.draw();   // дорога («ЗА РУЛЁМ»)
+        else if (this.scene.background === 'cross') crossState.draw();   // переход дороги
         else if (this.scene.background === 'chief') chiefState.draw();   // арена начальника
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
@@ -939,7 +973,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (['level', 'boss', 'mom', 'drive', 'chief'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
+      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -5183,6 +5217,323 @@ const driveState = {
 };
 
 // =============================================
+// ЭТАП «ПЕРЕХОД ДОРОГИ» (конец уровня 4): вид сверху, Филипп идёт снизу вверх
+// =============================================
+// Мир выше экрана — экран сам едет за Филиппом вверх-вниз.
+// Строки, по которым шагает Филипп (y середины строки в мире), снизу вверх:
+// 0 — наш тротуар, 1–4 — полосы вправо, 5 — разделительная полоса, 6–9 — полосы влево, 10 — тротуар у дачи Сани
+const CROSS_ROWS = [234, 214, 194, 174, 154, 138, 122, 102, 82, 62, 44];
+const CROSS_LANE_ROWS = [1, 2, 3, 4, 6, 7, 8, 9];   // какая строка у каждой полосы из CONFIG.cross.lanes
+const CROSS_SAFE_ROWS = [0, 5, 10];           // тут машины не ездят
+const CROSS_WORLD_H = 260;                    // высота мира в пикселях
+const CROSS_GATE_X = 104;                     // калитка Сани (левый край проёма)
+
+const crossState = {
+  x: 120,           // Филипп: середина по x
+  row: 0,           // на какой строке стоит
+  hop: 0,           // сколько шагов ещё длится шаг через полосу
+  hopFrom: 0, hopTo: 0,
+  safeRow: 0,       // последняя безопасная строка (тротуар или разделительная) — сюда возвращает после удара
+  bestRow: 0,       // куда дальше всего дошёл (для шкалы)
+  stun: 0,          // лежит после удара
+  lyingY: 0,        // где лежит
+  safe: 0,          // после удара немного не задевают
+  holdT: 0,         // держит «Вперёд» — когда следующий шаг
+  steps: 0,         // сколько шагов идёт этап (время Леры)
+  penalty: 0,       // Лера заметила — её время ближе на столько шагов
+  cars: [],         // машины {kind, lane, x, y, len, wid, dir, speed, base, lera}
+  lanes: [],        // полосы {cfg, row, timer}
+  leraTimer: 0,     // когда снова проедет Лера на минивэне
+  honkCool: 0,      // гудки не чаще
+  popups: [],
+  outro: 0,         // финиш: Филипп идёт к калитке Сани
+  startLives: 3,    // кружки в начале этапа (для «ЕЩЁ РАЗ»)
+  tick: 0,
+
+  // mode: 'new' — начать этап, 'retry' — «ЕЩЁ РАЗ» (с начала)
+  enter(mode) {
+    if (mode !== 'retry') this.startLives = Math.max(CONFIG.startLives, levelState.lives || 0);
+    levelState.lives = this.startLives;
+    this.build();
+    showHint('cross', HINTS.cross);
+  },
+
+  // Дорога каждый раз одинаковая. Машины уже едут: заранее «прокручиваем» движение
+  build() {
+    const C = CONFIG.cross;
+    this.rnd = seededRandom(21);
+    this.x = CROSS_GATE_X + 12;
+    this.row = this.safeRow = this.bestRow = 0;
+    this.hop = this.stun = this.safe = this.holdT = 0;
+    this.steps = this.penalty = this.outro = this.honkCool = 0;
+    this.popups = [];
+    this.cars = [];
+    this.lanes = C.lanes.map((cfg, i) => ({ cfg: cfg, row: CROSS_LANE_ROWS[i], timer: 0 }));
+    this.leraTimer = Math.round(C.leraEverySeconds * 60 * 0.6);
+    for (let i = 0; i < 900; i++) this.updateCars();
+  },
+
+  // Новая машина на краю экрана
+  spawn(lane, kind, speed, lera) {
+    const s = CAR_TOP[kind];
+    const dir = Math.sign(speed);
+    const col = SEDAN_COLORS[Math.floor(this.rnd() * SEDAN_COLORS.length)];
+    this.cars.push({ kind: kind, lane: lane, len: s.h, wid: s.w, dir: dir,
+                     x: dir > 0 ? -s.h - 2 : W + 2, y: CROSS_ROWS[lane.row] - s.w / 2,
+                     base: Math.abs(speed), speed: Math.abs(speed), lera: lera,
+                     body: kind === 'sedan' ? col[0] : undefined, shade: kind === 'sedan' ? col[1] : undefined });
+  },
+
+  // На въезде в полосу ещё стоит машина — новую пока не ставим
+  entryBusy(lane) {
+    const dir = Math.sign(lane.cfg.speed);
+    return this.cars.some((c) => c.lane === lane && (dir > 0 ? c.x < 8 : c.x + c.len > W - 8));
+  },
+
+  // Машины: появляются с края через случайный просвет, едут, не въезжают друг в друга
+  updateCars() {
+    for (const ln of this.lanes) {
+      ln.timer -= Math.abs(ln.cfg.speed);
+      if (ln.timer <= 0 && !this.entryBusy(ln)) {
+        const kind = ln.cfg.kinds[Math.floor(this.rnd() * ln.cfg.kinds.length)];
+        this.spawn(ln, kind, ln.cfg.speed, false);
+        ln.timer = CAR_TOP[kind].h + ln.cfg.gapMin + this.rnd() * (ln.cfg.gapMax - ln.cfg.gapMin);
+      }
+    }
+    for (const c of this.cars) {
+      let sp = c.base;
+      for (const o of this.cars) {
+        if (o === c || o.lane !== c.lane) continue;
+        const gap = c.dir > 0 ? o.x - (c.x + c.len) : c.x - (o.x + o.len);
+        if (gap >= 0 && gap < 10) sp = Math.min(sp, o.speed);   // впереди медленная — притормаживает
+      }
+      c.speed = sp;
+      c.x += c.dir * sp;
+    }
+    this.cars = this.cars.filter((c) => (c.dir > 0 ? c.x < W + 4 : c.x + c.len > -4));
+  },
+
+  // Где сейчас Филипп по y (в мире): во время шага — между строками
+  fy() {
+    if (this.outro > 0) return CROSS_ROWS[CROSS_ROWS.length - 1] - Math.min(18, this.outro / 3);   // идёт в калитку
+    if (this.stun > 0) return this.lyingY;
+    if (this.hop === 0) return CROSS_ROWS[this.row];
+    const k = 1 - this.hop / CONFIG.cross.hopFrames;
+    return CROSS_ROWS[this.hopFrom] + (CROSS_ROWS[this.hopTo] - CROSS_ROWS[this.hopFrom]) * k;
+  },
+  fbox() { return { x: this.x - 3, y: this.fy() - 4, w: 6, h: 8 }; },
+  carBox(c) { return { x: c.x + 1, y: c.y + 1, w: c.len - 2, h: c.wid - 2 }; },
+  onRoad() { return this.stun > 0 || this.hop > 0 || CROSS_SAFE_ROWS.indexOf(this.row) === -1; },
+
+  popup(text, x, y) {
+    levelState.popup.call(this, text, x, y);       // та же логика: не наезжают друг на друга
+  },
+
+  update(input) {
+    const C = CONFIG.cross;
+    this.tick++;
+    tickHint();
+    this.popups = this.popups.filter((p) => ++p.t < 50);
+    this.updateCars();
+    if (this.outro > 0) { this.updateOutro(); return; }
+    this.steps++;
+    if (this.honkCool > 0) this.honkCool--;
+
+    // --- Время вышло: Лера нашла Филиппа ---
+    if (this.steps + this.penalty >= C.timeLimitSeconds * 60) {
+      setState('defeat', Object.assign({}, SCENES.crossLose));
+      return;
+    }
+    this.updateLera();
+
+    // --- Лежит после удара, потом встаёт на последнем безопасном месте ---
+    if (this.safe > 0) this.safe--;
+    if (this.stun > 0) {
+      if (--this.stun === 0) {
+        this.row = this.safeRow;
+        this.safe = Math.round(C.safeSeconds * 60);
+      }
+      return;
+    }
+
+    // --- Шаг вперёд («Прыжок», ↑) или назад (↓, «Назад») через полосу ---
+    if (this.hop > 0) {
+      if (--this.hop === 0) {
+        this.row = this.hopTo;
+        if (CROSS_SAFE_ROWS.indexOf(this.row) !== -1) this.safeRow = this.row;
+        this.bestRow = Math.max(this.bestRow, this.row);
+        if (this.row === CROSS_ROWS.length - 1) { this.outro = 1; this.safe = 0; pickupSound(); return; }   // перешёл!
+      }
+    } else {
+      let to = -1;
+      if (input.jumpPressed) { to = this.row + 1; this.holdT = C.holdRepeat; }
+      else if (keys.jump && --this.holdT <= 0) { to = this.row + 1; this.holdT = C.holdRepeat; }
+      if (input.backPressed || input.throwPressed) to = this.row - 1;
+      if (to >= 0 && to < CROSS_ROWS.length) { this.hopFrom = this.row; this.hopTo = to; this.hop = C.hopFrames; }
+    }
+    // --- Вбок ---
+    let dir = 0;
+    if (keys.left) dir -= 1;
+    if (keys.right) dir += 1;
+    this.x = Math.max(6, Math.min(W - 6, this.x + dir * C.walkSpeed));
+    this.moving = dir !== 0 || this.hop > 0;
+
+    // --- Машины сигналят и сбивают ---
+    const fy = this.fy();
+    const box = this.fbox();
+    for (const c of this.cars) {
+      const sameLane = Math.abs(c.y + c.wid / 2 - fy) < 10;
+      const ahead = c.dir > 0 ? box.x - (c.x + c.len) : c.x - (box.x + box.w);
+      if (sameLane && !c.honked && !c.lera && ahead > 0 && ahead < c.speed * C.honkSeconds * 60 && this.honkCool === 0) {
+        c.honked = true;
+        this.honkCool = 40;
+        hornSound();
+        this.popup('БИ-И-П!', c.dir > 0 ? c.x + c.len : c.x, c.y - 2);
+      }
+      if (this.safe === 0 && overlaps(box, this.carBox(c))) { this.hit(c); return; }
+    }
+  },
+
+  // Сбила машина: минус кружка, лежит, потом — на тротуар или разделительную полосу
+  hit(c) {
+    levelState.lives--;
+    hurtSound();
+    this.popup(c.lera ? 'ЛЕРА?!' : 'БАЦ!', this.x, this.fy() - 6);
+    if (levelState.lives <= 0) { setState('defeat', Object.assign({}, SCENES.crossLose)); return; }
+    this.lyingY = this.fy();
+    this.hop = 0;
+    this.stun = Math.round(CONFIG.cross.stunSeconds * 60);
+  },
+
+  // Лера на минивэне медленно проезжает и высматривает Филиппа. Заметила — её время ближе
+  updateLera() {
+    const C = CONFIG.cross;
+    if (--this.leraTimer <= 0) {
+      const lane = this.lanes[Math.floor(this.rnd() * this.lanes.length)];
+      if (this.entryBusy(lane)) { this.leraTimer = 1; return; }   // въезд занят — чуть позже
+      this.spawn(lane, 'van', Math.sign(lane.cfg.speed) * C.leraVanSpeed, true);
+      this.leraTimer = Math.round(C.leraEverySeconds * 60);
+      const dir = Math.sign(lane.cfg.speed);
+      this.popup('ЛЕРА НА МИНИВЭНЕ!', dir > 0 ? 50 : W - 50, CROSS_ROWS[lane.row] - 10);
+    }
+    if (!this.onRoad()) return;
+    const fy = this.fy();
+    for (const c of this.cars) {
+      if (!c.lera || c.noticed) continue;
+      if (Math.abs(c.y + c.wid / 2 - fy) < 30 && Math.abs(c.x + c.len / 2 - this.x) < C.leraNoticeDistance) {
+        c.noticed = true;
+        this.penalty += Math.round(C.leraNoticePenalty * 60);
+        hornSound();
+        this.popup('ФИЛИПП?!', c.x + c.len / 2, c.y - 2);
+      }
+    }
+  },
+
+  // Финиш: Филипп идёт к калитке Сани, потом сценка
+  updateOutro() {
+    this.outro++;
+    const gx = CROSS_GATE_X + 12;
+    this.x += Math.sign(gx - this.x) * Math.min(1, Math.abs(gx - this.x));
+    this.moving = true;
+    if (this.outro > 70) setState('inLevelScene', SCENES.crossWin);
+  },
+
+  // Экран едет за Филиппом
+  camY() {
+    const y = this.fy();
+    return Math.max(0, Math.min(CROSS_WORLD_H - (H - HUD_H), Math.round(y - 70)));
+  },
+
+  draw() {
+    const cam = this.camY();
+    const sy = (wy) => Math.round(wy - cam + HUD_H);
+    const roadTop = [52, 144];                       // две половины дороги по 4 полосы (по 20 пикселей)
+    // Тротуары и разделительная полоса с травой
+    ctx.fillStyle = '#566c86';
+    ctx.fillRect(0, sy(36), W, 16);
+    ctx.fillRect(0, sy(224), W, 20);
+    ctx.fillStyle = '#257179';
+    ctx.fillRect(0, sy(132), W, 12);
+    ctx.fillRect(0, sy(244), W, 16);
+    ctx.fillStyle = '#94b0c2';                       // бордюры
+    for (const by of [51, 132, 143, 224]) ctx.fillRect(0, sy(by), W, 1);
+    // Дачи за забором
+    ctx.fillStyle = '#29366f';
+    ctx.fillRect(0, sy(0), W, 36);
+    for (const [hx, roof] of [[10, '#5d275d'], [56, '#257179'], [168, '#b13e53'], [206, '#5d275d']]) drawHouseTop(ctx, hx, sy(4), 26, 22, roof);
+    ctx.fillStyle = '#5d275d';                       // забор дач
+    ctx.fillRect(0, sy(32), CROSS_GATE_X - 4, 4);
+    ctx.fillRect(CROSS_GATE_X + 24, sy(32), W, 4);
+    drawSanyaGateTop(ctx, CROSS_GATE_X, sy(32), this.tick);
+    // Дорога: асфальт, сплошные по краям, пунктир между полосами, стёртая «зебра»
+    for (const top of roadTop) {
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(0, sy(top), W, 80);
+      ctx.fillStyle = '#566c86';
+      for (let y = top + 3; y < top + 78; y += 7) ctx.fillRect(CROSS_GATE_X + 2, sy(y), 22, 4);   // «зебра»
+      ctx.fillStyle = '#f4f4f4';
+      ctx.fillRect(0, sy(top), W, 1);
+      ctx.fillRect(0, sy(top + 79), W, 1);
+      ctx.fillStyle = '#94b0c2';
+      for (const ly of [top + 20, top + 40, top + 60]) for (let x = 0; x < W; x += 16) ctx.fillRect(x, sy(ly), 8, 1);
+    }
+    // Машины: сначала свет фар у всех, потом сами машины (свет не ложится на соседнюю машину)
+    for (const c of this.cars) drawHeadlights(ctx, Math.round(c.dir > 0 ? c.x + c.len : c.x), sy(c.y) + Math.floor(c.wid / 2), c.dir, 16);
+    for (const c of this.cars) {
+      const y = sy(c.y);
+      if (y > H || y + c.wid < HUD_H) continue;
+      drawCarSide(ctx, c.kind, Math.round(c.x), y, c.dir, c.body, c.shade);
+      if (c.lera) drawTextCenteredShadow('ЛЕРА', Math.round(c.x + c.len / 2), y - 8, '#ef7d57', '#1a1c2c');
+    }
+    // Филипп: лежит после удара (повёрнут, звёздочки), иначе идёт или стоит; после удара мигает
+    const fx = Math.round(this.x), fyy = sy(this.fy());
+    const anim = SPRITES.filippTop.anims[this.moving ? 'walk' : 'stand'];
+    const frame = anim.frames[Math.floor(this.tick / anim.speed) % anim.frames.length];
+    if (this.stun > 0) {
+      ctx.save();
+      ctx.translate(fx, fyy);
+      ctx.rotate(Math.PI / 2);
+      ctx.drawImage(SPRITES.filippTop.anims.stand.frames[0], -5, -6);
+      ctx.restore();
+      drawStars(ctx, fx, fyy - 9, this.tick);
+    } else if (this.safe === 0 || Math.floor(this.tick / 4) % 2 === 0) {
+      ctx.drawImage(frame, fx - 5, fyy - 7);
+    }
+    // Надписи (y — в мире)
+    for (const p of this.popups) {
+      const half = Math.ceil(textWidth(p.text) / 2) + 2;
+      const px = Math.max(half, Math.min(W - half, Math.round(p.x)));
+      drawTextCenteredShadow(p.text, px, Math.max(HUD_H + 2, sy(p.y) - 10 - Math.round(p.t / 3)), '#f4f4f4', '#b13e53');
+    }
+    this.drawHud();
+    if (state === crossState) drawHint();
+  },
+
+  // HUD: кружки, часы; шкала: Филипп (сколько перешёл) и Лера (сколько времени осталось)
+  drawHud() {
+    const C = CONFIG.cross;
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, HUD_H);
+    const slots = Math.max(CONFIG.startLives, levelState.lives);
+    for (let i = 0; i < slots; i++) drawBeer(ctx, 2 + i * 9, 0, i >= levelState.lives);
+    drawText(ctx, 'ПЕРЕХОД ДОРОГИ', 60, 1, '#94b0c2');
+    drawText(ctx, VERSION, W - 31 - 6 - textWidth(VERSION), 1, '#566c86');
+    const total = C.startHour * 60 + C.startMinute + Math.floor(this.steps / (60 * C.secondsPerMinute));
+    drawText(ctx, String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0'), W - 31, 1, '#ffcd75');
+    const late = Math.min(1, (this.steps + this.penalty) / (C.timeLimitSeconds * 60));
+    ctx.fillStyle = late > 0.8 && Math.floor(this.tick / 8) % 2 === 0 ? '#b13e53' : '#566c86';
+    ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
+    const flagX = BAR.x + BAR.w;
+    ctx.fillStyle = '#f4f4f4';                        // флажок — калитка Сани
+    ctx.fillRect(flagX, BAR.y - 4, 1, BAR.h + 7);
+    ctx.fillRect(flagX - 3, BAR.y - 4, 3, 3);
+    const done = this.outro > 0 ? 1 : this.bestRow / (CROSS_ROWS.length - 1);
+    ctx.drawImage(ICONS.filipp.image, BAR.x + Math.round(BAR.w * done) - 4, HUD_H - 8);
+    ctx.drawImage(ICONS.lera.image, BAR.x + Math.round(BAR.w * late) - 4, HUD_H - 8);
+  },
+};
+
+// =============================================
 // МЕНЮ: пункты выбираются пальцем (тап по пункту) или стрелками вверх-вниз и «Прыжком»
 // =============================================
 function createMenu() {
@@ -5231,7 +5582,8 @@ let dimImage = null;      // затемнение «сеточкой» (толь
 
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
 function canPause() {
-  return state === levelState || state === bossState || state === momState || state === driveState || state === chiefState;
+  return state === levelState || state === bossState || state === momState || state === driveState || state === chiefState ||
+         state === crossState;
 }
 
 function autoPause() {
@@ -5242,7 +5594,7 @@ function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
     state === bossState || state === momState || state === chiefState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
-      (state === driveState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
+      (state === driveState || state === crossState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
     'УПРАВЛЕНИЕ',
     'ВЫЙТИ В ГЛАВНОЕ МЕНЮ',
@@ -5262,6 +5614,7 @@ function updatePause(input) {
     if (state === bossState) setState('boss', 'retry');
     else if (state === momState) setState('mom', 'retry');
     else if (state === driveState) setState('drive', 'retry');
+    else if (state === crossState) setState('cross', 'retry');
     else if (state === chiefState) setState('chief', 'retry');
     else setState('level', 'lastCall');
   }
@@ -5339,6 +5692,8 @@ const levelSelectState = {
     });
     this.entries.push({ drive: true });
     this.labels.push('ЗА РУЛЁМ');
+    this.entries.push({ cross: true });
+    this.labels.push('ПЕРЕХОД ДОРОГИ');
     this.entries.push({ back: true });
     this.labels.push('НАЗАД');
     this.menu.index = 0;
@@ -5349,6 +5704,7 @@ const levelSelectState = {
     const e = this.entries[choice];
     if (e.back) { setState('title'); return; }
     if (e.drive) { setState('drive', 'new'); return; }
+    if (e.cross) { loadLevel(3); setState('level'); setState('cross', 'new'); return; }
     loadLevel(e.level);
     setState('level');                              // всё с чистого листа
     if (e.boss) {
@@ -5416,6 +5772,7 @@ const states = {
   boss: bossState,                            // БОСС: Вася и Настя
   mom: momState,                              // БОСС УРОВНЯ 2: мама
   drive: driveState,                          // ЭТАП «ЗА РУЛЁМ»: минивэн едет в офис
+  cross: crossState,                          // ЭТАП «ПЕРЕХОД ДОРОГИ»: конец уровня 4
   chief: chiefState,                          // БОСС УРОВНЯ 3: начальник и годовой отчёт
   levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
@@ -5431,10 +5788,12 @@ function setState(name, arg) {
   // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
   document.body.classList.toggle('boss-fight', name === 'boss');
   document.body.classList.toggle('armed', (name === 'level' || name === 'mom' || name === 'chief') && weaponsOn());
-  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief'].indexOf(name) !== -1);
+  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief', 'cross'].indexOf(name) !== -1);
   // За рулём: «Прыжок» — тормоз, вместо бросков — «Гудок»
   document.body.classList.toggle('driving', name === 'drive');
-  if (jumpBtn) jumpBtn.textContent = name === 'drive' ? 'Тормоз' : 'Прыжок';
+  document.body.classList.toggle('crossing', name === 'cross');
+  if (jumpBtn) jumpBtn.textContent = name === 'drive' ? 'Тормоз' : (name === 'cross' ? 'Вперёд' : 'Прыжок');
+  if (hornBtn) hornBtn.textContent = name === 'cross' ? 'Назад' : 'Гудок';
 }
 
 // =============================================
@@ -5454,10 +5813,13 @@ function update() {
   throwHit = false;
   const plovPressed = plovHit;                     // F или кнопка «Плов»
   plovHit = false;
+  const backPressed = backHit;                     // стрелка вниз (шаг назад на переходе дороги)
+  backHit = false;
   const input = {
     jumpPressed: jumpPressed,
     throwPressed: throwPressed,
     plovPressed: plovPressed,
+    backPressed: backPressed,
     menuMove: menuMove,                             // стрелки вверх-вниз в меню
     confirm: confirmHit,                            // «Прыжок», Z, пробел, Enter — выбрать пункт
     taps: taps,                                     // касания экрана

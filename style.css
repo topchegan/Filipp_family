@@ -90,6 +90,7 @@ html, body {
   display: none;
 }
 body.driving .btn.horn,
+body.crossing .btn.horn,
 body.boss-fight .btn.throw,
 body.armed .btn.wrench,
 body.armed .btn.plov {
