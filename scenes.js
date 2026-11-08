@@ -47,6 +47,7 @@ const SPEAKERS = {
   babushka: { name: 'БАБУШКА', portrait: 'babushka', pitch: 300 },
   mama:   { name: 'МАМА',   portrait: 'mama',   pitch: 360 },
   nachalnik: { name: 'НАЧАЛЬНИК', portrait: 'nachalnik', pitch: 110 },
+  titya:  { name: 'ТИТЯ',   portrait: 'titya',  pitch: 170 },
 };
 
 const SCENES = {
@@ -292,11 +293,43 @@ const SCENES = {
     ],
   },
 
-  // Конец уровня 4: Филипп у дороги, за ней — дача Сани. Дальше — этап «Переход дороги»
-  level4End: {
+  // БОСС УРОВНЯ 4: Титя (перед этим игра сама покажет титр «БОСС: ТИТЯ»). Окно диалога — вверху
+  tityaIntro: {
+    steps: [
+      { type: 'say', who: 'titya',  text: 'О-о, Филипп! Здорово, братан!' },
+      { type: 'say', who: 'filipp', text: 'Титя... Я тороплюсь.' },
+      { type: 'say', who: 'titya',  text: 'Да куда ты? Пошли ко мне, у меня тусовка. Шнырнёмся!' },
+      { type: 'say', who: 'filipp', text: 'Меня шашлык ждёт.' },
+      { type: 'say', who: 'titya',  text: 'Ну тогда по-плохому!' },
+      { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: 'Только этого не хватало.' },
+    ],
+  },
+
+  // Бой с Титей: кончилась «ЯСНОСТЬ». Экран темнеет, потом — свет фар минивэна (tityaLights)
+  tityaDazed: {
+    steps: [
+      { type: 'say', who: 'filipp', text: 'Ти-и-тя... а может, правда... разок...' },
+      { type: 'fade' },
+    ],
+  },
+  tityaLights: {
+    background: 'minivanLights',  // фон: темнота и фары минивэна
+    next: 'titya',
+    nextArg: 'lost',              // дальше — обычная сценка «пристройка» и «ЕЩЁ РАЗ» (с начала арены)
+    steps: [
+      { type: 'wait', seconds: 1 },
+      { type: 'say', who: 'lera', text: 'ВОТ ТЫ ГДЕ. САДИСЬ. ДОМОЙ.' },
+    ],
+  },
+
+  // ПОБЕДА НАД ТИТЕЙ (после стоп-кадра «НОКАУТ!»). Фон — арена. Дальше — этап «Переход дороги»
+  level4Win: {
+    background: 'titya',
     next: 'cross',
     nextArg: 'new',
     steps: [
+      { type: 'say', who: 'titya',  text: 'Ла-а-адно... Потом зайдёшь...' },
+      { type: 'say', who: 'filipp', text: 'Не зайду.' },
       { type: 'say', who: 'filipp', text: 'Дорога. А на той стороне — дача Сани!' },
       { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: '«Зебра» есть. Только машины про неё не знают...' },
     ],

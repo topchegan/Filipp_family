@@ -223,6 +223,31 @@ const CONFIG = {
     teenSlowMul: 0.7,        // пока они рядом, Филипп медленнее (0.7 — на 30%)
     teenFollowSeconds: 6,    // сколько секунд ходят хвостом, потом отстают
     teenCooldown: 8,         // отстали — столько секунд не пристают
+    // ----- Босс уровня 4: Титя -----
+    bossPushBack: 9000,      // на сколько отлетает Лера при входе на арену (около 80–90 секунд на бой)
+    tityaWalkSpeed: 0.7,     // ходит
+    tityaActionSeconds: 2.2, // как часто что-то делает (рывок, дым, шприц)
+    tityaCrouchSeconds: 0.7, // присед перед рывком «ПОГНАЛИ!»
+    tityaDashSpeed: 3.2,     // скорость рывка
+    tityaDashDistance: 220,  // как далеко бежит рывком (если раньше не врезался)
+    tityaFastMul: 1.25,      // фаза 3: всё быстрее во столько раз
+    tityaDownSeconds: 3,     // упал (столб или плов): лежит со звёздочками — запрыгни сверху!
+    tityaKeyDownSeconds: 2,  // упал от ключа
+    tityaRiseSeconds: 0.8,   // встаёт (в это время ключ попадает)
+    tityaPuffSeconds: 1,     // выдыхает дым (в это время ключ попадает)
+    syringeFlightSecondsBoss: 1, // сколько летит шприц Тити (дуга)
+    syringeClarity: 0.2,     // шприц попал: минус столько ясности...
+    syringePush: 2,          // ...и отталкивает
+    cloudSeconds: 6,         // облако дыма плывёт и тает за столько секунд
+    cloudSpeed: 0.3,         // как быстро плывёт облако
+    cloudSizes: [16, 18, 24],// радиус облака в фазах 1, 2, 3
+    cloudCounts: [1, 2, 2],  // сколько облаков за один выдох в фазах 1, 2, 3
+    cloudDrain: 0.3,         // пока Филипп в облаке, ясность падает на столько в секунду
+    glitchSeconds: 3,        // «ГЛЮКИ» после облака: ← и → поменяны местами
+    tapSeconds: 1,           // колонка: постоять рядом столько секунд — «УМЫЛСЯ!»...
+    tapClarity: 0.4,         // ...ясность плюс столько
+    tapCooldown: 8,          // перезарядка колонки, секунд
+    coffeeClarity: 0.3,      // кофе на арене (раз в фазу): ясность плюс столько
   },
 
   // ----- Оружие (есть с уровня 2) -----
@@ -350,6 +375,7 @@ function levelCfg(name) {
 // Какой экран босса у текущего уровня: 'boss' — Вася и Настя, 'mom' — мама
 function bossStateName() {
   if (bossArena && bossArena.chief) return 'chief';
+  if (bossArena && bossArena.titya) return 'titya';
   return bossArena && bossArena.mama ? 'mom' : 'boss';
 }
 
@@ -874,7 +900,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross'].indexOf(this.scene.background) !== -1) return false;
+      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya'].indexOf(this.scene.background) !== -1) return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -959,6 +985,7 @@ function createSceneState(defaultScene) {
         else if (this.scene.background === 'drive') driveState.draw();   // дорога («ЗА РУЛЁМ»)
         else if (this.scene.background === 'cross') crossState.draw();   // переход дороги
         else if (this.scene.background === 'chief') chiefState.draw();   // арена начальника
+        else if (this.scene.background === 'titya') tityaState.draw();   // арена Тити
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
         if (step.type === 'phone') this.drawPhone();
@@ -973,7 +1000,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
+      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -1013,7 +1040,7 @@ function createSceneState(defaultScene) {
     // На аренах боссов окно диалога сверху экрана, чтобы не закрывать персонажей внизу.
     // Возвращает, на сколько пикселей сдвинуть окно вверх (0 — окно на обычном месте, внизу)
     boxShift() {
-      return ['boss', 'mom', 'chief'].indexOf(this.scene.background) !== -1 ? 2 - BOX.y : 0;
+      return ['boss', 'mom', 'chief', 'titya'].indexOf(this.scene.background) !== -1 ? 2 - BOX.y : 0;
     },
 
     drawDialog(step) {
@@ -1178,7 +1205,9 @@ const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'r
                         // босс уровня 3
                         'chief',
                         // уровень 4: наркоман, бродячая собака, пар, алкаш, девчонки-подростки
-                        'junkie', 'strayDog', 'steamVent', 'drunk', 'teenA', 'teenB'];
+                        'junkie', 'strayDog', 'steamVent', 'drunk', 'teenA', 'teenB',
+                        // босс уровня 4
+                        'titya'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
 const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
@@ -1308,6 +1337,8 @@ function buildPart(part, pi, isLast, isArena) {
     copiers: [],       // ксероксы {x, y, w}: плюются пачками листов
     pipeLanes: [],     // откуда катятся трубы {x, y}
     lamps: [],         // уровень 4: фонари {x, y} — центр круга света
+    taps: [],          // арена Тити: колонки {x, y}
+    poles: [],         // арена Тити: столбы (Титя врезается «БОМ!»)
     vents: [],         // пар из теплотрассы {x, y}
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
@@ -1355,6 +1386,7 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'mama') { lp.mama = { x: tileX(c), y: tileY(r + 1) }; continue; }
       if (thing === 'chief') { lp.chief = { x: tileX(c), y: tileY(r + 1) }; continue; }
+      if (thing === 'titya') { lp.titya = { x: tileX(c), y: tileY(r + 1) }; continue; }
       if (thing === 'lego') { lp.lego.push({ x: tileX(c), y: tileY(r) + 5, w: 8, h: 3 }); continue; }
       if (thing === 'rake') { lp.rakes.push({ x: tileX(c), y: tileY(r) + 4, w: 8, h: 4, timer: 0 }); continue; }
       // Крупные вещи: символ — левый нижний угол, предмет растёт вверх и вправо
@@ -1385,7 +1417,9 @@ function buildPart(part, pi, isLast, isArena) {
       if (def.car) lp.cars.push(item);
       if (def.copier) lp.copiers.push({ x: x, y: y, w: def.w * TILE, floor: tileY(r + 1) });
       if (def.printer) lp.printer = { x: x, y: y, w: def.w * TILE };
-      if (def.lamp) lp.lamps.push({ x: x + 9, y: tileY(r + 1) - 18 });
+      if (def.lamp) lp.lamps.push({ x: x + (def.lightDx === undefined ? 9 : def.lightDx), y: tileY(r + 1) - 18 });
+      if (def.tap) lp.taps.push({ x: x + 8, y: tileY(r + 1) });
+      if (def.pole) for (const p of def.parts) lp.poles.push({ x: x + p.x, y: y + p.y, w: p.w, h: p.h });
       if (def.computer) lp.computer = { x: x, y: y, w: def.w * TILE };
       if (def.deliver) lp.office = { x: x, w: def.w * TILE };
       for (const p of furnitureParts(def)) {
@@ -1404,7 +1438,7 @@ function buildPart(part, pi, isLast, isArena) {
   if (starts > 1) errors.push(pn + ': СТАРТОВ P ' + starts + ', А НУЖЕН ОДИН.');
   if (isArena) {
     if (lp.twins.length > 0 && lp.twins.length !== 2) errors.push(pn + ': НУЖНЫ ВАСЯ И НАСТЯ — РОВНО ПО ОДНОЙ.');
-    if (lp.twins.length === 0 && !lp.mama && !lp.chief) errors.push(pn + ': НА АРЕНЕ НЕТ БОССА.');
+    if (lp.twins.length === 0 && !lp.mama && !lp.chief && !lp.titya) errors.push(pn + ': НА АРЕНЕ НЕТ БОССА.');
     if (lp.chief && (!lp.printer || !lp.computer || !lp.office)) errors.push(pn + ': НАЧАЛЬНИКУ НУЖНЫ ПРИНТЕР, СТОЛ С КОМПЬЮТЕРОМ И КАБИНЕТ.');
     if (lp.chief && lp.office) { lp.chief.officeX = lp.office.x; lp.chief.officeW = lp.office.w; }
   } else if (isLast) {
@@ -2440,6 +2474,7 @@ const levelState = {
       const box = { x: sh.x - 4, y: sh.y - 4, w: 8, h: 8 };
       if (state === momState && momState.hitByShot(sh, box)) { sh.done = true; continue; }   // попал в маму
       if (state === chiefState && chiefState.hitByShot(sh, box)) { sh.done = true; continue; } // начальник, самолётик, лист
+      if (state === tityaState && tityaState.hitByShot(sh, box)) { sh.done = true; continue; } // Титя ловит или падает
       if (sh.kind === 'wrench' && !sh.bounced) {
         // Попал во врага — «БДЗЫНЬ!», враг сидит со звёздочками
         for (const e of this.enemies) {
@@ -3463,7 +3498,7 @@ const levelState = {
     }
 
     this.drawHud();
-    if (state === levelState || state === momState || state === chiefState) drawHint();   // в сценках подсказку не показываем
+    if (state === levelState || state === momState || state === chiefState || state === tityaState) drawHint();   // в сценках подсказку не показываем
   },
 
   // Лавка с бабушками: пунктирный полукруг «зоны сплетен», «БУ-БУ-БУ», реплики, когда Филипп застрял
@@ -4735,6 +4770,475 @@ const chiefState = {
 };
 
 // =============================================
+// ЭКРАН: БОСС УРОВНЯ 4 — ТИТЯ
+// =============================================
+// Арена — один экран (boss уровня 4): ночь у дороги, остановка, лавка, колонка, два столба.
+// Шкала «ЯСНОСТЬ» (кураж на время боя замирает): дым, шприцы — минус, колонка и кофе — плюс.
+// Кончилась ясность — поражение. Титя: рывок (присед «ПОГНАЛИ!», потом бежит по прямой),
+// дым «ПФФ», шприцы. Рывок в столб («БОМ!») или по плову («ШМЯК!») — падает на 3 секунды:
+// запрыгни сверху — нокдаун. Ключ он ловит «ЛОВИ!» и бросает обратно, но пока выдыхает дым
+// или встаёт — ключ попадает, и он падает на 2 секунды.
+// ФАЗЫ (после каждого нокдауна): 1 — рывки, одиночные шприцы, одно облако; 2 — шприцы веером
+// по 3, два облака, «ТИТЯ ЗЛИТСЯ!»; 3 — двойной рывок, облака больше, Титя быстрее.
+// 3 нокдауна — нокаут. Лера идёт и во время боя. Все числа — в CONFIG.level4.
+
+const tityaState = {
+  t: null,          // Титя {x, y, w, h, dir, state, timer, ...}
+  knocks: 0,        // сколько нокдаунов (0–3)
+  clarity: 1,       // шкала «ЯСНОСТЬ»: 1 — полная, 0 — поражение
+  clouds: [],       // облака дыма {x, y, vx, t, life, r}
+  flying: [],       // шприцы и ключи, которые Титя бросает обратно
+  glitch: 0,        // сколько шагов ещё «ГЛЮКИ» (← и → поменяны)
+  inCloud: false,   // Филипп сейчас в облаке
+  tapT: 0,          // сколько шагов стоит у колонки
+  tapCool: 0,       // перезарядка колонки
+  coffeeItem: null, // кофе на арене {x, y}
+  courage: 1,       // кураж на время боя замирает
+  ko: 0,            // нокаут: стоп-кадр «НОКАУТ!»
+  saved: null,      // начало арены — для «ЕЩЁ РАЗ»
+
+  // mode: 'intro' — первый вход (Лера отлетает), 'retry' — «ЕЩЁ РАЗ», 'fight' — вернулись после вступления,
+  // 'lost' — после сценки «ясность кончилась»: обычное поражение («пристройка», «ЕЩЁ РАЗ»)
+  enter(mode) {
+    if (mode === 'fight') return;
+    if (mode === 'lost') {
+      setState('defeat', Object.assign({}, SCENES.defeat, { next: 'titya', nextArg: 'retry' }));
+      return;
+    }
+    if (mode === 'intro') {
+      levelState.leraX -= levelCfg('bossPushBack');   // может уйти за начало шкалы
+      this.saved = { leraX: levelState.leraX, leraSpeed: levelState.leraSpeed, clockSteps: clockSteps,
+                     keys: levelState.keys, plov: levelState.plov, courage: levelState.courage };
+    } else if (mode === 'retry') {
+      levelState.leraX = this.saved.leraX;
+      levelState.leraSpeed = this.saved.leraSpeed;
+      clockSteps = this.saved.clockSteps;
+      levelState.keys = this.saved.keys;
+      levelState.plov = this.saved.plov;
+      levelState.lives = CONFIG.startLives;
+      levelState.resetEffects();
+      levelState.courage = this.saved.courage;
+    }
+    this.reset();
+    if (mode === 'intro') {
+      const steps = [{ type: 'title', text: 'БОСС:\nТИТЯ', auto: 2 }].concat(SCENES.tityaIntro.steps);
+      setState('inLevelScene', { background: 'titya', next: 'titya', nextArg: 'fight', steps: steps });
+    }
+  },
+
+  // Арена в начальное положение
+  reset() {
+    level = bossArena;
+    partIndex = levelParts.length;
+    levelState.resetPart();
+    levelState.invuln = 0;
+    levelState.alarm = false;
+    levelState.ringing = -1;
+    levelState.placePlayer(level.start.x, level.start.y);
+    cameraX = 0;
+    const s = level.titya;
+    this.ground = s.y;
+    this.t = { x: s.x, y: s.y - 22, w: 8, h: 22, dir: -1, state: 'walk', timer: 0, action: 120, second: false };
+    this.knocks = 0;
+    this.clarity = 1;
+    this.clouds = [];
+    this.flying = [];
+    this.glitch = 0;
+    this.inCloud = false;
+    this.tapT = 0;
+    this.tapCool = 0;
+    this.ko = 0;
+    this.courage = levelState.courage;
+    this.placeCoffee();
+  },
+
+  phase() { return Math.min(3, this.knocks + 1); },
+  C(name) { return levelCfg(name) * (name.indexOf('Speed') !== -1 && this.phase() === 3 ? levelCfg('tityaFastMul') : 1); },
+
+  // Кофе — раз в фазу: в фазах 1 и 3 — на крыше остановки, в фазе 2 — у колонки
+  placeCoffee() {
+    const stop = level.furniture.find((f) => f.def === FURNITURE.busStop);
+    const tap = level.taps[0];
+    this.coffeeItem = this.phase() === 2 || !stop ? { x: tap.x + 18, y: this.ground - 9 } : { x: stop.x + 20, y: stop.y - 9 };
+  },
+
+  // Титя переходит в новое состояние
+  setT(st, popup) {
+    const t = this.t;
+    t.state = st;
+    t.timer = 0;
+    if (popup) levelState.popup(popup, t.x + 4, t.y - 4);
+  },
+
+  update(input) {
+    if (this.ko > 0) {
+      // Нокаут: стоп-кадр, потом сценка
+      this.ko++;
+      if (this.ko > 150 || (this.ko > 60 && input.pressed)) setState('inLevelScene', SCENES.level4Win);
+      return;
+    }
+    levelState.tick++;
+    tickHint();
+    // «ГЛЮКИ»: ← и → поменяны местами
+    const swap = this.glitch > 0;
+    if (swap) { const l = keys.left; keys.left = keys.right; keys.right = l; }
+    levelState.movePlayer(input);
+    if (swap) { const l = keys.left; keys.left = keys.right; keys.right = l; }
+    clockSteps++;
+    levelState.tickEffects();
+    levelState.courage = this.courage;               // кураж на время боя замирает
+    if (levelState.invuln > 0) levelState.invuln--;
+    if (levelState.swingCool > 0) levelState.swingCool--;
+    levelState.popups = levelState.popups.filter((p) => ++p.t < 50);
+    levelState.updateWeapons(input);                 // ключ и плов (попадания — hitByShot)
+
+    // Лера идёт и во время боя
+    levelState.leraX += levelState.leraSpeed;
+    if (levelState.leraX >= playerGlobalX()) { this.lose(); return; }
+    const wasAlarm = levelState.alarm;
+    levelState.alarm = playerGlobalX() - levelState.leraX < CONFIG.alarmDistance;
+    if (levelState.alarm) {
+      if (!wasAlarm) levelState.alarmTimer = 0;
+      if (levelState.alarmTimer % 60 === 0) vibrate();
+      levelState.alarmTimer++;
+    }
+    if (levelState.lives <= 0) { this.lose(); return; }
+
+    this.updateTitya();
+    if (this.ko > 0) return;
+    this.updateClouds();
+    this.updateFlying();
+    this.updateHelpers();
+    if (this.clarity <= 0) { this.loseClarity(); return; }
+  },
+
+  lose() {
+    setState('defeat', Object.assign({}, SCENES.defeat, { next: 'titya', nextArg: 'retry' }));
+  },
+
+  // Ясность кончилась: своя сценка, потом свет фар минивэна и обычное поражение
+  loseClarity() {
+    setState('inLevelScene', { background: 'titya', next: 'cutscene', nextArg: 'tityaLights', steps: SCENES.tityaDazed.steps });
+  },
+
+  addClarity(d) { this.clarity = Math.max(0, Math.min(1, this.clarity + d)); },
+
+  // Хитбокс Тити в рывке — пониже (бежит наклонившись), его можно перепрыгнуть
+  dashBox() {
+    const t = this.t;
+    return { x: t.x, y: t.y + t.h - 16, w: t.w, h: 16 };
+  },
+
+  // Упал (столб, плов, ключ): лежит со звёздочками
+  fall(text, seconds) {
+    const t = this.t;
+    this.setT('fall', text);
+    t.downT = Math.round(seconds * 60);
+    t.second = false;
+    if (text === 'БОМ!') knockSound(); else clangSound();
+  },
+
+  // Титя: ходит, выбирает приём, рывок, дым, шприцы; падает и встаёт
+  updateTitya() {
+    const t = this.t;
+    const pcx = player.x + player.w / 2;
+    const tcx = t.x + t.w / 2;
+    t.timer++;
+    if (t.state === 'fall') {
+      if (t.timer >= 12) { t.state = 'down'; t.timer = 0; }
+      return;
+    }
+    if (t.state === 'down') {
+      // Запрыгнул сверху — нокдаун
+      const lying = { x: tcx - 12, y: this.ground - 10, w: 24, h: 10 };
+      const feet = player.y + player.h;
+      if (player.vy > 0.3 && feet >= lying.y - 2 && feet <= lying.y + 7 && player.x + player.w > lying.x && player.x < lying.x + lying.w) {
+        this.knockdown();
+        return;
+      }
+      if (t.timer >= t.downT) this.setT('rise');
+      return;
+    }
+    if (t.state === 'rise') {
+      if (t.timer >= levelCfg('tityaRiseSeconds') * 60) { this.setT('walk'); t.action = 60; }
+      return;
+    }
+    if (t.state === 'crouch') {
+      const need = t.second ? 18 : Math.round(levelCfg('tityaCrouchSeconds') * 60);
+      if (t.timer >= need) { this.setT('dash'); t.dashLeft = levelCfg('tityaDashDistance'); }
+      return;
+    }
+    if (t.state === 'dash') {
+      const sp = this.C('tityaDashSpeed');
+      t.x += t.dir * sp;
+      t.dashLeft -= sp;
+      const box = this.dashBox();
+      if (level.poles.some((p) => overlaps(box, p))) {             // врезался в столб
+        t.x -= t.dir * sp;
+        this.fall('БОМ!', levelCfg('tityaDownSeconds'));
+        return;
+      }
+      if (levelState.onPlov(t)) { this.fall('ШМЯК!', levelCfg('tityaDownSeconds')); return; }   // поскользнулся на плове
+      let stop = t.x < 2 || t.x + t.w > W - 2 || t.dashLeft <= 0;
+      if (overlaps(player, box) && levelState.invuln === 0) {     // не увернулся — минус кружка
+        levelState.hurt('БАЦ!', tcx);
+        stop = true;
+      }
+      if (stop) {
+        t.x = Math.max(2, Math.min(W - 2 - t.w, t.x));
+        if (this.phase() === 3 && !t.second) { t.second = true; t.dir = -t.dir; this.setT('crouch'); }   // двойной рывок
+        else { t.second = false; this.setT('walk'); t.action = 50; }
+      }
+      return;
+    }
+    if (t.state === 'puff') {
+      if (t.timer === 20) this.puff();
+      if (t.timer >= levelCfg('tityaPuffSeconds') * 60) this.setT('walk');
+      return;
+    }
+    if (t.state === 'throw') {
+      if (t.timer >= 24) this.setT('walk');
+      return;
+    }
+    // Ходит: держится на расстоянии от Филиппа, потом что-нибудь делает
+    t.dir = pcx < tcx ? -1 : 1;
+    const dist = Math.abs(pcx - tcx);
+    let move = 0;
+    if (dist > 110) move = t.dir;
+    else if (dist < 60) move = -t.dir;
+    t.x = Math.max(12, Math.min(W - 12 - t.w, t.x + move * this.C('tityaWalkSpeed')));
+    t.walking = move !== 0;
+    const every = levelCfg('tityaActionSeconds') * 60 * (this.phase() === 3 ? 0.8 : 1);
+    if (--t.action > 0) return;
+    t.action = Math.round(every * (0.8 + Math.random() * 0.4));
+    const r = Math.random();
+    const maxClouds = levelCfg('cloudCounts')[this.phase() - 1] * 2;
+    if (r < 0.45) this.setT('crouch', 'ПОГНАЛИ!');
+    else if (r < 0.7 && this.clouds.length < maxClouds) this.setT('puff', 'ПФФ');
+    else if (dist > 40) { this.setT('throw'); this.throwSyringes(); }
+    else this.setT('crouch', 'ПОГНАЛИ!');
+  },
+
+  // Нокдаун: шкала Тити гаснет на деление, следующая фаза. Третий — нокаут
+  knockdown() {
+    const t = this.t;
+    this.knocks++;
+    player.vy = -3.5;                                 // отскочил от Тити
+    player.onGround = false;
+    clangSound();
+    levelState.popup('БАЦ!', t.x + 4, this.ground - 16);
+    if (this.knocks >= 3) {
+      this.ko = 1;
+      t.state = 'ko';
+      this.clouds = [];
+      this.flying = [];
+      levelState.alarm = false;
+      knockSound();
+      return;
+    }
+    this.setT('rise');
+    t.timer = -40;                                   // полежал ещё немного — и встаёт
+    levelState.popup(this.knocks === 1 ? 'ТИТЯ ЗЛИТСЯ!' : 'ТИТЯ В ЯРОСТИ!', 120, HUD_H + 34);
+    this.placeCoffee();
+  },
+
+  // Выдох: облака дыма плывут в сторону Филиппа
+  puff() {
+    const t = this.t;
+    const n = levelCfg('cloudCounts')[this.phase() - 1];
+    const r = levelCfg('cloudSizes')[this.phase() - 1];
+    for (let i = 0; i < n; i++) {
+      this.clouds.push({ x: t.x + 4 + t.dir * 10, y: t.y + 6 + i * 6, vx: t.dir * levelCfg('cloudSpeed') * (1 + i * 0.8),
+                         t: 0, life: Math.round(levelCfg('cloudSeconds') * 60), r: r });
+    }
+    tone(180, audioCtx ? audioCtx.currentTime : 0, 0.3, 0.05);
+  },
+
+  // Шприцы по дуге туда, где Филипп. Фаза 1 — один, дальше — веером по 3
+  throwSyringes() {
+    const t = this.t;
+    const T = Math.round(levelCfg('syringeFlightSecondsBoss') * 60);
+    const x0 = t.x + 4, y0 = t.y + 8;
+    const tx = player.x + player.w / 2, ty = player.y + player.h - 4;
+    const spread = this.phase() === 1 ? [0] : [-28, 0, 28];
+    for (const d of spread) this.flying.push({ kind: 'syringe', x: x0, y: y0, vx: (tx + d - x0) / T, vy: (ty - y0 - 0.1 * T * T) / T, t: 0 });
+  },
+
+  // Облака плывут и тают. Филипп внутри — ясность падает, потом «ГЛЮКИ»
+  updateClouds() {
+    const pcx = player.x + player.w / 2, pcy = player.y + player.h / 2;
+    this.inCloud = false;
+    for (const c of this.clouds) {
+      c.t++;
+      c.x += c.vx;
+      if (c.x < 10 || c.x > W - 10) c.vx = -c.vx;
+      const r = c.r * Math.min(1, 0.3 + c.t / 40);
+      const dens = this.density(c);
+      const dx = (pcx - c.x) / r, dy = (pcy - c.y) / (r * 0.7);
+      if (dens > 0.3 && dx * dx + dy * dy < 1) this.inCloud = true;
+    }
+    this.clouds = this.clouds.filter((c) => c.t < c.life);
+    if (this.inCloud) {
+      this.addClarity(-levelCfg('cloudDrain') / 60);
+      if (this.glitch === 0) levelState.popup('ГЛЮКИ!', pcx, player.y - 4);
+      this.glitch = Math.round(levelCfg('glitchSeconds') * 60);
+    } else if (this.glitch > 0) this.glitch--;
+  },
+
+  // Насколько густое облако: сначала 1, последние полторы секунды тает до 0
+  density(c) { return Math.min(1, (c.life - c.t) / 90); },
+
+  // Шприцы и ключи, которые Титя бросил обратно
+  updateFlying() {
+    for (const f of this.flying) {
+      f.t++;
+      f.vy += 0.2;
+      f.x += f.vx;
+      f.y += f.vy;
+      const box = { x: f.x - 4, y: f.y - 2, w: 8, h: 5 };
+      if (overlaps(player, box)) {
+        f.done = true;
+        if (f.kind === 'syringe') {
+          if (levelState.coffee === 0) this.addClarity(-levelCfg('syringeClarity'));
+          levelState.shove('АЙ!', f.x, levelCfg('syringePush'));
+        } else {
+          levelState.shove('ОЙ!', f.x, levelCfg('syringePush'));
+        }
+        continue;
+      }
+      if (f.y > this.ground || f.x < -10 || f.x > W + 10 || f.t > 300) f.done = true;
+    }
+    this.flying = this.flying.filter((f) => !f.done);
+  },
+
+  // Колонка («УМЫЛСЯ!») и кофе
+  updateHelpers() {
+    const pcx = player.x + player.w / 2;
+    if (this.tapCool > 0) this.tapCool--;
+    const tap = level.taps[0];
+    const near = tap && Math.abs(pcx - tap.x) < 16 && player.onGround && player.stun === 0;
+    this.tapT = near && this.tapCool === 0 ? this.tapT + 1 : 0;
+    if (this.tapT >= levelCfg('tapSeconds') * 60) {
+      this.tapT = 0;
+      this.tapCool = Math.round(levelCfg('tapCooldown') * 60);
+      this.addClarity(levelCfg('tapClarity'));
+      this.glitch = 0;
+      pickupSound();
+      levelState.popup('УМЫЛСЯ!', pcx, player.y - 4);
+    }
+    const cf = this.coffeeItem;
+    if (cf && overlaps(player, { x: cf.x - 1, y: cf.y, w: 10, h: 10 })) {
+      this.coffeeItem = null;
+      levelState.coffee = Math.round(CONFIG.coffeeSeconds * 60);
+      levelState.coffeeCrash = 0;
+      this.addClarity(levelCfg('coffeeClarity'));
+      pickupSound();
+      levelState.popup('КОФЕ!', pcx, player.y - 4);
+    }
+  },
+
+  // Ключ: бодрый Титя ловит «ЛОВИ!» и бросает обратно. Пока выдыхает дым или встаёт — попал, падает.
+  // Плов в Титю — просто летит дальше и высыпается на пол. Возвращает true, если ключ кончился
+  hitByShot(sh, box) {
+    const t = this.t;
+    if (sh.kind !== 'wrench' || sh.bounced || t.state === 'ko') return false;
+    const body = t.state === 'down' || t.state === 'fall' ? { x: t.x - 8, y: this.ground - 10, w: 24, h: 10 } : t;
+    if (!overlaps(box, body)) return false;
+    if (t.state === 'puff' || t.state === 'rise') {
+      clangSound();
+      levelState.popup('БДЗЫНЬ!', t.x + 4, t.y - 4);
+      this.fall('', levelCfg('tityaKeyDownSeconds'));
+      return true;
+    }
+    if (t.state === 'down' || t.state === 'fall') return true;   // лежит — ключ просто упал рядом
+    // Поймал и бросает обратно
+    levelState.popup('ЛОВИ!', t.x + 4, t.y - 4);
+    t.dir = player.x < t.x ? -1 : 1;
+    this.setT('throw');
+    const T = 40, x0 = t.x + 4, y0 = t.y + 8;
+    const tx = player.x + player.w / 2, ty = player.y + 8;
+    this.flying.push({ kind: 'wrench', x: x0, y: y0, vx: (tx - x0) / T, vy: (ty - y0 - 0.1 * T * T) / T, t: 0 });
+    return true;
+  },
+
+  draw() {
+    levelState.draw();                               // фон, Филипп, надписи, HUD (и темнота с фонарями)
+    const t = this.t;
+    // Кофе на арене
+    if (this.coffeeItem) drawCoffee(ctx, this.coffeeItem.x, this.coffeeItem.y, levelState.tick);
+    // Титя: лежит / нокаут — кадр 24x10; иначе по состоянию
+    const tcx = Math.round(t.x + t.w / 2);
+    if (t.state === 'down' || t.state === 'ko' || (t.state === 'rise' && t.timer < 0)) {
+      const fr = SPRITES.tityaDown.anims[t.state === 'ko' ? 'ko' : 'lie'].frames[0];
+      drawSprite(ctx, fr, tcx - 12, this.ground - 10, t.dir > 0);
+      if (t.state !== 'ko' || Math.floor(this.ko / 10) % 2) drawStars(ctx, tcx + (t.dir > 0 ? -8 : 8), this.ground - 14, levelState.tick);
+    } else {
+      const name = { walk: t.walking ? 'run' : 'stand', crouch: 'crouch', dash: 'dash', puff: 'puff', throw: 'throw', fall: 'fall', rise: 'crouch' }[t.state];
+      const a = SPRITES.titya.anims[name];
+      const fr = a.frames[Math.floor(levelState.tick / a.speed) % a.frames.length];
+      drawSprite(ctx, fr, Math.round(t.x) - 2, Math.round(t.y) - 2, t.dir < 0);
+      if (t.state === 'rise') drawStars(ctx, tcx, Math.round(t.y) - 2, levelState.tick);
+    }
+    // Шприцы и ключи
+    for (const f of this.flying) {
+      if (f.kind === 'syringe') drawSyringe(ctx, Math.round(f.x) - 4, Math.round(f.y));
+      else drawWrench(ctx, Math.round(f.x), Math.round(f.y), f.t * 0.5);
+    }
+    // Облака дыма
+    for (const c of this.clouds) drawSmokeCloud(ctx, Math.round(c.x), Math.round(c.y), Math.round(c.r * Math.min(1, 0.3 + c.t / 40)), this.density(c), levelState.tick);
+    // В облаке — экран лиловеет; «ГЛЮКИ» — значок над головой
+    if (this.inCloud) drawPurpleHaze(ctx, levelState.tick);
+    if (this.glitch > 0) drawGlitchIcon(ctx, Math.round(player.x + player.w / 2), Math.round(player.y) - 10, levelState.tick);
+    // Колонка: стоит рядом — полоска «умывается», на перезарядке — «КАП»
+    const tap = level.taps[0];
+    if (tap && this.tapT > 0) {
+      ctx.fillStyle = '#41a6f6';
+      ctx.fillRect(tap.x - 8, tap.y - 30, Math.round(16 * this.tapT / (levelCfg('tapSeconds') * 60)), 2);
+    }
+    if (tap && this.tapCool > 0 && Math.floor(levelState.tick / 20) % 2) drawText(ctx, 'КАП', tap.x - 8, tap.y - 34, '#41a6f6');
+    this.drawBars();
+    if (this.ko > 0 && state === tityaState) this.drawKnockout();   // в сценке после боя — уже без надписи
+  },
+
+  // Под HUD: шкала «ЯСНОСТЬ» и шкала Тити из 3 делений
+  drawBars() {
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(60, HUD_H, W - 60, 20);
+    const low = this.clarity < 0.3;
+    drawText(ctx, 'ЯСНОСТЬ', 64, HUD_H + 2, low && Math.floor(levelState.tick / 8) % 2 ? '#b13e53' : '#73eff7');
+    const bx = 112, bw = W - bx - 6;
+    ctx.fillStyle = '#333c57';
+    ctx.fillRect(bx, HUD_H + 3, bw, 5);
+    ctx.fillStyle = low ? '#b13e53' : (this.clarity < 0.6 ? '#ffcd75' : '#73eff7');
+    ctx.fillRect(bx, HUD_H + 3, Math.round(bw * this.clarity), 5);
+    drawText(ctx, 'ТИТЯ', 64, HUD_H + 12, '#ef7d57');
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = '#566c86';
+      ctx.fillRect(bx + i * 14, HUD_H + 12, 12, 6);
+      ctx.fillStyle = i < 3 - this.knocks ? '#b13e53' : '#333c57';
+      ctx.fillRect(bx + i * 14 + 1, HUD_H + 13, 10, 4);
+    }
+    drawText(ctx, 'Ф' + this.phase(), W - 16, HUD_H + 12, '#566c86');
+  },
+
+  // Нокаут крупно, как на Денди: тёмная полоса, огромное «НОКАУТ!», звёзды вокруг
+  drawKnockout() {
+    if (this.ko < 6) { ctx.fillStyle = '#f4f4f4'; ctx.fillRect(0, 0, W, H); return; }   // вспышка
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 44, W, 44);
+    ctx.fillStyle = '#b13e53';
+    ctx.fillRect(0, 44, W, 2);
+    ctx.fillRect(0, 86, W, 2);
+    const s = this.ko < 20 ? 2 : 3;
+    drawTextCenteredShadow('НОКАУТ!', W / 2, 66 - 3 * s, '#ffcd75', '#b13e53', s);
+    for (let i = 0; i < 6; i++) {
+      const a = this.ko / 12 + i * Math.PI / 3;
+      drawStars(ctx, Math.round(W / 2 + Math.cos(a) * 90), Math.round(66 + Math.sin(a) * 14), levelState.tick + i * 7);
+    }
+  },
+};
+
+// =============================================
 // ЭКРАН: ЭТАП «ЗА РУЛЁМ» — минивэн едет в офис (вид сверху)
 // =============================================
 // Дорога из 3 полос едет сверху вниз, минивэн внизу экрана, нос вверх.
@@ -5583,7 +6087,7 @@ let dimImage = null;      // затемнение «сеточкой» (толь
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
 function canPause() {
   return state === levelState || state === bossState || state === momState || state === driveState || state === chiefState ||
-         state === crossState;
+         state === crossState || state === tityaState;
 }
 
 function autoPause() {
@@ -5593,7 +6097,7 @@ function autoPause() {
 function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
-    state === bossState || state === momState || state === chiefState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
+    state === bossState || state === momState || state === chiefState || state === tityaState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
       (state === driveState || state === crossState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
     'УПРАВЛЕНИЕ',
@@ -5615,6 +6119,7 @@ function updatePause(input) {
     else if (state === momState) setState('mom', 'retry');
     else if (state === driveState) setState('drive', 'retry');
     else if (state === crossState) setState('cross', 'retry');
+    else if (state === tityaState) setState('titya', 'retry');
     else if (state === chiefState) setState('chief', 'retry');
     else setState('level', 'lastCall');
   }
@@ -5773,6 +6278,7 @@ const states = {
   mom: momState,                              // БОСС УРОВНЯ 2: мама
   drive: driveState,                          // ЭТАП «ЗА РУЛЁМ»: минивэн едет в офис
   cross: crossState,                          // ЭТАП «ПЕРЕХОД ДОРОГИ»: конец уровня 4
+  titya: tityaState,                          // БОСС УРОВНЯ 4: Титя
   chief: chiefState,                          // БОСС УРОВНЯ 3: начальник и годовой отчёт
   levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
@@ -5787,8 +6293,8 @@ function setState(name, arg) {
   // Кнопка «Бросок» видна в бою с боссом и на уровнях с оружием, кнопка паузы — на уровне и в бою.
   // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
   document.body.classList.toggle('boss-fight', name === 'boss');
-  document.body.classList.toggle('armed', (name === 'level' || name === 'mom' || name === 'chief') && weaponsOn());
-  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief', 'cross'].indexOf(name) !== -1);
+  document.body.classList.toggle('armed', (name === 'level' || name === 'mom' || name === 'chief' || name === 'titya') && weaponsOn());
+  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya'].indexOf(name) !== -1);
   // За рулём: «Прыжок» — тормоз, вместо бросков — «Гудок»
   document.body.classList.toggle('driving', name === 'drive');
   document.body.classList.toggle('crossing', name === 'cross');

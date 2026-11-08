@@ -226,6 +226,13 @@
     addCard(driveRow, 240, 110, 3, 'Финиш: офис «МЕТАЛЛ-ТОРГ» и парковка', (g) => drawOffice(g, 62));
     addCard(driveRow, 240, 136, 3, 'Картинка «ВЖУХ!» (колесо за 30 секунд)', (g) => PICTURES.wheelFix(g, 1, 0));
 
+    // Босс уровня 4: Титя — дым, глюки
+    const tityaRow = addRow('Босс уровня 4 (Титя): дым и «глюки»');
+    const nb = (g, w, h) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, w, h); };
+    [1, 0.6, 0.3].forEach((d) => addCard(tityaRow, 52, 40, 6, 'Облако дыма «ПФФ»' + (d < 1 ? ' тает: ' + Math.round(d * 100) + '%' : ''), (g) => { nb(g, 52, 40); drawSmokeCloud(g, 26, 20, 22, d, 0); }));
+    addCard(tityaRow, 34, 14, 6, '«ГЛЮКИ»: значок над головой (← и → поменяны)', (g) => { nb(g, 34, 14); drawGlitchIcon(g, 17, 6, 0); });
+    addCard(tityaRow, 60, 40, 4, 'В облаке экран лиловеет', (g) => { g.fillStyle = '#566c86'; g.fillRect(0, 0, 60, 40); g.save(); g.translate(0, -16); drawPurpleHaze(g, 0); g.restore(); });
+
     // Этап «Переход дороги»: вид сверху, машины едут вбок
     const crossRow = addRow('Этап «Переход дороги»: машины боком со светом фар, калитка Сани');
     const asph = (g, w, h) => { g.fillStyle = '#333c57'; g.fillRect(0, 0, w, h); };
@@ -300,7 +307,8 @@
                        grannyRoom: 'Квартира бабушки: ковёр, ламповый телевизор показывает',
                        jackYard: 'Двор Филиппа: минивэн на домкрате',
                        openSpace: 'Офис: open space, вывеска «МЕТАЛЛ-ТОРГ»',
-                       homeNight: 'Дом вечером: минивэн у дома, в окне Леры свет' };
+                       homeNight: 'Дом вечером: минивэн у дома, в окне Леры свет',
+                       minivanLights: 'Темнота и фары минивэна (поражение у Тити)' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
     addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
