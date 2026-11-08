@@ -377,6 +377,13 @@ const CONFIG = {
 // Какой уровень сейчас собран: 0 — уровень 1, 1 — уровень 2
 let currentLevelIndex = 0;
 
+// Счётчики на всю игру — для экрана «ИТОГИ ДНЯ» в конце
+let gameStats = null;
+function resetGameStats() {
+  gameStats = { arrival: '', defeats: 0, excuses: 0, keys: 0, plov: 0, beers: 0, cigs: 0, coffee: 0 };
+}
+resetGameStats();
+
 // Число из настроек с учётом уровня: у уровня 2 своё (CONFIG.level2), если оно там есть
 function levelCfg(name) {
   const own = CONFIG['level' + (currentLevelIndex + 1)];
@@ -466,6 +473,21 @@ function beep(freq) {
 }
 
 // Вибрация телефона: два низких жужжания «ж-ж… ж-ж»
+// Кружки чокаются: «дзынь»
+function clinkSound() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  tone(1800, t, 0.08, 0.06);
+  tone(2400, t + 0.05, 0.12, 0.05);
+}
+
+// Мелодия из приставки (короткие ноты по кругу): вызывать каждый шаг, step — номер шага
+const CONSOLE_NOTES = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1047, 988, 784, 659, 587];
+function consoleTune(step) {
+  if (!audioCtx || step % 10 !== 0) return;
+  tone(CONSOLE_NOTES[(step / 10) % CONSOLE_NOTES.length], audioCtx.currentTime, 0.08, 0.025);
+}
+
 function vibrate() {
   if (!audioCtx) return;
   const t0 = audioCtx.currentTime;
@@ -752,6 +774,7 @@ const titleState = {
 
   enter() {
     this.timer = 0;
+    this.done = undefined;                           // прошёл ли игру — узнаем заново
     // Силуэт Филиппа в беге (готовим один раз)
     if (!this.silhouette) {
       this.silhouette = makeSilhouette(SPRITES.filipp.anims.run.frames[0], '#1a1c2c');
@@ -764,9 +787,10 @@ const titleState = {
     // Звук уже разрешён этим же касанием.
     if (CONFIG.DEBUG_MENU) {
       const choice = menuUpdate(this.menu, 2, input);
-      if (choice === 0) { loadLevel(0); setState('cutscene'); }
+      if (choice === 0) { resetGameStats(); loadLevel(0); setState('cutscene'); }
       if (choice === 1) setState('levelSelect');
     } else if (input.pressed) {
+      resetGameStats();
       loadLevel(0);
       setState('cutscene');
     }
@@ -800,6 +824,13 @@ const titleState = {
     } else if (Math.floor(this.timer / 30) % 2 === 0) {
       // Мигающая надпись: полсекунды видна, полсекунды нет
       drawTextCenteredShadow('НАЖМИ, ЧТОБЫ НАЧАТЬ', 120, 120, '#f4f4f4', '#1a1c2c');
+    }
+    // Игра уже пройдена — маленькая звёздочка в углу
+    if (this.done === undefined) this.done = isGameDone();
+    if (this.done) {
+      const x = W - 6 - textWidth(CREDITS_TEXT.done);
+      drawStars(ctx, x - 6, 2, this.timer);
+      drawTextShadow(CREDITS_TEXT.done, x, 2, '#ffcd75', '#1a1c2c');
     }
     drawVersion();
   },
@@ -863,7 +894,7 @@ function createSceneState(defaultScene) {
       const list = this.scene.actors || {};
       for (const key in list) {
         const a = list[key];
-        this.actors[key] = { x: a.x, visible: a.visible, facing: a.facing, blinking: false, anim: 'idle' };
+        this.actors[key] = { x: a.x, visible: a.visible, facing: a.facing, blinking: false, anim: a.anim || 'idle' };
       }
       this.index = -1;
       this.nextStep();
@@ -897,9 +928,18 @@ function createSceneState(defaultScene) {
         actor.visible = true;
         actor.blinking = true;
       } else if (step.type === 'anim') {
-        // Персонаж меняет движение — и сразу следующий шаг
-        this.actors[step.who].anim = step.anim;
+        // Персонаж меняет движение — и сразу следующий шаг.
+        // who может быть списком ['sanya', 'gleb'] или 'all' — все, кто на фоне
+        const who = step.who === 'all' ? Object.keys(this.actors) : [].concat(step.who);
+        for (const k of who) this.actors[k].anim = step.anim;
+        if (step.anim === 'cheers') clinkSound();
         this.nextStep();
+      } else if (step.type === 'message') {
+        vibrate();
+        phoneRing();
+      } else if (step.type === 'look') {
+        // Все поворачиваются к точке at (например, к ковру на стене)
+        for (const k in this.actors) { const a = this.actors[k]; a.facing = step.at < a.x + 8 ? 'left' : 'right'; }
       }
     },
 
@@ -960,9 +1000,14 @@ function createSceneState(defaultScene) {
       } else if (step.type === 'fade') {
         // Затемнение: шторки закрываются за 24 шага
         if (this.timer >= FADE_TIME) this.nextStep();
-      } else if (step.type === 'wait') {
-        // Пауза: ничего не говорят, просто ждём seconds секунд (например, мама входит в кадр)
-        if (this.timer >= (step.seconds || 1) * 60) this.nextStep();
+      } else if (step.type === 'wait' || step.type === 'look') {
+        // Пауза: ничего не говорят, просто ждём seconds секунд (например, мама входит в кадр).
+        // music: true — в тишине слышна только музыка из приставки
+        if (step.music) consoleTune(this.timer);
+        if (this.timer >= (step.seconds || 1) * 60 || (pressed && this.timer > 30)) this.nextStep();
+      } else if (step.type === 'message') {
+        // Сообщение на телефоне: ждём нажатия
+        if (pressed && this.timer > 30) this.nextStep();
       } else if (step.type === 'picture') {
         // Картинка-анимация: идёт seconds секунд, нажатие — пропустить
         if (this.timer >= (step.seconds || 2) * 60 || (pressed && this.timer > 20)) this.nextStep();
@@ -999,6 +1044,12 @@ function createSceneState(defaultScene) {
         else if (this.scene.background === 'titya') tityaState.draw();   // арена Тити
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
+        if (step.dream) this.drawDream(step);
+        if (step.type === 'message') {
+          ctx.fillStyle = '#1a1c2c';
+          for (let y = 0; y < H; y += 2) ctx.fillRect(0, y, W, 1);   // фон темнеет сеточкой
+          drawMessagePhone(ctx, W / 2, 56, step.from, step.text, this.timer);
+        }
         if (step.type === 'phone') this.drawPhone();
         if (step.type === 'say') this.drawDialog(step);
         if (step.type === 'caption') this.drawCaption(step);
@@ -1036,6 +1087,16 @@ function createSceneState(defaultScene) {
           drawTextShadow('ТУК-ТУК!', a.x + 10, y - 10, '#f4f4f4', '#1a1c2c');
         }
       }
+    },
+
+    // Облачко-мечта над тем, кто говорит (или над step.dreamer)
+    drawDream(step) {
+      const a = this.actors[step.dreamer || step.who];
+      if (!a) return;
+      const frame = SPRITES[step.dreamer || step.who].anims[a.anim].frames[0];
+      const cx = a.x + frame.width / 2;
+      const bx = Math.max(2, Math.min(W - 74, Math.round(cx - 36)));
+      drawDreamBubble(ctx, bx, 2, step.dream, this.tick, cx, FLOOR_Y - frame.height - 2);
     },
 
     // Звонящий телефон над Филиппом
@@ -1898,10 +1959,12 @@ const levelState = {
   // Подобрал бустер: сигареты, кофе
   takeBoost(kind, x, y) {
     if (kind === 'cig') {
+      gameStats.cigs++;
       this.courage = Math.min(1, this.courage + CONFIG.cigCourage);
       this.smoke = Math.round(CONFIG.smokeSeconds * 60);
       this.popup('+КУРАЖ', x + 4, y - 2);
     } else {
+      gameStats.coffee++;
       this.coffee = Math.round(CONFIG.coffeeSeconds * 60);
       this.coffeeCrash = 0;
       this.popup('КОФЕ!', x + 4, y - 2);
@@ -1911,6 +1974,7 @@ const levelState = {
 
   // Выпил пиво: «подпитие». Второе подряд — сильнее и дольше
   drinkBeer() {
+    gameStats.beers++;
     if (this.tipsy > 0) {
       this.tipsyLevel = Math.min(3, this.tipsyLevel + 1);
       this.tipsy += Math.round(CONFIG.tipsySeconds * 60);
@@ -2084,13 +2148,19 @@ const levelState = {
       next: 'level',
       nextArg: 'resume',
       steps: [
-        { type: 'say', who: 'filipp', text: takeFromBag('excuses' + currentLevelIndex, this.callExcuses()) },
+        { type: 'say', who: 'filipp', text: this.countExcuse(takeFromBag('excuses' + currentLevelIndex, this.callExcuses())) },
         { type: 'say', who: 'lera', text: takeFromBag('answers' + currentLevelIndex, this.callAnswers()) },
       ],
     });
   },
 
   // Отмазки и ответы Леры для текущего уровня (scenes.js). Для уровня 2 — свои, если они есть
+  // Отмазка сказана — в счётчик (для «ИТОГОВ ДНЯ»)
+  countExcuse(text) {
+    gameStats.excuses++;
+    return text;
+  },
+
   callExcuses() {
     if (currentLevelIndex === 1 && typeof CALL_EXCUSES_2 !== 'undefined') return CALL_EXCUSES_2;
     if (currentLevelIndex === 2 && typeof CALL_EXCUSES_3 !== 'undefined') return CALL_EXCUSES_3;
@@ -2462,6 +2532,7 @@ const levelState = {
     if (input.throwPressed && canThrow) {
       if (this.keys > 0) {
         this.keys--;
+        gameStats.keys++;
         this.shots.push({ kind: 'wrench', x: cx + player.facing * 4, y: player.y + 13, t: 0,
                           vx: player.facing * CONFIG.wrenchSpeed, vy: -CONFIG.wrenchLift });
       } else {
@@ -2471,6 +2542,7 @@ const levelState = {
     if (input.plovPressed && canThrow) {
       if (this.plov > 0) {
         this.plov--;
+        gameStats.plov++;
         this.shots.push({ kind: 'plov', x: cx + player.facing * 4, y: player.y + 9, t: 0,
                           vx: player.facing * 1.6, vy: -1.5 });
       } else {
@@ -2686,12 +2758,14 @@ const levelState = {
       if (e.type === 'smoker' && e.timer >= levelCfg('smokeSeconds') * 60) {
         this.courage = Math.min(1, this.courage + levelCfg('smokeCourage'));
         this.smoke = Math.round(CONFIG.smokeSeconds * 60);
+        gameStats.cigs++;
         this.popup('+КУРАЖ', player.x + player.w / 2, player.y - 4);
         this.releaseColleague(e);
       }
       if (e.type === 'coffeeguy' && e.timer >= levelCfg('coffeeTogetherSeconds') * 60) {
         this.coffee = Math.round(CONFIG.coffeeSeconds * 60);
         this.coffeeCrash = 0;
+        gameStats.coffee++;
         this.popup('КОФЕ!', player.x + player.w / 2, player.y - 4);
         this.releaseColleague(e);
       }
@@ -5261,6 +5335,7 @@ const tityaState = {
     if (cf && overlaps(player, { x: cf.x - 1, y: cf.y, w: 10, h: 10 })) {
       this.coffeeItem = null;
       levelState.coffee = Math.round(CONFIG.coffeeSeconds * 60);
+      gameStats.coffee++;
       levelState.coffeeCrash = 0;
       this.addClarity(levelCfg('coffeeClarity'));
       pickupSound();
@@ -5691,10 +5766,12 @@ const driveState = {
         this.popup('ВЖЖ!', this.x + 8, VAN_Y - 2);
       } else if (t.kind === 'coffee') {
         this.coffee = Math.round(D.coffeeSeconds * 60);
+        gameStats.coffee++;
         pickupSound();
         this.popup('КОФЕ!', this.x + 8, VAN_Y - 2);
       } else {
         levelState.courage = Math.min(1, levelState.courage + CONFIG.cigCourage);
+        gameStats.cigs++;
         pickupSound();
         this.popup('+КУРАЖ', this.x + 8, VAN_Y - 2);
       }
@@ -5999,7 +6076,11 @@ const crossState = {
         this.row = this.hopTo;
         if (CROSS_SAFE_ROWS.indexOf(this.row) !== -1) this.safeRow = this.row;
         this.bestRow = Math.max(this.bestRow, this.row);
-        if (this.row === CROSS_ROWS.length - 1) { this.outro = 1; this.safe = 0; pickupSound(); return; }   // перешёл!
+        if (this.row === CROSS_ROWS.length - 1) {                      // перешёл!
+          this.outro = 1; this.safe = 0; pickupSound();
+          gameStats.arrival = this.clockText();
+          return;
+        }
       }
     } else {
       let to = -1;
@@ -6146,6 +6227,13 @@ const crossState = {
     if (state === crossState) drawHint();
   },
 
+  // Часы этапа: «21:05»
+  clockText() {
+    const C = CONFIG.cross;
+    const total = C.startHour * 60 + C.startMinute + Math.floor(this.steps / (60 * C.secondsPerMinute));
+    return String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+  },
+
   // HUD: кружки, часы; шкала: Филипп (сколько перешёл) и Лера (сколько времени осталось)
   drawHud() {
     const C = CONFIG.cross;
@@ -6155,8 +6243,7 @@ const crossState = {
     for (let i = 0; i < slots; i++) drawBeer(ctx, 2 + i * 9, 0, i >= levelState.lives);
     drawText(ctx, 'ПЕРЕХОД ДОРОГИ', 60, 1, '#94b0c2');
     drawText(ctx, VERSION, W - 31 - 6 - textWidth(VERSION), 1, '#566c86');
-    const total = C.startHour * 60 + C.startMinute + Math.floor(this.steps / (60 * C.secondsPerMinute));
-    drawText(ctx, String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0'), W - 31, 1, '#ffcd75');
+    drawText(ctx, this.clockText(), W - 31, 1, '#ffcd75');
     const late = Math.min(1, (this.steps + this.penalty) / (C.timeLimitSeconds * 60));
     ctx.fillStyle = late > 0.8 && Math.floor(this.tick / 8) % 2 === 0 ? '#b13e53' : '#566c86';
     ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
@@ -6167,6 +6254,153 @@ const crossState = {
     const done = this.outro > 0 ? 1 : this.bestRow / (CROSS_ROWS.length - 1);
     ctx.drawImage(ICONS.filipp.image, BAR.x + Math.round(BAR.w * done) - 4, HUD_H - 8);
     ctx.drawImage(ICONS.lera.image, BAR.x + Math.round(BAR.w * late) - 4, HUD_H - 8);
+  },
+};
+
+// =============================================
+// ФИНАЛ: «ИТОГИ ДНЯ» И ТИТРЫ В СТИЛЕ ДЕНДИ
+// =============================================
+// Игра пройдена: запоминаем в браузере (звёздочка «ИГРА ПРОЙДЕНА» на титульном экране).
+// Если браузер не даёт хранить — просто без звёздочки.
+function setGameDone() {
+  try { localStorage.setItem('filippGameDone', '1'); } catch (e) { /* нельзя хранить — не страшно */ }
+}
+function isGameDone() {
+  try { return localStorage.getItem('filippGameDone') === '1'; } catch (e) { return false; }
+}
+
+// Звёздное небо: точки едут влево (как в титрах на Денди)
+function drawStarField(t) {
+  ctx.fillStyle = '#1a1c2c';
+  ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) {
+    const speed = 1 + (i % 3);
+    const x = ((i * 53 + 400) - Math.floor(t * speed / 4)) % (W + 10);
+    const y = (i * 37) % H;
+    ctx.fillStyle = i % 3 === 0 ? '#f4f4f4' : (i % 3 === 1 ? '#94b0c2' : '#566c86');
+    ctx.fillRect((x + W + 10) % (W + 10) - 5, y, 1, 1);
+  }
+}
+
+// Кнопка «ПРОПУСТИТЬ» (как в сценках)
+function drawSkipCorner() {
+  ctx.fillStyle = '#1a1c2c';
+  ctx.fillRect(SKIP.x, SKIP.y, SKIP.w, SKIP.h);
+  ctx.fillStyle = '#94b0c2';
+  ctx.fillRect(SKIP.x, SKIP.y, SKIP.w, 1);
+  ctx.fillRect(SKIP.x, SKIP.y + SKIP.h - 1, SKIP.w, 1);
+  ctx.fillRect(SKIP.x, SKIP.y, 1, SKIP.h);
+  ctx.fillRect(SKIP.x + SKIP.w - 1, SKIP.y, 1, SKIP.h);
+  drawText(ctx, 'ПРОПУСТИТЬ', SKIP.x + 3, SKIP.y + 2, '#f4f4f4');
+}
+
+// Экран «ИТОГИ ДНЯ»: строки появляются по одной
+const statsState = {
+  t: 0,
+  enter() { this.t = 0; setGameDone(); },
+  rows() {
+    const T = STATS_TEXT, s = gameStats;
+    return [[T.arrival, s.arrival || '—'], [T.defeats, s.defeats], [T.excuses, s.excuses], [T.keys, s.keys],
+            [T.plov, s.plov], [T.beers, s.beers], [T.cigs, s.cigs], [T.coffee, s.coffee]];
+  },
+  update(input) {
+    this.t++;
+    const shown = Math.floor(this.t / 15);
+    if (this.t % 15 === 0 && shown <= this.rows().length) beep(600 + shown * 40);
+    if (input.taps.some(tapOnSkip) || (input.pressed && this.t > 30)) {
+      if (shown < this.rows().length && !input.taps.some(tapOnSkip)) this.t = this.rows().length * 15;   // показать все строки сразу
+      else setState('credits');
+    }
+  },
+  draw() {
+    drawStarField(this.t);
+    drawTextCenteredShadow(STATS_TEXT.title, W / 2, 8, '#ffcd75', '#b13e53', 2);
+    this.rows().forEach(([label, value], i) => {
+      if (this.t < (i + 1) * 15) return;
+      const y = 32 + i * 11;
+      drawText(ctx, label, 30, y, '#94b0c2');
+      const v = String(value);
+      ctx.fillStyle = '#566c86';
+      for (let x = 34 + textWidth(label); x < 206 - textWidth(v); x += 3) ctx.fillRect(x, y + 5, 1, 1);   // точки до числа
+      drawText(ctx, v, 210 - textWidth(v), y, '#f4f4f4');
+    });
+    if (this.t > this.rows().length * 15 && Math.floor(this.t / 30) % 2 === 0) {
+      drawTextCenteredShadow(STATS_TEXT.next, W / 2, 124, '#f4f4f4', '#1a1c2c');
+    }
+    drawSkipCorner();
+  },
+};
+
+// Титры: название → парад персонажей → «ИДЕЯ И СЦЕНАРИЙ» → «СПАСИБО ЗА ИГРУ!» → титульный экран
+const CREDITS_GAP = 56;            // просвет между персонажами в параде (персонажи увеличены в 2 раза)
+const creditsState = {
+  t: 0,
+  page: 0,          // 0 — название, 1 — парад, 2 — автор, 3 — спасибо
+  enter() { this.t = 0; this.page = 0; setGameDone(); },
+  // Где в параде начинается каждая группа (группы разной ширины) и общая длина парада
+  paradeLayout() {
+    let x = 0;
+    const starts = CREDITS_TEXT.parade.map((p) => {
+      const at = x;
+      x += p.sprites.reduce((w, [key, anim]) => w + SPRITES[key].anims[anim].frames[0].width * 2 + 4, 0) + CREDITS_GAP;
+      return at;
+    });
+    return { starts: starts, length: x };
+  },
+  pageLength() {
+    if (this.page === 1) return this.paradeLayout().length + W + 20;
+    return 240;
+  },
+  update(input) {
+    this.t++;
+    consoleTune(this.t);                             // музыка титров
+    if (input.taps.some(tapOnSkip)) { setState('title'); return; }
+    if (this.t >= this.pageLength() || (input.pressed && this.t > 40)) {
+      this.page++;
+      this.t = 0;
+      if (this.page > 3) setState('title');
+    }
+  },
+  draw() {
+    drawStarField(this.t + this.page * 500);
+    const C = CREDITS_TEXT;
+    if (this.page === 0) {
+      const lines = C.title.split('\n');
+      lines.forEach((ln, i) => drawTextCenteredShadow(ln, W / 2, 46 + i * 20, i ? '#ffcd75' : '#f4f4f4', '#b13e53', 2));
+    } else if (this.page === 1) {
+      // Персонажи идут справа налево друг за другом, под каждым — подпись
+      ctx.fillStyle = '#333c57';
+      ctx.fillRect(0, 96, W, 1);
+      const L = this.paradeLayout();
+      C.parade.forEach((p, i) => {
+        const x = W + 10 + L.starts[i] - this.t;
+        if (x < -130 || x > W + 10) return;
+        let ox = 0;
+        for (const [key, animName] of p.sprites) {
+          const anim = SPRITES[key].anims[animName];
+          const frame = anim.frames[Math.floor(this.t / anim.speed) % anim.frames.length];
+          const bob = anim.frames.length === 1 ? 2 * (Math.floor(this.t / 8) % 2) : 0;   // одним кадром — подпрыгивает
+          // В 2 раза крупнее и смотрит влево (идёт налево)
+          ctx.save();
+          ctx.translate(Math.round(x + ox) + frame.width * 2, 96 - frame.height * 2 - bob);
+          ctx.scale(-2, 2);
+          ctx.drawImage(frame, 0, 0);
+          ctx.restore();
+          ox += frame.width * 2 + 4;
+        }
+        drawTextCenteredShadow(p.name, Math.round(x + ox / 2), 102, '#ffcd75', '#1a1c2c');
+      });
+    } else if (this.page === 2) {
+      drawTextCenteredShadow(C.idea, W / 2, 50, '#94b0c2', '#1a1c2c');
+      drawTextCenteredShadow(C.author, W / 2, 66, '#f4f4f4', '#b13e53', 2);
+    } else {
+      drawTextCenteredShadow(C.thanks, W / 2, 58, '#ffcd75', '#b13e53', 2);
+      for (let i = 0; i < 6; i++) {
+        const a = this.t / 20 + i * Math.PI / 3;
+        drawStars(ctx, Math.round(W / 2 + Math.cos(a) * 80), Math.round(66 + Math.sin(a) * 26), this.t + i * 7);
+      }
+    }
+    drawSkipCorner();
   },
 };
 
@@ -6332,6 +6566,8 @@ const levelSelectState = {
     this.labels.push('ЗА РУЛЁМ');
     this.entries.push({ cross: true });
     this.labels.push('ПЕРЕХОД ДОРОГИ');
+    this.entries.push({ finale: true });
+    this.labels.push('ФИНАЛ: ДАЧА САНИ');
     this.entries.push({ back: true });
     this.labels.push('НАЗАД');
     this.menu.index = 0;
@@ -6341,8 +6577,10 @@ const levelSelectState = {
     if (choice === -1) return;
     const e = this.entries[choice];
     if (e.back) { setState('title'); return; }
+    resetGameStats();                               // новая проверка — счётчики с нуля
     if (e.drive) { setState('drive', 'new'); return; }
     if (e.cross) { loadLevel(3); setState('level'); setState('cross', 'new'); return; }
+    if (e.finale) { resetGameStats(); setState('cutscene', 'finalYard'); return; }
     loadLevel(e.level);
     setState('level');                              // всё с чистого листа
     if (e.boss) {
@@ -6412,6 +6650,8 @@ const states = {
   drive: driveState,                          // ЭТАП «ЗА РУЛЁМ»: минивэн едет в офис
   cross: crossState,                          // ЭТАП «ПЕРЕХОД ДОРОГИ»: конец уровня 4
   titya: tityaState,                          // БОСС УРОВНЯ 4: Титя
+  stats: statsState,                          // ФИНАЛ: «ИТОГИ ДНЯ»
+  credits: creditsState,                      // ФИНАЛ: титры
   chief: chiefState,                          // БОСС УРОВНЯ 3: начальник и годовой отчёт
   levelSelect: levelSelectState,              // ВЫБОР УРОВНЯ (для тестов)
   error: errorState,                          // ОШИБКА в карте или в файлах
@@ -6420,6 +6660,7 @@ let state = null;
 
 // Включить экран. arg — дополнительные данные (например, «продолжить с места последнего звонка»)
 function setState(name, arg) {
+  if (name === 'defeat') gameStats.defeats++;     // для «ИТОГОВ ДНЯ»: сколько раз Лера догоняла
   state = states[name];
   state.enter(arg);
   if (state !== states[name]) return;     // экран сам сразу включил другой (например, босс — сценку)

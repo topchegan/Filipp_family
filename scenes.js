@@ -48,6 +48,10 @@ const SPEAKERS = {
   mama:   { name: 'МАМА',   portrait: 'mama',   pitch: 360 },
   nachalnik: { name: 'НАЧАЛЬНИК', portrait: 'nachalnik', pitch: 110 },
   titya:  { name: 'ТИТЯ',   portrait: 'titya',  pitch: 170 },
+  lenya:  { name: 'ЛЁНЯ',   portrait: 'lenya',  pitch: 260 },
+  gleb:   { name: 'ГЛЕБ',   portrait: 'gleb',   pitch: 120 },
+  mozg:   { name: 'МОЗГ',   portrait: 'mozg',   pitch: 330 },
+  all:    { name: 'ВСЕ',    portrait: 'all',    pitch: 200 },   // все хором
 };
 
 const SCENES = {
@@ -349,14 +353,164 @@ const SCENES = {
   // Перешёл дорогу! Калитка Сани. Дальше пока заглушка, потом титульный экран
   crossWin: {
     background: 'cross',
-    next: 'title',
+    next: 'cutscene',
+    nextArg: 'finalYard',         // дальше — финал на даче
     steps: [
       { type: 'say', who: 'sanya',  text: 'Филя! Дошёл! Мы уж думали — всё, Лера поймала.' },
       { type: 'say', who: 'filipp', text: 'Двадцать минут, Саня. Как и обещал.' },
-      { type: 'title', text: 'КОНЕЦ УРОВНЯ 4' },
-      { type: 'title', text: 'ДАЛЬШЕ — ДАЧА САНИ\n(СКОРО)' },
     ],
   },
+
+  // ===== ФИНАЛ =====
+  // Управления нет: тап или «Прыжок» листает реплики, «ПРОПУСТИТЬ» — к итогам.
+  // Новые шаги финала:
+  //   { type: 'say', ..., dream: 'sanya' } — над говорящим «облачко-мечта» (sanya, gleb, lenya, mozg, filipp);
+  //       dreamer: 'sanya' — облачко над другим (например, Саня ещё мечтает, а спрашивает Лёня)
+  //   { type: 'anim', who: 'all', anim: 'cheers' } — все сразу (cheers — чокаются, sit — сидят,
+  //       sitBeer — с пивом, sitJoy — с джойстиками)
+  //   { type: 'look', at: -10, seconds: 2 } — все поворачиваются к точке at и молчат
+  //   { type: 'wait', seconds: 2, music: true } — пауза, слышна только музыка из приставки
+  //   { type: 'message', from: 'ЛЕРА', text: '...' } — крупно экран телефона
+
+  // Сцена 1: двор дачи. Гирлянда, мангал, стол, друзья с пивом. Филипп садится к ним
+  finalYard: {
+    background: 'dachaYard',
+    next: 'cutscene',
+    nextArg: 'finalRoom',
+    actors: {
+      mozg:   { x: 40,  visible: true, facing: 'right', anim: 'sitBeer' },
+      gleb:   { x: 60,  visible: true, facing: 'right', anim: 'sitBeer' },
+      filipp: { x: 102, visible: false, facing: 'right', anim: 'sitBeer' },
+      sanya:  { x: 158, visible: true, facing: 'left', anim: 'sitBeer' },
+      lenya:  { x: 180, visible: true, facing: 'left', anim: 'sitBeer' },
+    },
+    steps: [
+      { type: 'title', text: '22:00. ДАЧА САНИ', auto: 3 },
+      { type: 'enter', who: 'filipp' },
+      { type: 'say', who: 'sanya',  text: 'Ну наконец-то! Мы думали, тебя Лера в пристройку замуровала.' },
+      { type: 'say', who: 'filipp', text: 'Почти. Двенадцать часов побега.' },
+      { type: 'say', who: 'gleb',   text: 'Штрафную ему.' },
+      { type: 'anim', who: 'all', anim: 'cheers' },
+      { type: 'say', who: 'all',    text: 'ЗА ФИЛИППА!' },
+      { type: 'anim', who: 'all', anim: 'sitBeer' },
+      { type: 'say', who: 'sanya',  text: 'Шашлык готов. А потом — в дом. Сега ждёт.' },
+      { type: 'fade' },
+    ],
+  },
+
+  // Сцена 2: в доме. Диван, ковёр на стене, ламповый телевизор с приставкой. Все с джойстиками
+  finalRoom: {
+    background: 'dachaRoom',
+    next: 'stats',                // дальше — «ИТОГИ ДНЯ» и титры
+    actors: {
+      mozg:   { x: 16,  visible: true, facing: 'right', anim: 'sitJoy' },
+      lenya:  { x: 38,  visible: true, facing: 'right', anim: 'sitJoy' },
+      filipp: { x: 56,  visible: true, facing: 'right', anim: 'sitJoy' },
+      gleb:   { x: 80,  visible: true, facing: 'right', anim: 'sitJoy' },
+      sanya:  { x: 104, visible: true, facing: 'right', anim: 'sitJoy' },
+    },
+    steps: [
+      { type: 'say', who: 'gleb',   text: 'Вот вы мне скажите. Куда мы все попадём, когда помрём?' },
+      { type: 'say', who: 'lenya',  text: 'Начинается.' },
+      { type: 'say', who: 'gleb',   text: 'Нет, серьёзно. Не рай, не ад. Каждому — своё место.' },
+      { type: 'say', who: 'sanya',  text: 'Я знаю, куда я.' },
+      { type: 'say', who: 'sanya',  text: 'Там я двухметровый чёрный баскетболист. Сто двадцать кило. Одни мышцы.', dream: 'sanya' },
+      { type: 'say', who: 'lenya',  text: 'И что ты там делаешь?', dream: 'sanya', dreamer: 'sanya' },
+      { type: 'say', who: 'sanya',  text: 'Забиваю сверху. Весь день. Каждый день. Вечность.', dream: 'sanya' },
+      { type: 'say', who: 'sanya',  text: 'Тренер говорит: «Саня, отдохни». А я: «Нет, тренер. Ещё один».', dream: 'sanya' },
+      { type: 'say', who: 'mozg',   text: 'А шашлык там есть?', dream: 'sanya', dreamer: 'sanya' },
+      { type: 'say', who: 'sanya',  text: 'Шашлык там жарю я. В перерыве.', dream: 'sanya' },
+      { type: 'say', who: 'lenya',  text: 'Глеб, ты?' },
+      { type: 'say', who: 'gleb',   text: 'Я — в Готику. В первую. Навсегда.', dream: 'gleb' },
+      { type: 'say', who: 'filipp', text: 'В игру?' },
+      { type: 'say', who: 'gleb',   text: 'В игру. Колония, барьер, Старый лагерь. Там всё понятно.', dream: 'gleb' },
+      { type: 'say', who: 'gleb',   text: 'Если тебе что-то надо от человека — бьёшь его палкой. Всё честно.', dream: 'gleb' },
+      { type: 'say', who: 'lenya',  text: 'А потом?', dream: 'gleb', dreamer: 'gleb' },
+      { type: 'say', who: 'gleb',   text: 'А потом он даёт тебе кусок мяса и говорит: «Ты мне нравишься». Вот это система.', dream: 'gleb' },
+      { type: 'say', who: 'lenya',  text: 'А я знаю, где я буду. Там нет ковров.', dream: 'lenya' },
+      { type: 'say', who: 'sanya',  text: 'В смысле?' },
+      { type: 'say', who: 'lenya',  text: 'Вообще. Ни одного. Ни на полу, ни на стене. Голые стены. Красота.', dream: 'lenya' },
+      { type: 'look', at: -10, seconds: 2.5 },          // все медленно поворачиваются к ковру на стене
+      { type: 'say', who: 'sanya',  text: 'Это бабушкин.' },
+      { type: 'look', at: 300, seconds: 0.5 },          // снова к телевизору
+      { type: 'say', who: 'lenya',  text: 'И там не изобрели аккордеон.', dream: 'lenya' },
+      { type: 'say', who: 'gleb',   text: 'А что тебе аккордеон сделал?' },
+      { type: 'say', who: 'lenya',  text: 'Глеб. Я не хочу об этом говорить.' },
+      { type: 'say', who: 'lenya',  text: '...Свадьба двоюродной сестры. Четыре часа. Один аккордеонист.', dream: 'lenya' },
+      { type: 'say', who: 'mozg',   text: 'А я — на остров в Таиланде.', dream: 'mozg' },
+      { type: 'say', who: 'sanya',  text: 'Море, пальмы. Нормально.', dream: 'mozg', dreamer: 'mozg' },
+      { type: 'say', who: 'mozg',   text: 'Где все — трансвеститы.', dream: 'mozg' },
+      { type: 'wait', seconds: 2.5, music: true },      // пауза, слышна только музыка из приставки
+      { type: 'say', who: 'lenya',  text: '...Мозг. Мы не будем задавать вопросов.' },
+      { type: 'say', who: 'mozg',   text: 'И правильно. Там шоу каждый вечер. Блёстки, перья. А я в первом ряду.', dream: 'mozg' },
+      { type: 'say', who: 'gleb',   text: 'С твоей головой из первого ряда задним ничего не видно.' },
+      { type: 'say', who: 'sanya',  text: 'Филя. Ты чего молчишь?' },
+      { type: 'say', who: 'filipp', text: 'Я знаю, куда я попаду.' },
+      { type: 'say', who: 'filipp', text: 'Теплоход. Белый. Плывёт по Волге. На борту — весь «Аншлаг».', dream: 'filipp' },
+      { type: 'say', who: 'gleb',   text: 'Тот самый?', dream: 'filipp', dreamer: 'filipp' },
+      { type: 'say', who: 'filipp', text: 'Тот самый. Шутки про тёщу. Аплодисменты. И никому от меня ничего не надо.', dream: 'filipp' },
+      { type: 'say', who: 'filipp', text: 'А вечером на палубе я подхожу к Елене Воробей...', dream: 'filipp' },
+      { type: 'anim', who: 'all', anim: 'sit' },        // все откладывают джойстики
+      { type: 'wait', seconds: 1 },
+      { type: 'say', who: 'filipp', text: '...и наконец говорю ей всё. Всё, что копил с девяносто восьмого года.', dream: 'filipp' },
+      { type: 'say', who: 'lenya',  text: 'А Лера?' },
+      { type: 'say', who: 'filipp', text: 'А Лера в это время строит пристройку. Сама.', dream: 'filipp' },
+      { type: 'wait', seconds: 3 },                     // долгая пауза
+      { type: 'say', who: 'sanya',  text: '...Это самое красивое, что я слышал.' },
+      { type: 'say', who: 'gleb',   text: 'За теплоход.' },
+      { type: 'anim', who: 'all', anim: 'cheers' },
+      { type: 'say', who: 'all',    text: 'ЗА ТЕПЛОХОД!' },
+      // Сцена 3: сообщение
+      { type: 'anim', who: 'all', anim: 'sitJoy' },
+      { type: 'message', from: 'ЛЕРА', text: 'ЗАВТРА С УТРА ПРИСТРОЙКА.' },
+      { type: 'say', who: 'filipp', text: 'Завтра так завтра.' },
+      { type: 'say', who: 'sanya',  text: 'Филя, твой ход!' },
+      { type: 'fade' },
+    ],
+  },
+};
+
+// =============================================
+// ФИНАЛ: «ИТОГИ ДНЯ» И ТИТРЫ
+// =============================================
+// Подписи на экране «ИТОГИ ДНЯ» (числа считает игра за всё прохождение)
+const STATS_TEXT = {
+  title: 'ИТОГИ ДНЯ',
+  arrival: 'ПРИБЫЛ К САНЕ',
+  defeats: 'ЛЕРА ДОГОНЯЛА',
+  excuses: 'ОТМАЗОК СКАЗАНО',
+  keys: 'КЛЮЧЕЙ БРОШЕНО',
+  plov: 'ПЛОВА РАССЫПАНО',
+  beers: 'ПИВА ВЫПИТО',
+  cigs: 'СИГАРЕТ',
+  coffee: 'КОФЕ',
+  next: 'НАЖМИ, ЧТОБЫ ДАЛЬШЕ',
+};
+
+// Титры в стиле Денди
+const CREDITS_TEXT = {
+  title: 'ВСЕМ ЧТО-ТО НАДО\nОТ ФИЛИППА',
+  // Кто проходит по экрану: подпись и спрайты [имя спрайта, движение]
+  parade: [
+    { name: 'ФИЛИПП', sprites: [['filipp', 'run']] },
+    { name: 'ЛЕРА', sprites: [['lera', 'idle']] },
+    { name: 'КИРИЛЛ', sprites: [['kirill', 'walk']] },
+    { name: 'ВАСЯ И НАСТЯ', sprites: [['vasya', 'run'], ['nastya', 'run']] },
+    { name: 'ТУСЯ', sprites: [['tusya', 'walk']] },
+    { name: 'МАМА', sprites: [['mama', 'walk']] },
+    { name: 'БАБУШКА', sprites: [['babushka', 'idle']] },
+    { name: 'НАЧАЛЬНИК', sprites: [['chief', 'walk']] },
+    { name: 'КОЛЛЕГИ', sprites: [['smoker', 'walk'], ['chatter', 'walk'], ['coffeeguy', 'walk'], ['intern', 'walk']] },
+    { name: 'ТИТЯ', sprites: [['titya', 'run']] },
+    { name: 'САНЯ', sprites: [['sanya', 'walk']] },
+    { name: 'ЛЁНЯ', sprites: [['lenya', 'walk']] },
+    { name: 'ГЛЕБ', sprites: [['gleb', 'walk']] },
+    { name: 'МОЗГ', sprites: [['mozg', 'walk']] },
+  ],
+  idea: 'ИДЕЯ И СЦЕНАРИЙ:',
+  author: 'АВТОР',                // ← сюда впиши своё имя
+  thanks: 'СПАСИБО ЗА ИГРУ!',
+  done: 'ИГРА ПРОЙДЕНА',          // звёздочка на титульном экране после прохождения
 };
 
 // =============================================

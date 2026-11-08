@@ -226,6 +226,13 @@
     addCard(driveRow, 240, 110, 3, 'Финиш: офис «МЕТАЛЛ-ТОРГ» и парковка', (g) => drawOffice(g, 62));
     addCard(driveRow, 240, 136, 3, 'Картинка «ВЖУХ!» (колесо за 30 секунд)', (g) => PICTURES.wheelFix(g, 1, 0));
 
+    // Финал: облачка-мечты и сообщение на телефоне
+    const finRow = addRow('Финал: облачка-мечты, телефон с сообщением');
+    const dreamNames = { sanya: 'Саня: баскетбол', gleb: 'Глеб: лагерь под барьером', lenya: 'Лёня: комната без ковров и аккордеонов',
+                         mozg: 'Мозг: остров и огни кабаре', filipp: 'Филипп: белый теплоход' };
+    for (const k in dreamNames) addCard(finRow, 76, 60, 4, 'Мечта — ' + dreamNames[k], (g) => { g.fillStyle = '#257179'; g.fillRect(0, 0, 76, 60); drawDreamBubble(g, 2, 2, k, 20, 38, 58); });
+    addCard(finRow, 100, 80, 3, 'Сообщение от Леры', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 100, 80); drawMessagePhone(g, 50, 40, 'ЛЕРА', 'ЗАВТРА С УТРА ПРИСТРОЙКА.', 100); });
+
     // Босс уровня 4: Титя — дым, глюки
     const tityaRow = addRow('Босс уровня 4 (Титя): дым и «глюки»');
     const nb = (g, w, h) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, w, h); };
@@ -308,7 +315,9 @@
                        jackYard: 'Двор Филиппа: минивэн на домкрате',
                        openSpace: 'Офис: open space, вывеска «МЕТАЛЛ-ТОРГ»',
                        homeNight: 'Дом вечером: минивэн у дома, в окне Леры свет',
-                       minivanLights: 'Темнота и фары минивэна (поражение у Тити)' };
+                       minivanLights: 'Темнота и фары минивэна (поражение у Тити)',
+                       dachaYard: 'Финал: двор дачи Сани — гирлянда, мангал, стол',
+                       dachaRoom: 'Финал: комната на даче — ковёр, диван, ламповый телевизор с приставкой' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
     addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,
