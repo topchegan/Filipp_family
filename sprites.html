@@ -190,13 +190,11 @@
     [0, 0.5, 1].forEach((p) => addCard(officeRow, 52, 48, 6, 'Окно: закат ' + (p === 0 ? 'в 19:00' : p === 0.5 ? 'в 19:15' : 'в 19:30'), (g) => { OFFICE_SUNSET = p; bgc(g, 52, 48); drawSunsetWindow(g, 4, 4, 44, 40); OFFICE_SUNSET = 0; }));
 
     // Уровень 4: ночь
-    const nightRow = addRow('Уровень 4: ночь, путь на дачу');
+    const nightRow = addRow('Уровень 4: ночь, пешком к Сане');
     const nbg = (g, w, h) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, w, h); };
     addCard(nightRow, 12, 7, 6, 'Шприц (летит по дуге)', (g) => { nbg(g, 12, 7); drawSyringe(g, 2, 2); });
     addCard(nightRow, 20, 50, 6, 'Пар из теплотрассы', (g) => { nbg(g, 20, 50); drawSteamJet(g, 10, 46, 0, 40); });
-    addCard(nightRow, 84, 48, 6, 'Переезд: шлагбаум поднят', (g) => { nbg(g, 84, 48); drawCrossing(g, 30, 4, 48, false, false, 0); });
-    addCard(nightRow, 84, 48, 6, 'Переезд: идёт поезд', (g) => { nbg(g, 84, 48); drawCrossing(g, 30, 4, 48, true, true, 0); drawTrainPass(g, 30, 4, 48, 10); });
-    addCard(nightRow, 52, 40, 6, 'Поворот к даче Сани (E на фоне dachaTurn)', (g) => { nbg(g, 52, 40); drawDachaTurn(g, 8, 6, 0); });
+    addCard(nightRow, 52, 48, 6, 'Переход через дорогу (E на фоне roadSide)', (g) => { nbg(g, 52, 48); drawRoadCrossing(g, 6, 12, 0); });
     addCard(nightRow, 40, 22, 6, 'Собака в темноте: силуэт с горящими глазами', (g) => {
       nbg(g, 40, 22);
       const f = SPRITES.strayDog.anims.stand.frames[0];
@@ -293,7 +291,7 @@
                        grannyRoom: 'Квартира бабушки: ковёр, ламповый телевизор показывает',
                        jackYard: 'Двор Филиппа: минивэн на домкрате',
                        openSpace: 'Офис: open space, вывеска «МЕТАЛЛ-ТОРГ»',
-                       dachaEntrance: 'Въезд в дачный посёлок, разбитая дорога, минивэн' };
+                       homeNight: 'Дом вечером: минивэн у дома, в окне Леры свет' };
     const bgItems = {};
     for (const key in BACKGROUNDS) bgItems[key] = { name: BG_NAMES[key] || key, key: key };
     addStaticSection('Фоны заставок (240x136, увеличены в 3 раза)', bgItems, 240, 136, 3,

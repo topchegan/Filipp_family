@@ -182,7 +182,7 @@ const CONFIG = {
     chiefGravity: 0.08,      // как сильно дуга листов и степлеров загибается вниз
   },
 
-  // ----- УРОВЕНЬ 4 «Ночь. Путь на дачу»: свои числа -----
+  // ----- УРОВЕНЬ 4 «Ночь. Пешком к Сане»: свои числа -----
   level4: {
     leraHeadStart: 5,        // фора Леры в начале уровня, секунд
     leraSpeed: 1.1,          // скорость Леры по шкале (уровень 4 строже прошлых)
@@ -207,14 +207,22 @@ const CONFIG = {
     dogLungeSpeed: 2.4,      // скорость рывка
     dogEatSeconds: 5,        // плов: собака ест столько секунд и забывает про Филиппа
     dogCooldown: 3,          // после укуса или рывка — передышка
-    fenceDogLera: 20,        // собака за забором выдала Филиппа: Лера ближе на столько (один раз на собаку)
-    // Пар из теплотрассы и поезд
+    // Пар из теплотрассы
     steamEverySeconds: 3,    // как часто бьёт пар...
     steamSeconds: 1,         // ...и сколько секунд
     steamHeight: 40,         // высота струи
-    trainEverySeconds: 7,    // как часто идёт поезд, пока Филипп рядом с переездом
-    trainWarnSeconds: 2,     // за сколько секунд мигает светофор и звенит сигнал
-    trainPassSeconds: 2.5,   // сколько секунд идёт поезд
+    // Алкаши
+    drunkSpeed: 0.3,         // шатаются туда-сюда
+    drunkComeSpeed: 0.55,    // идут к Филиппу «ТРЕТЬИМ БУДЕШЬ?»
+    drunkSeeDistance: 70,    // с какого расстояния замечают Филиппа
+    drinkTogetherSeconds: 2, // «ЗА ВСТРЕЧУ!»: столько секунд стоите вместе, потом Филипп «подшофе» (как от пива)
+    drunkCooldown: 10,       // после встречи столько секунд не пристают
+    // Девчонки-подростки
+    teenSeeDistance: 80,     // с какого расстояния замечают Филиппа
+    teenSpeed: 1.25,         // бегут хвостом за Филиппом
+    teenSlowMul: 0.7,        // пока они рядом, Филипп медленнее (0.7 — на 30%)
+    teenFollowSeconds: 6,    // сколько секунд ходят хвостом, потом отстают
+    teenCooldown: 8,         // отстали — столько секунд не пристают
   },
 
   // ----- Оружие (есть с уровня 2) -----
@@ -1135,11 +1143,11 @@ const SPECIAL_THINGS = ['kirill', 'cat', 'vacuum', 'vasya', 'nastya', 'lego', 'r
                         'smoker', 'chatter', 'coffeeguy', 'intern', 'chair', 'forklift', 'pipes',
                         // босс уровня 3
                         'chief',
-                        // уровень 4: наркоман, бродячая собака, собака за забором, пар, переезд
-                        'junkie', 'strayDog', 'fenceDog', 'steamVent', 'crossing'];
+                        // уровень 4: наркоман, бродячая собака, пар, алкаш, девчонки-подростки
+                        'junkie', 'strayDog', 'steamVent', 'drunk', 'teenA', 'teenB'];
 
 // Размеры особых вещей в плитках (символ — левый нижний угол)
-const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 }, crossing: { w: 6, h: 5 },
+const SPECIAL_SIZES = { gate: { w: 4, h: 4 }, exit: { w: 3, h: 4 }, lera: { w: 2, h: 3 },
                         gossip2: { w: 4, h: 2 }, gossip3: { w: 5, h: 2 } };
 
 // Легенда текущего уровня (буква → что это). Ставится в buildLevel
@@ -1267,8 +1275,6 @@ function buildPart(part, pi, isLast, isArena) {
     pipeLanes: [],     // откуда катятся трубы {x, y}
     lamps: [],         // уровень 4: фонари {x, y} — центр круга света
     vents: [],         // пар из теплотрассы {x, y}
-    crossings: [],     // переезды {x, y, w}: y — земля
-    fenceDogs: [],     // собаки за заборами {x, y}
     exit: null,        // выход из части {x, y}
     gate: null,        // калитка-финиш {x, y}
     start: null,       // старт Филиппа {x, y}
@@ -1302,7 +1308,7 @@ function buildPart(part, pi, isLast, isArena) {
       }
       if (thing === 'beer') { lp.beers.push({ x: tileX(c), y: tileY(r + 1) - 10 }); continue; }
       if (thing === 'cig' || thing === 'coffee') { lp.boosts.push({ kind: thing, x: tileX(c), y: tileY(r + 1) - 9 }); continue; }
-      if (['kirill', 'cat', 'vacuum', 'neighbor', 'dog', 'scooter', 'smoker', 'chatter', 'coffeeguy', 'intern', 'forklift', 'junkie', 'strayDog'].indexOf(thing) !== -1) {
+      if (['kirill', 'cat', 'vacuum', 'neighbor', 'dog', 'scooter', 'smoker', 'chatter', 'coffeeguy', 'intern', 'forklift', 'junkie', 'strayDog', 'drunk', 'teenA', 'teenB'].indexOf(thing) !== -1) {
         lp.spawns.push({ type: thing, x: tileX(c), y: tileY(r + 1) });
         continue;
       }
@@ -1311,7 +1317,6 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'pipes') { lp.pipeLanes.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'chair') { lp.chairs.push({ x: tileX(c) - 2, y: tileY(r + 1) - 14 }); continue; }
       if (thing === 'steamVent') { lp.vents.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
-      if (thing === 'fenceDog') { lp.fenceDogs.push({ x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'sprinkler') { lp.sprinklers.push({ x: tileX(c), y: tileY(r) }); continue; }
       if (thing === 'vasya' || thing === 'nastya') { lp.twins.push({ name: thing, x: tileX(c), y: tileY(r + 1) }); continue; }
       if (thing === 'mama') { lp.mama = { x: tileX(c), y: tileY(r + 1) }; continue; }
@@ -1334,7 +1339,6 @@ function buildPart(part, pi, isLast, isArena) {
       if (thing === 'gate') { gates++; lp.gate = { x: x, y: y }; continue; }
       if (thing === 'exit') { exits++; lp.exit = { x: x, y: y }; continue; }
       if (thing === 'lera') { lp.npcs.push({ x: x, y: y }); continue; }
-      if (thing === 'crossing') { lp.crossings.push({ x: x, y: tileY(r + 1), w: size.w * TILE }); continue; }
       if (thing === 'gossip2' || thing === 'gossip3') {
         lp.gossips.push({ x: x, y: y, w: size.w * TILE, n: thing === 'gossip3' ? 3 : 2, ground: tileY(r + 1) });
         continue;
@@ -1516,7 +1520,13 @@ const ENEMY_SIZES = {
   forklift:  { w: 18, h: 22 },  // погрузчик: хитбокс — корпус с кабиной, вилы спереди
   junkie:    { w: 8, h: 20 },   // уровень 4
   strayDog:  { w: 14, h: 8 },
+  drunk:     { w: 8, h: 20 },
+  teenA:     { w: 8, h: 16 },   // девчонки-подростки
+  teenB:     { w: 8, h: 16 },
 };
+
+// Девчонка-подросток?
+const isTeen = (e) => e.type === 'teenA' || e.type === 'teenB';
 
 // Новый враг из точки появления на карте
 function makeEnemy(sp) {
@@ -1731,11 +1741,10 @@ const levelState = {
     this.workCall = null;
     this.panic = 0;
     this.smoking = null;
-    // Уровень 4: шприцы, пар, поезда, собаки за заборами
+    // Уровень 4: шприцы, пар, девчонки рядом
     this.syringes = [];
     for (const v of level.vents) v.timer = (v.x * 7) % 180;
-    for (const cr of level.crossings) { cr.state = 'idle'; cr.timer = 120; }
-    this.fenceDogs = level.fenceDogs.map((fd) => ({ x: fd.x, y: fd.y, told: false, jump: 0 }));
+    this.teenNear = false;
     if (this.workTimer === undefined || this.workTimer <= 0) this.workTimer = Math.round(levelCfg('firstWorkCall') * 60);
   },
 
@@ -1765,6 +1774,7 @@ const levelState = {
     else if (this.coffeeCrash > 0) k *= CONFIG.coffeeCrashMul;
     if (this.slowT > 0) k *= CONFIG.dogSlowMul;
     if (this.internNear) k *= levelCfg('internSlowMul');
+    if (this.teenNear) k *= levelCfg('teenSlowMul');
     return k;
   },
 
@@ -2043,7 +2053,14 @@ const levelState = {
     if (e.type === 'kirill' || e.type === 'dog' || e.type === 'cat') { e.state = 'walk'; e.timer = 0; }
     clangSound();
     this.popup('БДЗЫНЬ!', e.x + e.w / 2, e.y - 6);
-    if (e.type === 'junkie' && e.state === 'act') this.releaseColleague(e);
+    if ((e.type === 'junkie' || e.type === 'drunk') && e.state === 'act') this.releaseColleague(e);
+    if (isTeen(e)) {
+      // Девчонки от ключа обижаются и уходят насовсем
+      e.stunT = 0;
+      e.state = 'leave'; e.timer = 0;
+      e.dir = e.x + e.w / 2 < player.x + player.w / 2 ? -1 : 1;
+      this.popup(LEVEL4_TEXT.teenBye, e.x + e.w / 2, e.y - 14);
+    }
     if (e.type === 'strayDog') {
       // Собака от ключа убегает, скуля, и больше не возвращается
       e.stunT = 0;
@@ -2093,6 +2110,8 @@ const levelState = {
       if (OFFICE_COLLEAGUES.indexOf(e.type) !== -1) this.updateColleague(e, dx, sameRow, ecx);
       if (e.type === 'junkie') this.updateJunkie(e, dx, sameRow, ecx);
       if (e.type === 'strayDog') this.updateStrayDog(e, dx, sameRow, ecx);
+      if (e.type === 'drunk') this.updateDrunk(e, dx, sameRow, ecx);
+      if (isTeen(e)) this.updateTeen(e, dx, sameRow, ecx);
 
       if (e.type === 'forklift') {
         // Погрузчик ездит туда-сюда. На вилах и крыше можно прокатиться, сбоку — отталкивает
@@ -2547,7 +2566,8 @@ const levelState = {
   releaseColleague(e) {
     e.state = 'walk';
     e.timer = 0;
-    e.cool = Math.round(levelCfg(e.type === 'junkie' ? 'junkieCooldown' : 'colleagueCooldown') * 60);
+    const coolName = e.type === 'junkie' || e.type === 'drunk' ? e.type + 'Cooldown' : 'colleagueCooldown';
+    e.cool = Math.round(levelCfg(coolName) * 60);
     e.dir = e.x < player.x ? -1 : 1;                 // уходит в другую сторону
     if (this.chatHold === e) this.chatHold = null;
     if (this.smoking === e) this.smoking = null;
@@ -2852,7 +2872,7 @@ const levelState = {
     }
   },
 
-  // Ночь: шприцы, пар, поезда, собаки за заборами
+  // Ночь: шприцы, пар, девчонки рядом
   updateNight() {
     if (currentLevelIndex !== 3) return;
     const C = (n) => levelCfg(n);
@@ -2878,33 +2898,79 @@ const levelState = {
         this.swingCool = 40;
       }
     }
-    // Переезд: светофор мигает и звенит, опускается шлагбаум, проходит поезд
-    for (const cr of level.crossings) {
-      const near = pcx > cr.x - 260 && pcx < cr.x + cr.w + 60;
-      if (cr.state === 'idle') {
-        if (near && --cr.timer <= 0) { cr.state = 'warn'; cr.timer = Math.round(C('trainWarnSeconds') * 60); }
-      } else if (cr.state === 'warn') {
-        if (cr.timer % 30 === 0) bellSound();
-        if (--cr.timer <= 0) { cr.state = 'pass'; cr.timer = Math.round(C('trainPassSeconds') * 60); }
-      } else if (cr.state === 'pass') {
-        cr.shift = (cr.shift || 0) + 6;
-        if (overlaps(player, { x: cr.x, y: cr.y - 40, w: cr.w, h: 40 })) {
-          this.hurt(LEVEL4_TEXT.train, cr.x + cr.w / 2);
-          player.vx = (pcx < cr.x + cr.w / 2 ? -1 : 1) * 3;
-          player.x = pcx < cr.x + cr.w / 2 ? cr.x - player.w - 1 : cr.x + cr.w + 1;
-        }
-        if (--cr.timer <= 0) { cr.state = 'idle'; cr.timer = Math.round(C('trainEverySeconds') * 60); }
+    // Девчонка рядом — Филипп медленнее
+    this.teenNear = this.enemies.some((e) => isTeen(e) && e.state === 'follow' && e.stunT === 0 && e.slipT === 0 &&
+                                             Math.abs(e.x - player.x) < 26 && Math.abs(e.y + e.h - player.y - player.h) < 8);
+  },
+
+  // Алкаш: шатается, заметил — «ТРЕТЬИМ БУДЕШЬ?», догнал — стоите вместе «ЗА ВСТРЕЧУ!»,
+  // потом Филипп «подшофе» (как от пива). Ключ — отпускает
+  updateDrunk(e, dx, sameRow, ecx) {
+    const C = (n) => levelCfg(n);
+    if (e.state === 'act') {
+      e.vx = 0;
+      moveEnemy(e, true);
+      if (e.timer >= C('drinkTogetherSeconds') * 60) {
+        this.drinkBeer();
+        this.popup('ИК!', player.x + player.w / 2, player.y - 4);
+        this.releaseColleague(e);
       }
+      return;
     }
-    // Собаки за заборами: лают и бросаются на забор — выдают Филиппа (Лера чуть ближе)
-    for (const fd of this.fenceDogs) {
-      if (fd.jump > 0) fd.jump--;
-      if (Math.abs(pcx - fd.x - 8) < 70) {
-        if (fd.jump === 0) { fd.jump = 24; barkSound(); this.popup(LEVEL4_TEXT.fenceDog, fd.x + 8, fd.y - 24); }
-        if (!fd.told) { fd.told = true; this.leraX += C('fenceDogLera'); }
-      }
+    if (e.cool === 0 && sameRow && Math.abs(dx) < C('drunkSeeDistance')) {
+      if (e.state !== 'come') { e.state = 'come'; e.timer = 0; this.popup(LEVEL4_TEXT.drunkHello, ecx, e.y - 6); }
+      e.dir = dx < 0 ? -1 : 1;
+      e.vx = e.dir * C('drunkComeSpeed');
+    } else {
+      if (e.state === 'come') { e.state = 'walk'; e.timer = 0; }
+      if (Math.abs(e.x - e.homeX) > 30) e.dir = e.x > e.homeX ? -1 : 1;
+      // Шатается: то идёт, то стоит покачиваясь
+      e.vx = Math.floor(e.timer / 50) % 3 === 2 ? 0 : e.dir * C('drunkSpeed');
+    }
+    moveEnemy(e, true);
+    const busy = this.chatHold || this.smoking || this.gossipHold;
+    if (e.state === 'come' && !busy && player.stun === 0 && overlaps(player, e)) {
+      e.state = 'act'; e.timer = 0;
+      this.smoking = e;
+      player.vx = 0;
+      player.stun = Math.round(C('drinkTogetherSeconds') * 60) + 2;
+      player.stunKind = 'colleague';
+      this.popup(LEVEL4_TEXT.cheers, ecx, e.y - 6);
     }
   },
+
+  // Девчонки-подростки: заметили — бегут хвостом «ДЯДЬ, ДАЙ СИГАРЕТКУ!», рядом Филипп медленнее.
+  // Отстают через несколько секунд или если Филипп забрался повыше. Ключ — «ФУ, ДУРАК!» и уходят
+  updateTeen(e, dx, sameRow, ecx) {
+    const C = (n) => levelCfg(n);
+    const ask = LEVEL4_TEXT.teenAsk[e.type === 'teenA' ? 0 : 1];
+    if (e.state === 'leave') {
+      e.vx = e.dir * 0.8;
+      moveEnemy(e, false);
+      if (e.timer > 240) e.gone = true;
+      return;
+    }
+    if (e.state === 'follow') {
+      const goal = player.x - player.facing * 12;
+      e.dir = goal > e.x ? 1 : -1;
+      e.vx = Math.abs(goal - e.x) > 2 ? e.dir * C('teenSpeed') : 0;
+      if (e.timer % 100 === 0) this.popup(ask[(e.timer / 100) % ask.length], ecx, e.y - 6);
+      const high = e.y + e.h - (player.y + player.h) > 12 && player.onGround;
+      if (high || Math.abs(dx) > 150 || e.timer > C('teenFollowSeconds') * 60) {
+        e.state = 'walk'; e.timer = 0; e.cool = Math.round(C('teenCooldown') * 60); e.homeX = e.x;
+        this.popup(LEVEL4_TEXT.teenLost, ecx, e.y - 6);
+      }
+    } else {
+      if (Math.abs(e.x - e.homeX) > 24) e.dir = e.x > e.homeX ? -1 : 1;
+      e.vx = e.dir * 0.3;
+      if (e.cool === 0 && sameRow && Math.abs(dx) < C('teenSeeDistance')) {
+        e.state = 'follow'; e.timer = 0;
+        this.popup(ask[0], ecx, e.y - 6);
+      }
+    }
+    moveEnemy(e, true);
+  },
+
 
   // Переход в следующую часть: сценка выхода (если есть), затемнение, титр с названием части
   startPartTransition() {
@@ -3179,7 +3245,7 @@ const levelState = {
       const look = LEVEL_BACKGROUNDS[scr.bg].gateLook;
       if (look === 'arch') drawArch(ctx, level.gate.x - cam, level.gate.y);
       else if (look === 'turnstile') drawTurnstile(ctx, level.gate.x - cam, level.gate.y);
-      else if (look === 'turn') drawDachaTurn(ctx, level.gate.x - cam, level.gate.y, this.tick);
+      else if (look === 'road') drawRoadCrossing(ctx, level.gate.x - cam, level.gate.y, this.tick);
       else drawGate(ctx, level.gate.x - cam, level.gate.y);
     }
     for (const f of level.furniture) {
@@ -3220,19 +3286,9 @@ const levelState = {
       const lift = r.timer > 40 ? (60 - r.timer) / 20 : r.timer / 40;   // быстро встали, медленно легли
       drawRake(ctx, r.x - cam, r.y - 4, Math.max(0, lift));
     }
-    // Уровень 4: переезды, пар, собаки за заборами — и ТЕМНОТА с кругами света от фонарей
+    // Уровень 4: пар из теплотрассы — и ТЕМНОТА с кругами света от фонарей
     if (night) {
-      for (const cr of level.crossings) {
-        drawCrossing(ctx, cr.x - cam, cr.y - 40, cr.w, cr.state !== 'idle', cr.state !== 'idle', this.tick);
-        if (cr.state === 'pass') drawTrainPass(ctx, cr.x - cam, cr.y - 40, cr.w, cr.shift || 0);
-        if (cr.state === 'warn' && Math.floor(this.tick / 10) % 2) drawTextCenteredShadow(LEVEL4_TEXT.ding, cr.x - cam + cr.w / 2, cr.y - 52, '#ffcd75', '#1a1c2c');
-      }
       for (const v of level.vents) if (v.on) drawSteamJet(ctx, v.x - cam + 4, v.y - 2, this.tick, levelCfg('steamHeight'));
-      for (const fd of this.fenceDogs || []) {
-        const frame = SPRITES.strayDog.anims.stand.frames[0];
-        drawSprite(ctx, frame, fd.x - cam, fd.y - 10 - (fd.jump > 12 ? 6 : fd.jump > 0 ? 3 : 0), player.x < fd.x);
-        drawFurniture(ctx, FURNITURE.dachaFence, fd.x - cam - 8, fd.y - 16, 0);   // забор перед собакой
-      }
       this.drawDarkness(cam);
     }
     // Пиво, которое ещё не выпито (покачивается)
@@ -3453,9 +3509,11 @@ const levelState = {
   drawEnemy(e, cam) {
     const ex = Math.round(e.x) - cam, ey = Math.round(e.y);
     if (ex < -20 || ex > W + 20) return;
-    if (e.type === 'junkie' || e.type === 'strayDog') {
+    if (e.type === 'junkie' || e.type === 'strayDog' || e.type === 'drunk' || isTeen(e)) {
       let anim;
       if (e.type === 'junkie') anim = SPRITES.junkie.anims[e.state === 'act' ? 'act' : (e.throwT > 0 ? 'throw' : 'walk')];
+      else if (e.type === 'drunk') anim = SPRITES.drunk.anims[e.state === 'act' ? 'act' : 'walk'];
+      else if (isTeen(e)) anim = SPRITES[e.type].anims[e.state === 'follow' && e.vx === 0 ? 'act' : 'walk'];
       else anim = SPRITES.strayDog.anims[e.state === 'eat' ? 'eat' : (e.state === 'lunge' || e.state === 'flee' ? 'run' : ((e.homeX >> 3) % 2 ? 'lie' : 'stand'))];
       const still = e.stunT > 0 || e.slipT > 0 || (e.vx === 0 && anim.frames.length > 1 && e.state !== 'eat');
       const frame = anim.frames[still ? 0 : Math.floor(this.tick / anim.speed) % anim.frames.length];
@@ -3473,11 +3531,14 @@ const levelState = {
       // В темноте — чёрный силуэт с горящими глазами
       drawSprite(ctx, lit ? frame : darkOf(frame), fx, fy, e.dir < 0);
       if (!lit) {
-        ctx.fillStyle = e.type === 'junkie' ? '#a7f070' : '#b13e53';
-        const eyeY = e.type === 'junkie' ? fy + 4 : fy + 3;
-        const eyeX = e.type === 'junkie' ? (e.dir < 0 ? fx + 4 : fx + 6) : (e.dir < 0 ? fx + 2 : fx + 12);
+        // Глаза: [цвет, y, x вправо, x влево] — у каждого свои
+        const eyes = { junkie: ['#a7f070', 4, 6, 4], strayDog: ['#b13e53', 3, 12, 2], drunk: ['#ffcd75', 7, 5, 6],
+                       teenA: ['#73eff7', 5, 5, 4], teenB: ['#73eff7', 5, 5, 4] }[e.type];
+        ctx.fillStyle = eyes[0];
+        const eyeY = fy + eyes[1];
+        const eyeX = fx + (e.dir < 0 ? eyes[3] : eyes[2]);
         ctx.fillRect(eyeX, eyeY, 1, 1);
-        ctx.fillRect(eyeX + 2, eyeY, 1, 1);
+        if (e.type === 'junkie' || e.type === 'strayDog') ctx.fillRect(eyeX + 2, eyeY, 1, 1);
       }
       if (e.stunT > 0) drawStars(ctx, ex + e.w / 2, fy - 3, this.tick);
       return;

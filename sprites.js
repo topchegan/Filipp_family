@@ -5277,10 +5277,13 @@ LEVEL_BACKGROUNDS.chiefArena = { name: 'Офис ночью (арена: нач�
 // =============================================
 // УРОВЕНЬ 4 «Ночь. Путь на дачу» (v0.18)
 // =============================================
-// Враги мультяшные, без натурализма. Контур уже нарисован, смотрят ВПРАВО.
+// Путь к Сане пешком: гаражи, теплотрасса, АЗС. Враги мультяшные, без натурализма.
+// Контур уже нарисован, смотрят ВПРАВО.
 //   Наркоман 12x22 — тощий, серый капюшон, бледное серое лицо, мятые тёмно-синие спортивки с белыми полосками.
 //   Бродячая собака 16x10 — лохматая, тёмная (фиолетово-бурая) с рыжими пятнами и мордой.
-//   Собака за забором — та же собака, бросается на забор.
+//   Алкаш 12x22 — ушанка, красный нос, щетина, мятая куртка, зелёная бутылка.
+//   Девчонки-подростки 10x18 — обычная одежда: худи (салатовое или голубое), джинсы, белые кроссовки,
+//     телефон в руке; рыжий хвостик или тёмные волосы. Пристают «ДЯДЬ, ДАЙ СИГАРЕТКУ!».
 const JUNKIE1 = [
   '............',
   '...00000....',
@@ -5475,51 +5478,6 @@ function drawSteamJet(g, cx, y, t, h) {
   g.fillRect(cx - 1, y - 3, 2, 3);
 }
 
-// Поезд на переезде: вагоны едут мимо (рисуем полосу вагонов в зоне переезда). shift — сдвиг вагонов
-function drawTrainPass(g, x, y, w, shift) {
-  g.save();
-  g.beginPath();
-  g.rect(x, y, w, 40);
-  g.clip();
-  for (let i = -1; i < w / 48 + 2; i++) {
-    const wx = x + i * 48 - (shift % 48);
-    g.fillStyle = '#1a1c2c';
-    g.fillRect(wx, y, 46, 38);
-    g.fillStyle = i % 2 ? '#257179' : '#38b764';     // зелёные вагоны
-    g.fillRect(wx + 1, y + 1, 44, 30);
-    g.fillStyle = '#ffcd75';
-    for (let k = 0; k < 4; k++) g.fillRect(wx + 4 + k * 10, y + 6, 6, 6);   // окна горят
-    g.fillStyle = '#566c86';
-    g.fillRect(wx + 1, y + 31, 44, 3);
-    pixelCircle(g, wx + 10, y + 35, 3, '#333c57');
-    pixelCircle(g, wx + 36, y + 35, 3, '#333c57');
-  }
-  g.restore();
-}
-
-// Переезд: рельсы, шлагбаум, светофор. down — шлагбаум опущен, blink — мигает красный
-function drawCrossing(g, x, y, w, down, blink, t) {
-  g.fillStyle = '#566c86';
-  g.fillRect(x, y + 37, w, 3);                       // рельсы
-  g.fillStyle = '#5d275d';
-  for (let i = 2; i < w; i += 8) g.fillRect(x + i, y + 38, 4, 2);   // шпалы
-  // светофор слева от переезда
-  g.fillStyle = '#1a1c2c';
-  g.fillRect(x - 12, y + 6, 2, 34);
-  g.fillRect(x - 16, y + 4, 10, 6);
-  const on = blink && Math.floor(t / 10) % 2 === 0;
-  g.fillStyle = on ? '#b13e53' : '#333c57';
-  g.fillRect(x - 15, y + 5, 3, 4);
-  g.fillStyle = !on && blink ? '#b13e53' : '#333c57';
-  g.fillRect(x - 10, y + 5, 3, 4);
-  // шлагбаум: красно-белый
-  for (let i = 0; i < 24; i += 4) {
-    g.fillStyle = (i / 4) % 2 ? '#f4f4f4' : '#b13e53';
-    if (down) g.fillRect(x - 8 + i, y + 22, 4, 2);
-    else g.fillRect(x - 8, y + 22 - i - 4, 2, 4);
-  }
-}
-
 // ---------- ПРЕДМЕТЫ УРОВНЯ 4 ----------
 Object.assign(FURNITURE, {
   garage: {
@@ -5613,58 +5571,6 @@ Object.assign(FURNITURE, {
       drawText(g, 'ФБС', x + 3, y + 4, '#566c86');
     },
   },
-  dachaFence: {
-    name: 'Забор', w: 4, h: 2,
-    draw(g, x, y) {
-      g.fillStyle = '#5d275d';
-      for (let i = 1; i < 32; i += 4) g.fillRect(x + i, y, 3, 16);
-      g.fillStyle = '#b13e53';
-      g.fillRect(x, y + 4, 32, 2);
-      g.fillRect(x, y + 11, 32, 2);
-    },
-  },
-  veggieBed: {
-    name: 'Грядка', w: 4, h: 1,
-    parts: [{ x: 0, y: 4, w: 32, h: 4 }],
-    draw(g, x, y) {
-      g.fillStyle = '#5d275d';
-      g.fillRect(x, y + 4, 32, 4);
-      g.fillStyle = '#38b764';
-      for (let i = 2; i < 32; i += 6) pixelCircle(g, x + i + 2, y + 3, 2, '#38b764');
-    },
-  },
-  greenhouse: {
-    name: 'Теплица (по каркасу можно лезть)', w: 6, h: 4, parts: [],
-    tops: [{ x: 0, y: 16, w: 48 }, { x: 6, y: 2, w: 36 }],
-    draw(g, x, y) {
-      g.fillStyle = '#29366f';
-      g.fillRect(x + 2, y + 6, 44, 26);
-      pixelCircle(g, x + 24, y + 12, 20, '#29366f');
-      g.fillStyle = '#41a6f6';
-      for (let j = 8; j < 32; j += 3) for (let i = (j % 6 ? 4 : 6); i < 46; i += 6) g.fillRect(x + i, y + j, 1, 1);   // плёнка
-      g.fillStyle = '#94b0c2';                        // каркас
-      for (const px of [2, 14, 24, 34, 45]) g.fillRect(x + px, y + 4, 1, 28);
-      g.fillRect(x, y + 16, 48, 2);
-      g.fillRect(x + 6, y + 2, 36, 2);
-    },
-  },
-  waterPump: {
-    name: 'Колонка с водой (рядом лужа)', w: 3, h: 3,
-    parts: [{ x: 2, y: 4, w: 6, h: 20 }],
-    puddle: { x: 8, y: 22, w: 16, h: 2 },
-    draw(g, x, y) {
-      g.fillStyle = '#38b764';
-      g.fillRect(x + 2, y + 4, 6, 20);
-      g.fillRect(x + 6, y + 8, 6, 2);                // носик
-      g.fillStyle = '#257179';
-      g.fillRect(x, y + 2, 10, 3);
-      g.fillRect(x + 1, y + 1, 14, 1);               // ручка
-      g.fillStyle = '#3b5dc9';
-      g.fillRect(x + 8, y + 22, 16, 2);
-      g.fillStyle = '#41a6f6';
-      g.fillRect(x + 11, y + 10 + (Math.floor(Date.now() / 120) % 10), 1, 2);   // капает
-    },
-  },
 });
 
 // ---------- ФОНЫ УРОВНЯ 4: НОЧЬ ----------
@@ -5705,7 +5611,9 @@ Object.assign(LEVEL_BACKGROUNDS, {
   wasteland: { name: 'Пустырь', tile: DIRT_NIGHT, shelf: ['#94b0c2', '#566c86'],
     draw(g, x, y) {
       drawNightSky(g, x, y, 90);
-      g.fillStyle = '#333c57';                        // многоэтажки вдали с окнами
+      g.fillStyle = '#333c57';                        // земля до горизонта
+      g.fillRect(x, y + 90, 240, 22);
+      // многоэтажки вдали с окнами
       for (const [hx, hw, hh] of [[10, 40, 50], [170, 50, 60]]) {
         g.fillRect(x + hx, y + 90 - hh, hw, hh + 22);
         g.fillStyle = '#ffcd75';
@@ -5713,79 +5621,357 @@ Object.assign(LEVEL_BACKGROUNDS, {
         g.fillStyle = '#333c57';
       }
     } },
-  // ЧАСТЬ 2: ЖЕЛЕЗНАЯ ДОРОГА И ДОЛГОСТРОЙ
-  railway: { name: 'Железная дорога', tile: DIRT_NIGHT, shelf: ['#94b0c2', '#566c86'],
+});
+const DRUNK1 = [
+  '............',
+  '............',
+  '............',
+  '...000000...',
+  '..0eeeeee0..',
+  '.0eeeeeeee0.',
+  '.0e444444e0.',
+  '.0e4404400..',
+  '..044444220.',
+  '..04ff4f00..',
+  '...044440...',
+  '..0ff1fff0..',
+  '.0fff1ffff0.',
+  '.0f1ff1ff40.',
+  '.0f1fff060..',
+  '.0ffff1060..',
+  '.0ffffff60..',
+  '..0777700...',
+  '..070070....',
+  '..070070....',
+  '.0ee00ee0...',
+  '..00..00....',
+];
+const DRUNK2 = [
+  '............',
+  '............',
+  '............',
+  '...000000...',
+  '..0eeeeee0..',
+  '.0eeeeeeee0.',
+  '.0e444444e0.',
+  '.0e4404400..',
+  '..044444220.',
+  '..04ff4f00..',
+  '...044440...',
+  '..0ff1fff0..',
+  '.0fff1ffff0.',
+  '.0f1ff1ff40.',
+  '.0f1fff060..',
+  '.0ffff1060..',
+  '.0ffffff60..',
+  '..0777700...',
+  '..0700070...',
+  '.070...070..',
+  '0ee0...0ee0.',
+  '.00.....00..',
+];
+const DRUNK_ACT = [
+  '............',
+  '............',
+  '............',
+  '...000000...',
+  '..0eeeeee0..',
+  '.0eeeeeeee0.',
+  '.0e444444e0.',
+  '.0e4404400..',
+  '..044444220.',
+  '..04f00f00..',
+  '...0444400..',
+  '..0ff1fff60.',
+  '.0fff1fff60.',
+  '.0f1ff1ff40.',
+  '.0f1fff000..',
+  '.0ffff10....',
+  '.0ffffff0...',
+  '..077770....',
+  '..070070....',
+  '..070070....',
+  '.0ee00ee0...',
+  '..00..00....',
+];
+const TEEN_A1 = [
+  '..........',
+  '...000....',
+  '..03330...',
+  '.0333330..',
+  '03334440..',
+  '03044040..',
+  '.0044430..',
+  '...0440...',
+  '..05550...',
+  '.0555550..',
+  '.05555540.',
+  '.055555f0.',
+  '.0555500..',
+  '..0880....',
+  '..0880....',
+  '..08080...',
+  '.0cc0cc0..',
+  '..00.00...',
+];
+const TEEN_A2 = [
+  '..........',
+  '...000....',
+  '..03330...',
+  '.0333330..',
+  '03334440..',
+  '03044040..',
+  '.0044430..',
+  '...0440...',
+  '..05550...',
+  '.0555550..',
+  '.05555540.',
+  '.055555f0.',
+  '.0555500..',
+  '..0880....',
+  '..08080...',
+  '.080.080..',
+  '0cc0.0cc0.',
+  '.00...00..',
+];
+const TEEN_A_ACT = [
+  '..........',
+  '...000....',
+  '..03330...',
+  '.0333330..',
+  '03334440..',
+  '03044040..',
+  '.0044430..',
+  '...0440...',
+  '..0555000.',
+  '.055555440',
+  '.05555500.',
+  '.055555f0.',
+  '.0555500..',
+  '..0880....',
+  '..0880....',
+  '..08080...',
+  '.0cc0cc0..',
+  '..00.00...',
+];
+const TEEN_B1 = [
+  '..........',
+  '...000....',
+  '..01110...',
+  '.0111110..',
+  '01114440..',
+  '01044040..',
+  '.0044430..',
+  '...0440...',
+  '..0bbb0...',
+  '.0bbbbb0..',
+  '.0bbbbb40.',
+  '.0bbbbbf0.',
+  '.0bbbb00..',
+  '..0880....',
+  '..0880....',
+  '..08080...',
+  '.0cc0cc0..',
+  '..00.00...',
+];
+const TEEN_B2 = [
+  '..........',
+  '...000....',
+  '..01110...',
+  '.0111110..',
+  '01114440..',
+  '01044040..',
+  '.0044430..',
+  '...0440...',
+  '..0bbb0...',
+  '.0bbbbb0..',
+  '.0bbbbb40.',
+  '.0bbbbbf0.',
+  '.0bbbb00..',
+  '..0880....',
+  '..08080...',
+  '.080.080..',
+  '0cc0.0cc0.',
+  '.00...00..',
+];
+const TEEN_B_ACT = [
+  '..........',
+  '...000....',
+  '..01110...',
+  '.0111110..',
+  '01114440..',
+  '01044040..',
+  '.0044430..',
+  '...0440...',
+  '..0bbb000.',
+  '.0bbbbb440',
+  '.0bbbbb00.',
+  '.0bbbbbf0.',
+  '.0bbbb00..',
+  '..0880....',
+  '..0880....',
+  '..08080...',
+  '.0cc0cc0..',
+  '..00.00...',
+];
+
+SPRITES.drunk = buildCharacter('Алкаш', 12, 22, {
+  walk: { name: 'Шатается', speed: 18, frames: [DRUNK1, DRUNK2] },
+  act:  { name: '«ЗА ВСТРЕЧУ!»', speed: 60, frames: [DRUNK_ACT] },
+});
+SPRITES.teenA = buildCharacter('Девчонка-подросток (рыжая, салатовое худи)', 10, 18, {
+  walk: { name: 'Ходит', speed: 10, frames: [TEEN_A1, TEEN_A2] },
+  act:  { name: '«ДЯДЬ, ДАЙ СИГАРЕТКУ!»', speed: 60, frames: [TEEN_A_ACT] },
+});
+SPRITES.teenB = buildCharacter('Девчонка-подросток (тёмненькая, голубое худи)', 10, 18, {
+  walk: { name: 'Ходит', speed: 10, frames: [TEEN_B1, TEEN_B2] },
+  act:  { name: '«ДЯДЬ, ДАЙ ПОЗВОНИТЬ!»', speed: 60, frames: [TEEN_B_ACT] },
+});
+
+// ---------- АЗС ----------
+Object.assign(FURNITURE, {
+  fuelPump: {
+    name: 'Заправочная колонка', w: 2, h: 3,
+    parts: [{ x: 2, y: 2, w: 12, h: 22 }],
+    draw(g, x, y) {
+      g.fillStyle = '#b13e53';
+      g.fillRect(x + 2, y + 2, 12, 22);
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x + 4, y + 5, 8, 5);                // табло
+      g.fillStyle = '#38b764';
+      g.fillRect(x + 5, y + 6, 6, 1);
+      g.fillStyle = '#1a1c2c';
+      g.fillRect(x + 13, y + 12, 3, 2);              // пистолет и шланг
+      g.fillRect(x + 15, y + 12, 1, 8);
+      g.fillStyle = '#ffcd75';
+      drawText(g, '95', x + 4, y + 14, '#ffcd75');
+    },
+  },
+  azsCanopy: {
+    name: 'Навес АЗС (крыша — платформа, залезть — с колонки)', w: 12, h: 5, parts: [],
+    tops: [{ x: 0, y: 0, w: 96 }],
+    draw(g, x, y) {
+      g.fillStyle = '#f4f4f4';
+      g.fillRect(x, y, 96, 6);                       // навес светится
+      g.fillStyle = '#b13e53';
+      g.fillRect(x, y + 4, 96, 2);
+      g.fillStyle = '#94b0c2';
+      g.fillRect(x + 6, y + 6, 3, 34);               // столбы
+      g.fillRect(x + 87, y + 6, 3, 34);
+      g.fillStyle = '#ffcd75';
+      for (let i = 14; i < 90; i += 16) g.fillRect(x + i, y + 6, 6, 1);   // лампы под навесом
+    },
+  },
+  tireStack: {
+    name: 'Стопка шин', w: 2, h: 2,
+    draw(g, x, y) {
+      for (let j = 0; j < 4; j++) {
+        g.fillStyle = '#333c57';
+        g.fillRect(x + 1, y + j * 4, 14, 4);
+        g.fillStyle = '#566c86';
+        g.fillRect(x + 5, y + j * 4 + 1, 6, 2);
+      }
+    },
+  },
+  oilBarrels: {
+    name: 'Бочки', w: 3, h: 2,
+    draw(g, x, y) {
+      for (const bx of [0, 12]) {
+        g.fillStyle = '#257179';
+        g.fillRect(x + bx, y, 11, 16);
+        g.fillStyle = '#38b764';
+        g.fillRect(x + bx, y + 3, 11, 1);
+        g.fillRect(x + bx, y + 11, 11, 1);
+      }
+    },
+  },
+});
+
+// Фон АЗС: магазинчик со светящейся вывеской, табло цен
+function drawAzs(g, x, y, withShop) {
+  drawNightSky(g, x, y, 86);
+  g.fillStyle = '#333c57';                           // асфальт до горизонта
+  g.fillRect(x, y + 86, 240, 26);
+  if (withShop) {
+    g.fillStyle = '#566c86';
+    g.fillRect(x + 120, y + 56, 110, 56);            // магазин
+    g.fillStyle = '#ffcd75';
+    g.fillRect(x + 130, y + 70, 30, 24);             // светлые окна
+    g.fillRect(x + 190, y + 70, 30, 24);
+    g.fillStyle = '#29366f';
+    g.fillRect(x + 166, y + 76, 18, 36);             // дверь
+    g.fillStyle = '#b13e53';
+    g.fillRect(x + 130, y + 58, 90, 9);
+    drawText(g, '24 ЧАСА', x + 154, y + 59, '#f4f4f4');
+    g.fillStyle = '#1a1c2c';                         // табло цен на столбе
+    g.fillRect(x + 30, y + 20, 2, 92);
+    g.fillRect(x + 14, y + 16, 36, 30);
+    drawText(g, 'АЗС', x + 23, y + 18, '#b13e53');
+    drawText(g, '92 56', x + 16, y + 27, '#ffcd75');
+    drawText(g, '95 61', x + 16, y + 36, '#ffcd75');
+  }
+}
+
+Object.assign(LEVEL_BACKGROUNDS, {
+  pipesNight: { name: 'Теплотрасса на пустыре', tile: DIRT_NIGHT, shelf: ['#94b0c2', '#566c86'],
     draw(g, x, y) {
       drawNightSky(g, x, y, 84);
-      g.fillStyle = '#333c57';                        // столбы контактной сети
-      for (let i = 20; i < 240; i += 70) g.fillRect(x + i, y + 30, 2, 82);
-      g.fillRect(x, y + 34, 240, 1);
+      g.fillStyle = '#333c57';                        // земля до горизонта
+      g.fillRect(x, y + 84, 240, 28);
+      g.fillStyle = '#566c86';                        // трубы теплотрассы вдали
+      g.fillRect(x, y + 72, 240, 4);
+      for (let i = 10; i < 240; i += 40) g.fillRect(x + i, y + 76, 3, 36);
+      g.fillRect(x + 110, y + 54, 4, 22);             // П-образный изгиб трубы
+      g.fillRect(x + 110, y + 54, 30, 4);
+      g.fillRect(x + 136, y + 54, 4, 22);
     } },
-  buildSite: { name: 'Долгострой', tile: GROUND_NIGHT, shelf: ['#94b0c2', '#566c86'],
-    draw(g, x, y) {
-      drawNightSky(g, x, y, 90);
-      g.fillStyle = '#333c57';                        // каркас недостроенного дома
-      g.fillRect(x + 10, y + 10, 220, 102);
-      g.fillStyle = '#29366f';
-      for (let j = 14; j < 110; j += 24) for (let i = 16; i < 230; i += 28) g.fillRect(x + i, y + j, 20, 16);   // пустые проёмы
-      drawText(g, 'СТРОЙКА', x + 92, y + 2, '#566c86');
-    } },
-  // ЧАСТЬ 3: ДАЧНЫЙ ПОСЁЛОК
-  dachas: { name: 'Дачный посёлок', tile: DIRT_NIGHT, shelf: ['#94b0c2', '#566c86'],
-    draw(g, x, y) {
-      drawNightSky(g, x, y, 88);
-      for (const hx of [20, 140]) {                   // домики вдали, в окне свет
-        g.fillStyle = '#333c57';
-        g.fillRect(x + hx, y + 70, 50, 30);
-        for (let i = 0; i < 14; i++) g.fillRect(x + hx - 4 + i * 2, y + 70 - i, 58 - i * 4, 1);
-        g.fillStyle = '#ffcd75';
-        g.fillRect(x + hx + 20, y + 80, 8, 8);
-      }
-      g.fillStyle = '#5d275d';                        // дальний забор
-      for (let i = 0; i < 240; i += 5) g.fillRect(x + i, y + 98, 3, 14);
-    } },
-  dachaTurn: { name: 'Поворот к даче Сани', tile: DIRT_NIGHT, shelf: ['#94b0c2', '#566c86'], gateLook: 'turn',
+  azs: { name: 'Заправка', tile: ASPHALT, shelf: ['#94b0c2', '#566c86'],
+    draw(g, x, y) { drawAzs(g, x, y, true); } },
+  azsYard: { name: 'Заправка: двор', tile: ASPHALT, shelf: ['#94b0c2', '#566c86'],
+    draw(g, x, y) { drawAzs(g, x, y, false); } },
+  roadSide: { name: 'Обочина у дороги (тут E — переход)', tile: ASPHALT, shelf: ['#94b0c2', '#566c86'], gateLook: 'road',
     draw(g, x, y) {
       drawNightSky(g, x, y, 88);
-      g.fillStyle = '#5d275d';
-      for (let i = 0; i < 160; i += 5) g.fillRect(x + i, y + 98, 3, 14);
+      g.fillStyle = '#333c57';                        // земля до горизонта
+      g.fillRect(x, y + 88, 240, 24);
+      g.fillStyle = '#566c86';                        // за дорогой — заборы дач
+      for (let i = 150; i < 240; i += 5) g.fillRect(x + i, y + 92, 3, 20);
     } },
 });
 
-// Поворот на улицу Сани (финиш уровня 4, E на фоне dachaTurn): указатель и огонь мангала вдали
-function drawDachaTurn(g, x, y, t) {
-  g.fillStyle = '#5d275d';
-  g.fillRect(x + 4, y, 2, 32);
-  g.fillStyle = '#ffcd75';
-  g.fillRect(x - 6, y - 2, 40, 11);
-  drawText(g, 'К САНЕ', x - 4, y, '#5d275d');
-  g.fillStyle = '#ffcd75';
-  g.fillRect(x + 34, y + 1, 2, 7);                   // стрелка
-  g.fillRect(x + 36, y + 3, 2, 3);
-  // свет и огонь мангала за поворотом
-  g.fillStyle = Math.floor(t / 8) % 2 ? '#ef7d57' : '#ffcd75';
-  g.fillRect(x + 22, y + 24, 6, 4);
-  g.fillStyle = '#b13e53';
-  g.fillRect(x + 20, y + 28, 10, 4);
+// Переход через дорогу (финиш уровня 4, E на фоне roadSide): знак «Пешеходный переход» и «зебра»
+function drawRoadCrossing(g, x, y, t) {
+  g.fillStyle = '#566c86';
+  g.fillRect(x + 4, y + 2, 2, 30);                   // столб знака
+  g.fillStyle = '#3b5dc9';
+  g.fillRect(x - 2, y - 8, 14, 14);                  // синий знак
+  g.fillStyle = '#f4f4f4';
+  for (let i = 0; i < 6; i++) g.fillRect(x + 1 + i, y + 3 - i, 1, 1);   // треугольник
+  g.fillRect(x + 4, y - 4, 2, 4);                    // человечек
+  g.fillRect(x + 3, y, 4, 1);
+  g.fillStyle = Math.floor(t / 15) % 2 ? '#f4f4f4' : '#94b0c2';
+  for (let i = 0; i < 4; i++) g.fillRect(x + 14 + i * 6, y + 29, 4, 3);   // «зебра»
+  drawText(g, 'ПЕРЕХОД', x - 6, y - 18, '#f4f4f4');
 }
 
-// Фон сценки: въезд в дачный посёлок, разбитая дорога, минивэн
-BACKGROUNDS.dachaEntrance = function (g) {
-  g.fillStyle = '#5d275d';
+// Фон сценки: дом Филиппа вечером, минивэн тихонько стоит у дома, в окне Леры горит свет
+BACKGROUNDS.homeNight = function (g) {
+  g.fillStyle = '#5d275d';                           // вечернее небо
   g.fillRect(0, 0, 240, 86);
-  g.fillStyle = '#b13e53';
-  g.fillRect(0, 60, 240, 26);
-  pixelCircle(g, 200, 18, 6, '#ffcd75');
-  g.fillStyle = '#333c57';                           // забор посёлка и ворота
-  for (let i = 0; i < 240; i += 5) g.fillRect(i, 56, 3, 30);
-  g.fillStyle = '#1a1c2c';
-  g.fillRect(150, 40, 60, 12);
-  drawText(g, 'СНТ РОМАШКА', 153, 43, '#ffcd75');
-  g.fillStyle = '#5d275d';                           // разбитая дорога: ямы и лужи
-  g.fillRect(0, 86, 240, 50);
+  g.fillStyle = '#b13e53';                           // закат у горизонта
+  g.fillRect(0, 50, 240, 16);
+  pixelCircle(g, 210, 16, 5, '#ffcd75');
+  g.fillStyle = '#333c57';                           // дорога у дома
+  g.fillRect(0, 66, 240, 20);
+  g.fillStyle = '#566c86';                           // стена дома
+  g.fillRect(0, 10, 90, 76);
   g.fillStyle = '#333c57';
-  for (const [px, py, w] of [[20, 100, 24], [110, 112, 30], [180, 96, 20]]) g.fillRect(px, py, w, 5);
-  g.fillStyle = '#3b5dc9';
-  g.fillRect(70, 120, 26, 4);
-  g.drawImage(MINIVAN_FIXED, 2, 58);                 // минивэн дальше не проедет
+  for (let j = 14; j < 86; j += 6) g.fillRect(0, j, 90, 1);
+  g.fillStyle = '#ffcd75';                           // окно Леры — горит свет
+  g.fillRect(24, 22, 26, 22);
+  g.fillStyle = '#ef7d57';
+  g.fillRect(36, 22, 2, 22);
+  g.fillStyle = '#257179';                           // трава
+  g.fillRect(0, 86, 240, 50);
+  g.drawImage(MINIVAN_FIXED, 130, 58);               // минивэн дома
 };
