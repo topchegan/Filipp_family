@@ -364,7 +364,8 @@ const SCENES = {
   // ===== ФИНАЛ =====
   // Управления нет: тап или «Прыжок» листает реплики, «ПРОПУСТИТЬ» — к итогам.
   // Новые шаги финала:
-  //   { type: 'say', ..., dream: 'sanya' } — над говорящим «облачко-мечта» (sanya, gleb, lenya, mozg, filipp);
+  //   { type: 'say', ..., dream: 'sanya' } — над говорящим «облачко-мечта» (sanya, gleb, lenyaCarpet —
+  //       комната без ковров, lenya — без аккордеона, mozg, filipp);
   //       dreamer: 'sanya' — облачко над другим (например, Саня ещё мечтает, а спрашивает Лёня)
   //   { type: 'anim', who: 'all', anim: 'cheers' } — все сразу (cheers — чокаются, sit — сидят,
   //       sitBeer — с пивом, sitJoy — с джойстиками)
@@ -427,9 +428,9 @@ const SCENES = {
       { type: 'say', who: 'gleb',   text: 'Если тебе что-то надо от человека — бьёшь его палкой. Всё честно.', dream: 'gleb' },
       { type: 'say', who: 'lenya',  text: 'А потом?', dream: 'gleb', dreamer: 'gleb' },
       { type: 'say', who: 'gleb',   text: 'А потом он даёт тебе кусок мяса и говорит: «Ты мне нравишься». Вот это система.', dream: 'gleb' },
-      { type: 'say', who: 'lenya',  text: 'А я знаю, где я буду. Там нет ковров.', dream: 'lenya' },
+      { type: 'say', who: 'lenya',  text: 'А я знаю, где я буду. Там нет ковров.', dream: 'lenyaCarpet' },
       { type: 'say', who: 'sanya',  text: 'В смысле?' },
-      { type: 'say', who: 'lenya',  text: 'Вообще. Ни одного. Ни на полу, ни на стене. Голые стены. Красота.', dream: 'lenya' },
+      { type: 'say', who: 'lenya',  text: 'Вообще. Ни одного. Ни на полу, ни на стене. Голые стены. Красота.', dream: 'lenyaCarpet' },
       { type: 'look', at: -10, seconds: 2.5 },          // все медленно поворачиваются к ковру на стене
       { type: 'say', who: 'sanya',  text: 'Это бабушкин.' },
       { type: 'look', at: 300, seconds: 0.5 },          // снова к телевизору

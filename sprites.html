@@ -228,7 +228,7 @@
 
     // Финал: облачка-мечты и сообщение на телефоне
     const finRow = addRow('Финал: облачка-мечты, телефон с сообщением');
-    const dreamNames = { sanya: 'Саня: баскетбол', gleb: 'Глеб: лагерь под барьером', lenya: 'Лёня: комната без ковров и аккордеонов',
+    const dreamNames = { sanya: 'Саня: баскетбол', gleb: 'Глеб: лагерь под барьером', lenyaCarpet: 'Лёня: комната без ковров', lenya: 'Лёня: и без аккордеона',
                          mozg: 'Мозг: остров и огни кабаре', filipp: 'Филипп: белый теплоход' };
     for (const k in dreamNames) addCard(finRow, 76, 60, 4, 'Мечта — ' + dreamNames[k], (g) => { g.fillStyle = '#257179'; g.fillRect(0, 0, 76, 60); drawDreamBubble(g, 2, 2, k, 20, 38, 58); });
     addCard(finRow, 100, 80, 3, 'Сообщение от Леры', (g) => { g.fillStyle = '#1a1c2c'; g.fillRect(0, 0, 100, 80); drawMessagePhone(g, 50, 40, 'ЛЕРА', 'ЗАВТРА С УТРА ПРИСТРОЙКА.', 100); });

@@ -7808,6 +7808,14 @@ function drawDreamBubble(g, x, y, kind, t, tailX, tailY) {
   g.fillRect(px - 1, py, 1, 34); g.fillRect(px + 60, py, 1, 34);
 }
 
+// Голая белая комната (мечта Лёни): белые стены и пол, только линии углов
+function drawBareRoom(g, x, y) {
+  g.fillStyle = '#f4f4f4'; g.fillRect(x, y, 60, 34);
+  g.fillStyle = '#94b0c2';                                          // углы комнаты
+  g.fillRect(x + 10, y, 1, 26); g.fillRect(x + 50, y, 1, 26); g.fillRect(x + 10, y + 26, 41, 1);
+  for (let i = 0; i < 10; i++) { g.fillRect(x + 10 - i, y + 26 + Math.floor(i * 0.8), 1, 1); g.fillRect(x + 50 + i, y + 26 + Math.floor(i * 0.8), 1, 1); }
+}
+
 // Картинки мечт 60x34 (без реальных людей и логотипов)
 const DREAMS = {
   // Саня: баскетбольная площадка, мяч влетает в кольцо
@@ -7843,11 +7851,23 @@ const DREAMS = {
     }
   },
   // Лёня: голая белая комната, перечёркнутый аккордеон
+  // Лёня (про ковры): голая белая комната, на стене — перечёркнутый ковёр
+  lenyaCarpet(g, x, y, t) {
+    drawBareRoom(g, x, y);
+    g.fillStyle = '#5d275d'; g.fillRect(x + 18, y + 5, 24, 16);    // ковёр
+    g.fillStyle = '#b13e53'; g.fillRect(x + 20, y + 7, 20, 12);
+    for (const cx of [x + 25, x + 35]) {                             // ромбы узора
+      g.fillStyle = '#ffcd75';
+      for (let d = 0; d < 4; d++) { g.fillRect(cx - d, y + 9 + d, 1, 1); g.fillRect(cx + d, y + 9 + d, 1, 1); g.fillRect(cx - d, y + 16 - d, 1, 1); g.fillRect(cx + d, y + 16 - d, 1, 1); }
+    }
+    g.fillStyle = '#ffcd75'; for (let i = x + 18; i < x + 42; i += 2) g.fillRect(i, y + 21, 1, 2);   // бахрома
+    // перечёркнут: тёмный крест, чтобы был виден на красном
+    g.fillStyle = '#1a1c2c';
+    for (let i = 0; i < 22; i++) { g.fillRect(x + 19 + i, y + 3 + i, 2, 2); g.fillRect(x + 40 - i, y + 3 + i, 2, 2); }
+  },
+  // Лёня (про аккордеон): та же голая комната и перечёркнутый аккордеон
   lenya(g, x, y, t) {
-    g.fillStyle = '#f4f4f4'; g.fillRect(x, y, 60, 34);
-    g.fillStyle = '#94b0c2';                                        // углы комнаты
-    g.fillRect(x + 10, y, 1, 26); g.fillRect(x + 50, y, 1, 26); g.fillRect(x + 10, y + 26, 41, 1);
-    for (let i = 0; i < 10; i++) { g.fillRect(x + 10 - i, y + 26 + Math.floor(i * 0.8), 1, 1); g.fillRect(x + 50 + i, y + 26 + Math.floor(i * 0.8), 1, 1); }
+    drawBareRoom(g, x, y);
     // аккордеон: клавиши, меха, кнопки
     g.fillStyle = '#f4f4f4'; g.fillRect(x + 20, y + 9, 5, 14);
     g.fillStyle = '#1a1c2c'; for (let j = 0; j < 14; j += 3) g.fillRect(x + 20, y + 9 + j, 5, 1);
