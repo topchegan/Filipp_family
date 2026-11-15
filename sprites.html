@@ -231,6 +231,8 @@
     const tvCell = (g) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, 20, 20); };
     for (const k in TV_PIECES) addCard(tvRow, 20, 20, 6, TV_PIECES[k].name + ' (' + k + ')', (g) => { tvCell(g); drawWirePiece(g, 0, 0, k); });
     addCard(tvRow, 20, 20, 6, 'Вилка: отсюда идёт ток', (g) => { tvCell(g); drawTvPlug(g, 0, 0, 1); });
+    addCard(tvRow, 20, 20, 6, 'Кинескоп — сюда вести ток', (g) => { tvCell(g); drawTvTarget(g, 0, 0, 3, false, 0); });
+    addCard(tvRow, 20, 20, 6, 'Кинескоп: ток дошёл', (g) => { tvCell(g); drawTvTarget(g, 0, 0, 3, true, 0); });
     addCard(tvRow, 20, 20, 6, 'Радиолампа (сюда ставить нельзя)', (g) => { tvCell(g); drawTvBlock(g, 0, 0, 0, 0); });
     addCard(tvRow, 20, 20, 6, 'Конденсатор (сюда ставить нельзя)', (g) => { tvCell(g); drawTvBlock(g, 0, 0, 1, 0); });
     addCard(tvRow, 40, 20, 6, 'Ток: жёлтые искры бегут по проводу', (g) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, 40, 20); drawWirePiece(g, 0, 0, 'h'); drawWirePiece(g, 20, 0, 'sw'); drawCurrent(g, 0, 0, 3, 1, 1, 0); drawCurrent(g, 20, 0, 3, 2, 0.6, 0); });

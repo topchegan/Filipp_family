@@ -347,19 +347,16 @@ const CONFIG = {
     cols: 8,                   // поле: столько клеток в ширину...
     rows: 5,                   // ...и в высоту (клетка 20x20)
     blockedMin: 2,             // занятых клеток (лампы, конденсаторы): от...
-    blockedMax: 4,             // ...до
+    blockedMax: 3,             // ...до
     queue: 5,                  // сколько следующих кусков видно в очереди слева
-    startSeconds: 25,          // через сколько секунд из вилки пойдёт ток
+    startSeconds: 30,          // через сколько секунд из вилки пойдёт ток
     cellSeconds: 1.5,          // сколько секунд ток бежит по одной клетке
     fastMul: 4,                // «Ускорить» (E): ток быстрее во столько раз
-    minSegments: 10,           // сколько участков должен пройти ток, чтобы телевизор заработал (робот так выигрывает ~75%)
-    crossBonus: 2,             // ток прошёл крестовину второй раз — плюс столько участков «СКРУТКА!»
+    minDistance: 6,            // кинескоп (цель) не ближе стольких клеток от вилки (по прямой и вбок)
     replaceDelay: 1,           // заменил кусок (старый сгорел «ПШИК») — столько секунд нельзя ставить следующий
     // Как часто выпадают куски (больше число — чаще)
     pieceWeights: { h: 2, v: 2, ne: 2, nw: 2, se: 2, sw: 2, x: 1 },
-    failMinutes: 20,           // каждая неудача: +столько минут на часах...
-    skipMinutes: 60,           // ...«ПРОПУСТИТЬ» после 3 неудач подряд — +1 час
-    skipAfterFails: 3,         // после скольких неудач подряд можно пропустить
+    failMinutes: 20,           // каждая неудача: +столько минут на часах
     // Штраф на уровне 2 (Лера и так стартует вплотную, её держит только фора 3 секунды):
     leraHeadCutPerMinute: 0.05, // за каждую минуту штрафа фора Леры меньше на столько секунд (20 минут — 1 секунда),
     leraHeadCutMax: 1,          // но не больше чем на 1 секунду (без форы Лера ловит Филиппа ещё в квартире)...
@@ -1636,7 +1633,7 @@ function tickHint() {
 function drawHint() {
   if (!hint) return;
   const w = textWidth(hint.text) + 10;
-  const x = Math.round(W / 2 - w / 2), y = H - 46;
+  const x = Math.round(W / 2 - w / 2), y = state === tvState ? H - 14 : H - 46;   // в «Почини телевизор» — внизу, чтобы не закрывать поле
   drawBox(x, y, w, 13);
   drawText(ctx, hint.text, x + 5, y + 3, '#ffcd75');
 }
@@ -5493,8 +5490,10 @@ const tityaState = {
 // Поле — внутренности лампового телевизора, вид сзади. В клетке на краю — вилка, отсюда пойдёт ток.
 // Ставишь текущий кусок из очереди в любую свободную клетку (повернуть нельзя). Можно поставить
 // на место лежащего, пока ток туда не дошёл: старый сгорает «ПШИК», 1 секунда задержки.
-// Через 25 секунд ток бежит по проводу. Прошёл 12 участков — телевизор работает.
-// Иначе «КОРОТКОЕ ЗАМЫКАНИЕ!», +20 минут на часах, «ЕЩЁ РАЗ». Все числа — в CONFIG.tv.
+// Через 25 секунд ток бежит по проводу. Дошёл до КИНЕСКОПА (на другом краю поля) — телевизор работает.
+// Иначе «КОРОТКОЕ ЗАМЫКАНИЕ!», +20 минут на часах, «ЕЩЁ РАЗ». Пропустить нельзя — надо починить.
+// Подсказки на поле: куски, соединённые с вилкой, подсвечены; зелёная рамка со стрелкой — куда ставить
+// следующий кусок; красное «ТУПИК» — провод упёрся в край или лампу. Все числа — в CONFIG.tv.
 const TV_FX = 40, TV_FY = 18, TV_CELL = 20;   // где поле на экране и размер клетки
 
 let tvPenaltyMinutes = 0;         // штраф за неудачи с телевизором: +минуты на часах уровня 2, Лера ближе
@@ -5523,7 +5522,7 @@ const tvState = {
   enter(mode) {
     if (mode === 'new') { this.fails = 0; tvPenaltyMinutes = 0; }
     this.build();
-    showHint('tv', HINTS.tv.replace('{N}', CONFIG.tv.minSegments));
+    showHint('tv', HINTS.tv);
   },
 
   // Новое случайное поле
@@ -5538,12 +5537,19 @@ const tvState = {
     const [pc, pr, pe] = edges[Math.floor(Math.random() * edges.length)];
     this.grid[pr][pc] = { plug: true, exit: pe };
     this.plug = { c: pc, r: pr, exit: pe };
+    // Кинескоп — тоже на краю, подальше от вилки. Ток должен прийти в него со стороны поля
+    let far = edges.filter(([c, r]) => Math.abs(c - pc) + Math.abs(r - pr) >= C.minDistance);
+    if (!far.length) far = edges.filter(([c, r]) => c !== pc || r !== pr);
+    const [tc, tr, te] = far[Math.floor(Math.random() * far.length)];
+    this.grid[tr][tc] = { target: true, open: te };
+    this.target = { c: tc, r: tr, open: te };
+    this.reached = false;
     // Лампы и конденсаторы: не на вилке и не прямо перед ней
     const n = C.blockedMin + Math.floor(Math.random() * (C.blockedMax - C.blockedMin + 1));
     let k = 0, guard = 0;
     while (k < n && guard++ < 200) {
       const c = Math.floor(Math.random() * C.cols), r = Math.floor(Math.random() * C.rows);
-      if (this.grid[r][c] || (c === pc + TV_DX[pe] && r === pr + TV_DY[pe])) continue;
+      if (this.grid[r][c] || (c === pc + TV_DX[pe] && r === pr + TV_DY[pe]) || (c === tc + TV_DX[te] && r === tr + TV_DY[te])) continue;
       this.grid[r][c] = { block: true, kind: Math.floor(Math.random() * 2) };
       k++;
     }
@@ -5589,7 +5595,7 @@ const tvState = {
   place(c, r) {
     const cell = this.cellAt(c, r);
     if (cell === undefined || this.placeCool > 0) return;
-    if (cell && (cell.plug || cell.block)) return;
+    if (cell && (cell.plug || cell.block || cell.target)) return;
     if (cell && this.powered(c, r)) { this.popup('ТОК!', c, r); return; }
     const piece = this.queue.shift();
     this.queue.push(this.randomPiece());
@@ -5627,22 +5633,25 @@ const tvState = {
     const nc = c + TV_DX[dir], nr = r + TV_DY[dir];
     const cell = this.cellAt(nc, nr);
     const from = (dir + 2) % 4;
+    if (cell && cell.target && from === cell.open) {          // дошёл до кинескопа — победа!
+      this.flow = null;
+      this.reached = true;
+      this.phase = 'win';
+      this.endT = 0;
+      pickupSound();
+      return;
+    }
     if (!cell || !cell.piece) { this.stopFlow(c, r, dir); return; }
     const to = this.exitOf(cell.piece, from, cell.uses);
     if (to === null) { this.stopFlow(c, r, dir); return; }
     this.flow = { c: nc, r: nr, from: from, to: to, p: 0 };
   },
 
-  // Ток остановился: хватило участков — победа, нет — замыкание
+  // Ток остановился, не дойдя до кинескопа: замыкание
   stopFlow(c, r, dir) {
     this.flow = null;
     this.endT = 0;
     const C = CONFIG.tv;
-    if (this.segments >= C.minSegments) {
-      this.phase = 'win';
-      pickupSound();
-      return;
-    }
     this.phase = 'fail';
     this.fails++;
     tvPenaltyMinutes += C.failMinutes;
@@ -5662,7 +5671,6 @@ const tvState = {
     this.sparks = this.sparks.filter((s) => s.t < (s.smoke ? 90 : 30));
     if (this.say && --this.say.t <= 0) this.say = this.say.reply ? { who: 'filipp', text: TV_TEXT.reply, t: 120 } : null;
 
-    if (this.phase === 'skip') return;
     if (this.phase === 'win') {
       if (++this.endT > 90) setState('inLevelScene', SCENES.tvWin);
       return;
@@ -5670,10 +5678,7 @@ const tvState = {
     if (this.phase === 'fail') {
       this.endT++;
       if (this.endT < 60) return;
-      const items = this.failItems();
-      const choice = menuUpdate(this.menu, items.length, input);
-      if (choice === 0) this.build();
-      if (choice === 1) { tvPenaltyMinutes += C.skipMinutes; this.phase = 'skip'; setState('inLevelScene', SCENES.tvSkip); }
+      if (menuUpdate(this.menu, 1, input) === 0) this.build();   // только «ЕЩЁ РАЗ»: телевизор надо починить
       return;
     }
 
@@ -5722,7 +5727,6 @@ const tvState = {
       this.done.push({ c: f.c, r: f.r, from: f.from, to: f.to });
       this.segments++;
       if (cell.piece === 'x' && cell.uses.length === 2) {
-        this.segments += C.crossBonus;
         this.popup('СКРУТКА!', f.c, f.r);
         pickupSound();
       }
@@ -5731,10 +5735,24 @@ const tvState = {
     }
   },
 
-  failItems() {
-    const items = [TV_TEXT.retry];
-    if (this.fails >= CONFIG.tv.skipAfterFails) items.push(TV_TEXT.skip);
-    return items;
+  // Провод от вилки: какие клетки соединены, где его конец (туда ставить следующий кусок),
+  // упёрся ли он в тупик и доходит ли уже до кинескопа
+  connected() {
+    const cells = new Set(), uses = new Map();
+    let c = this.plug.c, r = this.plug.r, dir = this.plug.exit;
+    for (let k = 0; k < 80; k++) {
+      const nc = c + TV_DX[dir], nr = r + TV_DY[dir], cell = this.cellAt(nc, nr), from = (dir + 2) % 4;
+      if (cell && cell.target) return from === cell.open ? { cells, ready: true } : { cells, dead: { c, r } };
+      if (cell === undefined || (cell && (cell.block || cell.plug))) return { cells, dead: k ? { c, r } : null };
+      if (cell === null) return { cells, head: { c: nc, r: nr, from } };
+      const key = nc + ',' + nr, u = (uses.get(key) || []).concat(cell.uses);
+      const to = this.exitOf(cell.piece, from, u);
+      if (to === null) return { cells, head: { c: nc, r: nr, from }, wrong: true };
+      uses.set(key, (uses.get(key) || []).concat([from % 2]));
+      cells.add(key);
+      c = nc; r = nr; dir = to;
+    }
+    return { cells };
   },
 
   draw() {
@@ -5747,6 +5765,7 @@ const tvState = {
     drawTvBlock(ctx, 218, 60, 1, this.tick);
     drawTvBlock(ctx, 206, 82, 1, this.tick);
     drawTvBlock(ctx, 218, 82, 0, this.tick + 9);
+    const link = this.connected();
     // Клетки
     for (let r = 0; r < C.rows; r++) {
       for (let c = 0; c < C.cols; c++) {
@@ -5756,8 +5775,10 @@ const tvState = {
         ctx.fillStyle = '#29366f';
         ctx.fillRect(x + 2, y + 2, TV_CELL - 4, TV_CELL - 4);
         const cell = this.grid[r][c];
+        if (link.cells.has(c + ',' + r)) { ctx.fillStyle = '#3b5dc9'; ctx.fillRect(x + 2, y + 2, TV_CELL - 4, TV_CELL - 4); }   // соединён с вилкой
         if (!cell) continue;
         if (cell.plug) drawTvPlug(ctx, x, y, cell.exit);
+        else if (cell.target) drawTvTarget(ctx, x, y, cell.open, this.reached, this.tick);
         else if (cell.block) drawTvBlock(ctx, x, y, cell.kind, this.tick + c * 7);
         else drawWirePiece(ctx, x, y, cell.piece);
       }
@@ -5765,6 +5786,32 @@ const tvState = {
     // Ток: пройденные куски и текущий
     for (const d of this.done) drawCurrent(ctx, TV_FX + d.c * TV_CELL, TV_FY + d.r * TV_CELL, d.from, d.to, 1, this.tick);
     if (this.flow) drawCurrent(ctx, TV_FX + this.flow.c * TV_CELL, TV_FY + this.flow.r * TV_CELL, this.flow.from, this.flow.to, this.flow.p, this.tick);
+    // Подсказки: куда ставить следующий кусок (зелёная рамка и стрелка), тупик, цель
+    if (this.phase === 'build' || this.phase === 'flow') {
+      const blink = Math.floor(this.tick / 15) % 2;
+      if (link.head) {
+        const x = TV_FX + link.head.c * TV_CELL, y = TV_FY + link.head.r * TV_CELL;
+        ctx.fillStyle = link.wrong ? '#b13e53' : '#a7f070';
+        if (blink || link.wrong) {
+          ctx.fillRect(x + 1, y + 1, TV_CELL - 2, 1); ctx.fillRect(x + 1, y + TV_CELL - 2, TV_CELL - 2, 1);
+          ctx.fillRect(x + 1, y + 1, 1, TV_CELL - 2); ctx.fillRect(x + TV_CELL - 2, y + 1, 1, TV_CELL - 2);
+        }
+        // стрелка у входа: отсюда придёт ток
+        const f = link.head.from, ax = x + 10 + TV_DX[f] * 6, ay = y + 10 + TV_DY[f] * 6;
+        for (let i = 0; i < 3; i++) {
+          const px = ax - TV_DX[f] * i, py = ay - TV_DY[f] * i, half = 2 - i;
+          if (f % 2 === 0) ctx.fillRect(px - half, py, half * 2 + 1, 1); else ctx.fillRect(px, py - half, 1, half * 2 + 1);
+        }
+        if (link.wrong) drawTextCenteredShadow(TV_TEXT.wrong, x + 10, y - 7, '#f4f4f4', '#b13e53');
+      }
+      if (link.dead) drawTextCenteredShadow(TV_TEXT.dead, TV_FX + link.dead.c * TV_CELL + 10, TV_FY + link.dead.r * TV_CELL - 7, '#f4f4f4', '#b13e53');
+      if (!link.ready && blink) {                    // кинескоп мигает рамкой — сюда вести
+        const x = TV_FX + this.target.c * TV_CELL, y = TV_FY + this.target.r * TV_CELL;
+        ctx.fillStyle = '#ef7d57';
+        ctx.fillRect(x, y, TV_CELL, 1); ctx.fillRect(x, y + TV_CELL - 1, TV_CELL, 1);
+        ctx.fillRect(x, y, 1, TV_CELL); ctx.fillRect(x + TV_CELL - 1, y, 1, TV_CELL);
+      }
+    }
     // Курсор
     if (this.phase === 'build' || this.phase === 'flow') {
       const x = TV_FX + this.cursor.c * TV_CELL, y = TV_FY + this.cursor.r * TV_CELL;
@@ -5801,8 +5848,8 @@ const tvState = {
     const left = Math.max(0, Math.ceil(C.startSeconds - this.steps / 60));
     const status = this.phase === 'build' ? TV_TEXT.timer + ' ' + left : (this.phase === 'flow' ? (this.fast ? TV_TEXT.fast : TV_TEXT.flowing) : '');
     drawText(ctx, status, 4, 4, this.phase === 'build' && left <= 5 && Math.floor(this.tick / 10) % 2 ? '#b13e53' : '#ffcd75');
-    const seg = TV_TEXT.segments + ' ' + this.segments + '/' + C.minSegments;
-    drawText(ctx, seg, W - 4 - textWidth(seg), 4, this.segments >= C.minSegments ? '#a7f070' : '#f4f4f4');
+    const goal = this.phase === 'win' ? '' : (link.ready ? TV_TEXT.ready : TV_TEXT.goal);
+    drawText(ctx, goal, W - 4 - textWidth(goal), 4, link.ready ? '#a7f070' : '#ef7d57');
     // Реплика внизу
     if (this.say) {
       const t = (this.say.who === 'babushka' ? 'БАБУШКА: ' : 'ФИЛИПП: ') + this.say.text;
@@ -5817,11 +5864,12 @@ const tvState = {
     if (this.phase === 'win') drawTextCenteredShadow(TV_TEXT.win, TV_FX + C.cols * TV_CELL / 2, 60, '#a7f070', '#1a1c2c', 2);
     if (this.phase === 'fail') {
       TV_TEXT.fail.split('\n').forEach((ln, i) => drawTextCenteredShadow(ln, W / 2, 26 + i * 18, '#ffcd75', '#b13e53', 2));
-      drawTextCenteredShadow('+' + CONFIG.tv.failMinutes + ' ' + TV_TEXT.minutes, W / 2, 63, '#f4f4f4', '#1a1c2c');
+      drawTextCenteredShadow(TV_TEXT.notReached, W / 2, 63, '#f4f4f4', '#1a1c2c');
+      drawTextCenteredShadow('+' + CONFIG.tv.failMinutes + ' ' + TV_TEXT.minutes, W / 2, 73, '#ffcd75', '#1a1c2c');
       if (this.endT >= 60) {
         ctx.fillStyle = '#1a1c2c';
-        ctx.fillRect(50, 74, 140, this.failItems().length * 12 + 6);
-        drawMenu(this.menu, this.failItems(), W / 2, 78, 12);
+        ctx.fillRect(70, 84, 100, 18);
+        drawMenu(this.menu, [TV_TEXT.retry], W / 2, 88, 12);
       }
     }
     if (state === tvState) drawHint();

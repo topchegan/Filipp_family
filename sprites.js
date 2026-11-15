@@ -8067,3 +8067,18 @@ BACKGROUNDS.grannyTvBack = function (g, t) {
   g.fillStyle = '#333c57'; g.fillRect(208, 44, 6, 42);                   // крышка у тумбы
   g.fillStyle = '#566c86'; for (let j = 48; j < 84; j += 6) g.fillRect(209, j, 4, 2);   // дырочки
 };
+
+// Кинескоп — цель мини-игры: стеклянная колба с экраном, шнур уходит в сторону open (туда должен прийти ток).
+// lit — ток дошёл: экран светится
+function drawTvTarget(g, x, y, open, lit, t) {
+  const cx = x + 10, cy = y + 10;
+  drawWireArm(g, cx, cy, open, 10);
+  g.fillStyle = '#1a1c2c'; g.fillRect(cx - 7, cy - 7, 14, 14);
+  g.fillRect(cx - 8, cy - 5, 16, 10); g.fillRect(cx - 5, cy - 8, 10, 16);
+  const screen = lit ? (Math.floor(t / 6) % 2 ? '#f4f4f4' : '#ffcd75') : '#29366f';
+  g.fillStyle = lit ? '#73eff7' : '#3b5dc9';
+  g.fillRect(cx - 6, cy - 6, 12, 12); g.fillRect(cx - 7, cy - 4, 14, 8); g.fillRect(cx - 4, cy - 7, 8, 14);
+  g.fillStyle = screen;
+  g.fillRect(cx - 4, cy - 4, 8, 8);
+  g.fillStyle = '#f4f4f4'; g.fillRect(cx - 5, cy - 5, 2, 1);   // блик на стекле
+}
