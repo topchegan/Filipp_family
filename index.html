@@ -17,7 +17,7 @@
   <!-- Номер версии. Сам version.js грузим с текущим временем в адресе — он всегда свежий -->
   <script>document.write('<script src="version.js?t=' + Date.now() + '"><\/script>');</script>
   <!-- Стили с меткой версии: style.css?v=0.6 -->
-  <script>loadWithVersion(['style.css']);</script>
+  <script>loadWithVersion(['style.css', 'intro.css']);</script>
 </head>
 <body>
   <!-- Игровой холст. Его размер 240x136, а увеличиваем мы его в style.css и game.js -->
@@ -57,6 +57,7 @@
       'scenes.js',   // сценарий заставок
       'levels.js',   // карты уровней
       'game.js',     // сама игра
+      'intro.js',    // заставка в стиле обложки GTA (поверх игры)
     ]);
   </script>
 </body>

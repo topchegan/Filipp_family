@@ -20,6 +20,7 @@
 // Скорости — в пикселях за один шаг игры (шагов 60 в секунду).
 const CONFIG = {
   // ----- Для тестов -----
+  SHOW_INTRO: true,          // заставка в стиле обложки GTA при каждом запуске (false — сразу пиксельный титул)
   DEBUG_MENU: false,         // true — на титульном экране есть «ВЫБОР УРОВНЯ» (для проверки). Для игроков — false
 
   // ----- Лера -----
@@ -7142,6 +7143,13 @@ function setState(name, arg) {
 // =============================================
 // Один шаг игры (60 раз в секунду)
 function update() {
+  // Пока на экране заставка (intro.js), игра под ней кнопки не слушает
+  if (window.INTRO_ACTIVE) {
+    jumpHit = throwHit = plovHit = backHit = pauseHit = confirmHit = false;
+    taps = [];
+    menuMove = 0;
+    return;
+  }
   // Объединяем клавиатуру и экранные кнопки
   keys.left = kb.left || touch.left;
   keys.right = kb.right || touch.right;
