@@ -226,6 +226,16 @@
     addCard(driveRow, 240, 110, 3, 'Финиш: офис «МЕТАЛЛ-ТОРГ» и парковка', (g) => drawOffice(g, 62));
     addCard(driveRow, 240, 136, 3, 'Картинка «ВЖУХ!» (колесо за 30 секунд)', (g) => PICTURES.wheelFix(g, 1, 0));
 
+    // Мини-игра «Почини телевизор»: куски провода, вилка, лампы, конденсаторы, ток
+    const tvRow = addRow('Мини-игра «Почини телевизор»: провода, вилка, лампа, конденсатор, ток');
+    const tvCell = (g) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, 20, 20); };
+    for (const k in TV_PIECES) addCard(tvRow, 20, 20, 6, TV_PIECES[k].name + ' (' + k + ')', (g) => { tvCell(g); drawWirePiece(g, 0, 0, k); });
+    addCard(tvRow, 20, 20, 6, 'Вилка: отсюда идёт ток', (g) => { tvCell(g); drawTvPlug(g, 0, 0, 1); });
+    addCard(tvRow, 20, 20, 6, 'Радиолампа (сюда ставить нельзя)', (g) => { tvCell(g); drawTvBlock(g, 0, 0, 0, 0); });
+    addCard(tvRow, 20, 20, 6, 'Конденсатор (сюда ставить нельзя)', (g) => { tvCell(g); drawTvBlock(g, 0, 0, 1, 0); });
+    addCard(tvRow, 40, 20, 6, 'Ток: жёлтые искры бегут по проводу', (g) => { g.fillStyle = '#29366f'; g.fillRect(0, 0, 40, 20); drawWirePiece(g, 0, 0, 'h'); drawWirePiece(g, 20, 0, 'sw'); drawCurrent(g, 0, 0, 3, 1, 1, 0); drawCurrent(g, 20, 0, 3, 2, 0.6, 0); });
+    addCard(tvRow, 60, 40, 4, 'Плата под полем', (g) => drawTvBoard(g, 0, 0, 60, 40));
+
     // Финал: облачка-мечты и сообщение на телефоне
     const finRow = addRow('Финал: облачка-мечты, телефон с сообщением');
     const dreamNames = { sanya: 'Саня: баскетбол', gleb: 'Глеб: лагерь под барьером', lenyaCarpet: 'Лёня: комната без ковров', lenya: 'Лёня: и без аккордеона',
@@ -316,6 +326,7 @@
                        openSpace: 'Офис: open space, вывеска «МЕТАЛЛ-ТОРГ»',
                        homeNight: 'Дом вечером: минивэн у дома, в окне Леры свет',
                        minivanLights: 'Темнота и фары минивэна (поражение у Тити)',
+                       grannyTvBack: 'Квартира бабушки: телевизор развёрнут, задняя крышка снята',
                        dachaYard: 'Финал: двор дачи Сани — гирлянда, мангал, стол',
                        dachaRoom: 'Финал: комната на даче — ковёр, диван, ламповый телевизор с приставкой' };
     const bgItems = {};

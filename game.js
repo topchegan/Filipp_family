@@ -342,6 +342,33 @@ const CONFIG = {
     secondsPerMinute: 3,       // ...одна игровая минута — 3 секунды (1,5 минуты езды — полчаса)
   },
 
+  // ----- Мини-игра «ПОЧИНИ ТЕЛЕВИЗОР» (конец уровня 1, провода как в Pipe Mania) -----
+  tv: {
+    cols: 8,                   // поле: столько клеток в ширину...
+    rows: 5,                   // ...и в высоту (клетка 20x20)
+    blockedMin: 2,             // занятых клеток (лампы, конденсаторы): от...
+    blockedMax: 4,             // ...до
+    queue: 5,                  // сколько следующих кусков видно в очереди слева
+    startSeconds: 25,          // через сколько секунд из вилки пойдёт ток
+    cellSeconds: 1.5,          // сколько секунд ток бежит по одной клетке
+    fastMul: 4,                // «Ускорить» (E): ток быстрее во столько раз
+    minSegments: 10,           // сколько участков должен пройти ток, чтобы телевизор заработал (робот так выигрывает ~75%)
+    crossBonus: 2,             // ток прошёл крестовину второй раз — плюс столько участков «СКРУТКА!»
+    replaceDelay: 1,           // заменил кусок (старый сгорел «ПШИК») — столько секунд нельзя ставить следующий
+    // Как часто выпадают куски (больше число — чаще)
+    pieceWeights: { h: 2, v: 2, ne: 2, nw: 2, se: 2, sw: 2, x: 1 },
+    failMinutes: 20,           // каждая неудача: +столько минут на часах...
+    skipMinutes: 60,           // ...«ПРОПУСТИТЬ» после 3 неудач подряд — +1 час
+    skipAfterFails: 3,         // после скольких неудач подряд можно пропустить
+    // Штраф на уровне 2 (Лера и так стартует вплотную, её держит только фора 3 секунды):
+    leraHeadCutPerMinute: 0.05, // за каждую минуту штрафа фора Леры меньше на столько секунд (20 минут — 1 секунда),
+    leraHeadCutMax: 1,          // но не больше чем на 1 секунду (без форы Лера ловит Филиппа ещё в квартире)...
+    leraSpeedPerMinute: 0.001,  // ...а Лера быстрее на столько (20 минут — +0.02, это 2%)
+    afterHour: 13,             // без штрафа после починки на часах 13:30
+    afterMinute: 30,
+    grannyEverySeconds: 7,     // как часто бабушка что-нибудь говорит
+  },
+
   // ----- Этап «ПЕРЕХОД ДОРОГИ» (конец уровня 4, вид сверху) -----
   cross: {
     timeLimitSeconds: 50,      // через столько секунд Лера на минивэне находит Филиппа — поражение
@@ -920,7 +947,7 @@ function createSceneState(defaultScene) {
         }
       } else if (step.type === 'title') {
         // {ВРЕМЯ} заменяем на время с игровых часов
-        this.titleText = step.text.replace('{ВРЕМЯ}', clockText());
+        this.titleText = step.text.replace('{ВРЕМЯ}', clockText()).replace('{ПОСЛЕ_ТВ}', tvAfterTime());
       } else if (step.type === 'phone') {
         phoneRing();
       } else if (step.type === 'enter' || step.type === 'leave') {
@@ -951,7 +978,7 @@ function createSceneState(defaultScene) {
     // Показывать ли «ПРОПУСТИТЬ»: не показываем, когда на экране своя кнопка (например «ЕЩЁ РАЗ»)
     // и во время разговора по телефону (там HUD уровня)
     showSkip() {
-      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya'].indexOf(this.scene.background) !== -1) return false;
+      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya', 'tv'].indexOf(this.scene.background) !== -1) return false;
       return !(this.step.type === 'caption' && this.step.button);
     },
 
@@ -1042,6 +1069,7 @@ function createSceneState(defaultScene) {
         else if (this.scene.background === 'cross') crossState.draw();   // переход дороги
         else if (this.scene.background === 'chief') chiefState.draw();   // арена начальника
         else if (this.scene.background === 'titya') tityaState.draw();   // арена Тити
+        else if (this.scene.background === 'tv') tvState.draw();         // нутро телевизора
         else BACKGROUNDS[this.scene.background](ctx, this.tick);
         this.drawActors();
         if (step.dream) this.drawDream(step);
@@ -1062,7 +1090,7 @@ function createSceneState(defaultScene) {
       }
 
       if (this.showSkip()) this.drawSkipButton();
-      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
+      if (['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya', 'tv'].indexOf(this.scene.background) === -1) drawVersion();   // на уровне версия уже есть в HUD
     },
 
     // Какой кадр анимации сейчас у персонажа на фоне
@@ -1560,6 +1588,12 @@ let cameraX = 0;
 let clockSteps = 0;
 
 // Время на игровых часах строкой, например «09:47»
+// Время после починки телевизора: 13:30 плюс штраф за неудачи
+function tvAfterTime() {
+  const total = CONFIG.tv.afterHour * 60 + CONFIG.tv.afterMinute + tvPenaltyMinutes;
+  return String(Math.floor(total / 60) % 24).padStart(2, '0') + ':' + String(total % 60).padStart(2, '0');
+}
+
 function clockText() {
   const total = levelCfg('clockStartHour') * 60 + levelCfg('clockStartMinute') +
                 Math.floor(clockSteps / (60 * levelCfg('secondsPerGameMinute')));
@@ -1818,6 +1852,13 @@ const levelState = {
                      plov: armed ? c.plov : CONFIG.plovStart,
                      lives: c ? Math.max(CONFIG.startLives, c.lives) : CONFIG.startLives,
                      courage: c ? c.courage : undefined };
+      // Уровень 2 после починки телевизора: за каждую минуту штрафа часы позже, Лера ближе
+      if (currentLevelIndex === 1 && tvPenaltyMinutes > 0) {
+        this.saved.clockSteps = Math.round(tvPenaltyMinutes * 60 * levelCfg('secondsPerGameMinute'));
+        this.saved.headCut = Math.min(CONFIG.tv.leraHeadCutMax, tvPenaltyMinutes * CONFIG.tv.leraHeadCutPerMinute);
+        this.saved.leraSpeed += tvPenaltyMinutes * CONFIG.tv.leraSpeedPerMinute;
+        tvPenaltyMinutes = 0;
+      }
     }
     // Восстанавливаем всё как было на старте или в момент последнего звонка
     partIndex = this.saved.part;
@@ -1840,7 +1881,7 @@ const levelState = {
     this.invuln = 0;
     this.resetPart();
     clockSteps = this.saved.clockSteps;
-    this.waitSteps = levelCfg('leraHeadStart') * 60;    // фора в шагах
+    this.waitSteps = Math.round((levelCfg('leraHeadStart') - (this.saved.headCut || 0)) * 60);   // фора в шагах (минус штраф за телевизор)
     this.alarm = false;
     this.alarmTimer = 0;
     this.ringing = -1;
@@ -5447,6 +5488,347 @@ const tityaState = {
 };
 
 // =============================================
+// МИНИ-ИГРА «ПОЧИНИ ТЕЛЕВИЗОР» (конец уровня 1): провода, как в Pipe Mania
+// =============================================
+// Поле — внутренности лампового телевизора, вид сзади. В клетке на краю — вилка, отсюда пойдёт ток.
+// Ставишь текущий кусок из очереди в любую свободную клетку (повернуть нельзя). Можно поставить
+// на место лежащего, пока ток туда не дошёл: старый сгорает «ПШИК», 1 секунда задержки.
+// Через 25 секунд ток бежит по проводу. Прошёл 12 участков — телевизор работает.
+// Иначе «КОРОТКОЕ ЗАМЫКАНИЕ!», +20 минут на часах, «ЕЩЁ РАЗ». Все числа — в CONFIG.tv.
+const TV_FX = 40, TV_FY = 18, TV_CELL = 20;   // где поле на экране и размер клетки
+
+let tvPenaltyMinutes = 0;         // штраф за неудачи с телевизором: +минуты на часах уровня 2, Лера ближе
+
+const tvState = {
+  grid: [],         // клетки: null — пусто, {piece}, {plug, exit}, {block, kind}
+  queue: [],        // очередь кусков (первый — текущий)
+  cursor: { c: 0, r: 0 },
+  phase: 'build',   // build — ставим, flow — бежит ток, win — заработал, fail — замыкание
+  steps: 0,
+  flow: null,       // ток сейчас: {c, r, from, to, p}
+  done: [],         // где ток уже прошёл: [{c, r, from, to}]
+  segments: 0,
+  fast: false,
+  placeCool: 0,     // задержка после замены куска
+  fails: 0,         // неудач подряд
+  popups: [],
+  sparks: [],       // искры и дым при замыкании
+  say: null,        // реплика внизу {who, text, t}
+  sayTimer: 0,
+  menu: createMenu(),
+  holdL: 0, holdR: 0,
+  tick: 0,
+
+  // mode: 'new' — с начала (штраф обнуляется), 'retry' — ещё раз (новое поле)
+  enter(mode) {
+    if (mode === 'new') { this.fails = 0; tvPenaltyMinutes = 0; }
+    this.build();
+    showHint('tv', HINTS.tv.replace('{N}', CONFIG.tv.minSegments));
+  },
+
+  // Новое случайное поле
+  build() {
+    const C = CONFIG.tv;
+    this.grid = [];
+    for (let r = 0; r < C.rows; r++) this.grid.push(new Array(C.cols).fill(null));
+    // Вилка — в случайной клетке на краю, выход смотрит внутрь поля
+    const edges = [];
+    for (let c = 0; c < C.cols; c++) { edges.push([c, 0, 2]); edges.push([c, C.rows - 1, 0]); }
+    for (let r = 1; r < C.rows - 1; r++) { edges.push([0, r, 1]); edges.push([C.cols - 1, r, 3]); }
+    const [pc, pr, pe] = edges[Math.floor(Math.random() * edges.length)];
+    this.grid[pr][pc] = { plug: true, exit: pe };
+    this.plug = { c: pc, r: pr, exit: pe };
+    // Лампы и конденсаторы: не на вилке и не прямо перед ней
+    const n = C.blockedMin + Math.floor(Math.random() * (C.blockedMax - C.blockedMin + 1));
+    let k = 0, guard = 0;
+    while (k < n && guard++ < 200) {
+      const c = Math.floor(Math.random() * C.cols), r = Math.floor(Math.random() * C.rows);
+      if (this.grid[r][c] || (c === pc + TV_DX[pe] && r === pr + TV_DY[pe])) continue;
+      this.grid[r][c] = { block: true, kind: Math.floor(Math.random() * 2) };
+      k++;
+    }
+    this.queue = [];
+    for (let i = 0; i < C.queue; i++) this.queue.push(this.randomPiece());
+    this.cursor = { c: Math.min(C.cols - 1, pc + TV_DX[pe]), r: Math.min(C.rows - 1, Math.max(0, pr + TV_DY[pe])) };
+    this.phase = 'build';
+    this.steps = 0;
+    this.flow = null;
+    this.done = [];
+    this.segments = 0;
+    this.fast = false;
+    this.placeCool = 0;
+    this.popups = [];
+    this.sparks = [];
+    this.say = null;
+    this.sayTimer = Math.round(CONFIG.tv.grannyEverySeconds * 60 * 0.6);
+    this.menu.index = 0;
+    this.endT = 0;
+  },
+
+  // Случайный кусок с учётом весов
+  randomPiece() {
+    const w = CONFIG.tv.pieceWeights;
+    let sum = 0;
+    for (const k in w) sum += w[k];
+    let x = Math.random() * sum;
+    for (const k in w) { x -= w[k]; if (x < 0) return k; }
+    return 'h';
+  },
+
+  cellAt(c, r) {
+    if (r < 0 || c < 0 || r >= CONFIG.tv.rows || c >= CONFIG.tv.cols) return undefined;
+    return this.grid[r][c];
+  },
+
+  // Ток уже здесь (или сейчас входит сюда)?
+  powered(c, r) {
+    return this.done.some((d) => d.c === c && d.r === r) || (this.flow && this.flow.c === c && this.flow.r === r);
+  },
+
+  // Поставить текущий кусок в клетку
+  place(c, r) {
+    const cell = this.cellAt(c, r);
+    if (cell === undefined || this.placeCool > 0) return;
+    if (cell && (cell.plug || cell.block)) return;
+    if (cell && this.powered(c, r)) { this.popup('ТОК!', c, r); return; }
+    const piece = this.queue.shift();
+    this.queue.push(this.randomPiece());
+    this.grid[r][c] = { piece: piece, uses: [] };
+    if (cell) {
+      // Старый кусок сгорел
+      this.placeCool = Math.round(CONFIG.tv.replaceDelay * 60);
+      this.popup('ПШИК', c, r);
+      knockSound();
+      for (let i = 0; i < 6; i++) this.sparks.push({ x: TV_FX + c * TV_CELL + 10, y: TV_FY + r * TV_CELL + 10, vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 2, t: 0, smoke: i > 3 });
+    } else {
+      tone(700, audioCtx ? audioCtx.currentTime : 0, 0.04, 0.04);
+    }
+  },
+
+  popup(text, c, r) {
+    this.popups.push({ text: text, x: TV_FX + c * TV_CELL + 10, y: TV_FY + r * TV_CELL + 4, t: 0 });
+  },
+
+  // Куда ток выйдет из куска, если вошёл со стороны from (null — не стыкуется)
+  exitOf(piece, from, uses) {
+    const open = TV_PIECES[piece].open;
+    if (open.indexOf(from) === -1) return null;
+    if (piece === 'x') {
+      const axis = from % 2;
+      if (uses.indexOf(axis) !== -1) return null;     // по этой оси ток уже шёл
+      return (from + 2) % 4;
+    }
+    if (uses.length) return null;                     // обычный кусок дважды не проходит
+    return open[0] === from ? open[1] : open[0];
+  },
+
+  // Ток пробует войти в соседнюю клетку через сторону dir
+  enterNext(c, r, dir) {
+    const nc = c + TV_DX[dir], nr = r + TV_DY[dir];
+    const cell = this.cellAt(nc, nr);
+    const from = (dir + 2) % 4;
+    if (!cell || !cell.piece) { this.stopFlow(c, r, dir); return; }
+    const to = this.exitOf(cell.piece, from, cell.uses);
+    if (to === null) { this.stopFlow(c, r, dir); return; }
+    this.flow = { c: nc, r: nr, from: from, to: to, p: 0 };
+  },
+
+  // Ток остановился: хватило участков — победа, нет — замыкание
+  stopFlow(c, r, dir) {
+    this.flow = null;
+    this.endT = 0;
+    const C = CONFIG.tv;
+    if (this.segments >= C.minSegments) {
+      this.phase = 'win';
+      pickupSound();
+      return;
+    }
+    this.phase = 'fail';
+    this.fails++;
+    tvPenaltyMinutes += C.failMinutes;
+    hurtSound();
+    const x = TV_FX + c * TV_CELL + 10 + TV_DX[dir] * 10, y = TV_FY + r * TV_CELL + 10 + TV_DY[dir] * 10;
+    for (let i = 0; i < 24; i++) this.sparks.push({ x: x, y: y, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 2.5, t: 0, smoke: i % 3 === 0 });
+    this.say = { who: 'babushka', text: TV_TEXT.oops, t: 120 };
+    this.menu.index = 0;
+  },
+
+  update(input) {
+    const C = CONFIG.tv;
+    this.tick++;
+    tickHint();
+    this.popups = this.popups.filter((p) => ++p.t < 50);
+    for (const s of this.sparks) { s.t++; s.x += s.vx; s.y += s.vy; if (!s.smoke) s.vy += 0.1; else s.vy = -0.4; }
+    this.sparks = this.sparks.filter((s) => s.t < (s.smoke ? 90 : 30));
+    if (this.say && --this.say.t <= 0) this.say = this.say.reply ? { who: 'filipp', text: TV_TEXT.reply, t: 120 } : null;
+
+    if (this.phase === 'skip') return;
+    if (this.phase === 'win') {
+      if (++this.endT > 90) setState('inLevelScene', SCENES.tvWin);
+      return;
+    }
+    if (this.phase === 'fail') {
+      this.endT++;
+      if (this.endT < 60) return;
+      const items = this.failItems();
+      const choice = menuUpdate(this.menu, items.length, input);
+      if (choice === 0) this.build();
+      if (choice === 1) { tvPenaltyMinutes += C.skipMinutes; this.phase = 'skip'; setState('inLevelScene', SCENES.tvSkip); }
+      return;
+    }
+
+    // Бабушка иногда что-нибудь говорит, Филипп отвечает
+    if (--this.sayTimer <= 0) {
+      this.sayTimer = Math.round(C.grannyEverySeconds * 60 * (0.8 + Math.random() * 0.4));
+      const lines = TV_TEXT.granny;
+      this.say = { who: 'babushka', text: lines[Math.floor(Math.random() * lines.length)], t: 110, reply: Math.random() < 0.5 };
+    }
+
+    // Курсор: ← → (держишь — едет), ↑ ↓
+    const repeat = (held, name) => {
+      if (!held) { this[name] = 0; return false; }
+      this[name]++;
+      return this[name] === 1 || (this[name] > 14 && this[name] % 6 === 0);
+    };
+    if (repeat(keys.left, 'holdL')) this.cursor.c = Math.max(0, this.cursor.c - 1);
+    if (repeat(keys.right, 'holdR')) this.cursor.c = Math.min(C.cols - 1, this.cursor.c + 1);
+    // ↑ ↓ (экранные ← → тоже шлют «вверх-вниз» для меню — их тут не считаем)
+    if (input.menuMove && !keys.left && !keys.right) this.cursor.r = Math.max(0, Math.min(C.rows - 1, this.cursor.r + input.menuMove));
+    if (this.placeCool > 0) this.placeCool--;
+    // Поставить: тап по клетке или Z / пробел (стрелка вверх — только двигает курсор)
+    for (const t of input.taps) {
+      const c = Math.floor((t.x - TV_FX) / TV_CELL), r = Math.floor((t.y - TV_FY) / TV_CELL);
+      if (this.cellAt(c, r) !== undefined) { this.cursor = { c: c, r: r }; this.place(c, r); }
+    }
+    if (input.jumpPressed && !input.menuMove) this.place(this.cursor.c, this.cursor.r);
+
+    this.steps++;
+    if (this.phase === 'build') {
+      if (this.steps >= C.startSeconds * 60) {
+        this.phase = 'flow';
+        this.popup('ТОК ПОШЁЛ!', this.plug.c, this.plug.r);
+        this.enterNext(this.plug.c, this.plug.r, this.plug.exit);
+      }
+      return;
+    }
+    // Ток бежит. E или «Ускорить» — в 4 раза быстрее
+    if (input.throwPressed && !this.fast) { this.fast = true; this.popup('БЫСТРЕЕ!', this.flow ? this.flow.c : 0, this.flow ? this.flow.r : 0); }
+    const f = this.flow;
+    if (!f) return;
+    f.p += 1 / (C.cellSeconds * 60) * (this.fast ? C.fastMul : 1);
+    if (f.p >= 1) {
+      const cell = this.grid[f.r][f.c];
+      cell.uses.push(f.from % 2);
+      this.done.push({ c: f.c, r: f.r, from: f.from, to: f.to });
+      this.segments++;
+      if (cell.piece === 'x' && cell.uses.length === 2) {
+        this.segments += C.crossBonus;
+        this.popup('СКРУТКА!', f.c, f.r);
+        pickupSound();
+      }
+      tone(900 + this.segments * 30, audioCtx ? audioCtx.currentTime : 0, 0.05, 0.04);
+      this.enterNext(f.c, f.r, f.to);
+    }
+  },
+
+  failItems() {
+    const items = [TV_TEXT.retry];
+    if (this.fails >= CONFIG.tv.skipAfterFails) items.push(TV_TEXT.skip);
+    return items;
+  },
+
+  draw() {
+    const C = CONFIG.tv;
+    // Нутро телевизора: тёмный корпус, плата, лампы по краям
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, H);
+    drawTvBoard(ctx, TV_FX - 4, TV_FY - 2, C.cols * TV_CELL + 8, C.rows * TV_CELL + 4);
+    drawTvBlock(ctx, 206, 60, 0, this.tick);
+    drawTvBlock(ctx, 218, 60, 1, this.tick);
+    drawTvBlock(ctx, 206, 82, 1, this.tick);
+    drawTvBlock(ctx, 218, 82, 0, this.tick + 9);
+    // Клетки
+    for (let r = 0; r < C.rows; r++) {
+      for (let c = 0; c < C.cols; c++) {
+        const x = TV_FX + c * TV_CELL, y = TV_FY + r * TV_CELL;
+        ctx.fillStyle = '#333c57';
+        ctx.fillRect(x + 1, y + 1, TV_CELL - 2, TV_CELL - 2);
+        ctx.fillStyle = '#29366f';
+        ctx.fillRect(x + 2, y + 2, TV_CELL - 4, TV_CELL - 4);
+        const cell = this.grid[r][c];
+        if (!cell) continue;
+        if (cell.plug) drawTvPlug(ctx, x, y, cell.exit);
+        else if (cell.block) drawTvBlock(ctx, x, y, cell.kind, this.tick + c * 7);
+        else drawWirePiece(ctx, x, y, cell.piece);
+      }
+    }
+    // Ток: пройденные куски и текущий
+    for (const d of this.done) drawCurrent(ctx, TV_FX + d.c * TV_CELL, TV_FY + d.r * TV_CELL, d.from, d.to, 1, this.tick);
+    if (this.flow) drawCurrent(ctx, TV_FX + this.flow.c * TV_CELL, TV_FY + this.flow.r * TV_CELL, this.flow.from, this.flow.to, this.flow.p, this.tick);
+    // Курсор
+    if (this.phase === 'build' || this.phase === 'flow') {
+      const x = TV_FX + this.cursor.c * TV_CELL, y = TV_FY + this.cursor.r * TV_CELL;
+      ctx.fillStyle = this.placeCool > 0 ? '#b13e53' : (Math.floor(this.tick / 15) % 2 ? '#ffcd75' : '#f4f4f4');
+      ctx.fillRect(x, y, TV_CELL, 1); ctx.fillRect(x, y + TV_CELL - 1, TV_CELL, 1);
+      ctx.fillRect(x, y, 1, TV_CELL); ctx.fillRect(x + TV_CELL - 1, y, 1, TV_CELL);
+    }
+    // Очередь слева: верхний кусок — текущий (в жёлтой рамке)
+    this.queue.forEach((p, i) => {
+      const x = 8, y = TV_FY + i * TV_CELL;
+      ctx.fillStyle = i === 0 ? '#ffcd75' : '#333c57';
+      ctx.fillRect(x - 1, y - 1, TV_CELL + 2, TV_CELL + 2);
+      ctx.fillStyle = '#29366f';
+      ctx.fillRect(x + 1, y + 1, TV_CELL - 2, TV_CELL - 2);
+      drawWirePiece(ctx, x, y, p);
+      if (i === 0 && this.placeCool > 0) { ctx.fillStyle = '#1a1c2c'; ctx.fillRect(x + 1, y + 1, TV_CELL - 2, Math.round((TV_CELL - 2) * this.placeCool / (C.replaceDelay * 60))); }
+    });
+    // Искры и дым
+    for (const s of this.sparks) {
+      ctx.fillStyle = s.smoke ? (s.t % 20 < 10 ? '#94b0c2' : '#566c86') : (s.t % 4 < 2 ? '#ffcd75' : '#f4f4f4');
+      ctx.fillRect(Math.round(s.x), Math.round(s.y), s.smoke ? 3 : 1, s.smoke ? 3 : 1);
+    }
+    // Бабушка в углу
+    ctx.fillStyle = '#5d275d';
+    ctx.fillRect(203, 19, 34, 34);
+    ctx.drawImage(PORTRAITS.babushka.image, 204, 20);
+    if (tvPenaltyMinutes > 0) {                      // штраф: «+20» и «МИН» в две строки
+      drawTextCenteredShadow('+' + tvPenaltyMinutes, 220, 102, '#b13e53', '#1a1c2c');
+      drawTextCenteredShadow('МИН', 220, 111, '#b13e53', '#1a1c2c');
+    }
+    // HUD сверху: таймер и участки
+    ctx.fillStyle = '#1a1c2c';
+    ctx.fillRect(0, 0, W, 16);
+    const left = Math.max(0, Math.ceil(C.startSeconds - this.steps / 60));
+    const status = this.phase === 'build' ? TV_TEXT.timer + ' ' + left : (this.phase === 'flow' ? (this.fast ? TV_TEXT.fast : TV_TEXT.flowing) : '');
+    drawText(ctx, status, 4, 4, this.phase === 'build' && left <= 5 && Math.floor(this.tick / 10) % 2 ? '#b13e53' : '#ffcd75');
+    const seg = TV_TEXT.segments + ' ' + this.segments + '/' + C.minSegments;
+    drawText(ctx, seg, W - 4 - textWidth(seg), 4, this.segments >= C.minSegments ? '#a7f070' : '#f4f4f4');
+    // Реплика внизу
+    if (this.say) {
+      const t = (this.say.who === 'babushka' ? 'БАБУШКА: ' : 'ФИЛИПП: ') + this.say.text;
+      drawText(ctx, t, 4, 125, this.say.who === 'babushka' ? '#94b0c2' : '#f4f4f4');
+    }
+    // Надписи
+    for (const p of this.popups) {
+      const half = Math.ceil(textWidth(p.text) / 2) + 2;
+      drawTextCenteredShadow(p.text, Math.max(half, Math.min(W - half, p.x)), Math.max(18, p.y - 6 - Math.round(p.t / 3)), '#f4f4f4', '#b13e53');
+    }
+    // Конец: заработал или замыкание
+    if (this.phase === 'win') drawTextCenteredShadow(TV_TEXT.win, TV_FX + C.cols * TV_CELL / 2, 60, '#a7f070', '#1a1c2c', 2);
+    if (this.phase === 'fail') {
+      TV_TEXT.fail.split('\n').forEach((ln, i) => drawTextCenteredShadow(ln, W / 2, 26 + i * 18, '#ffcd75', '#b13e53', 2));
+      drawTextCenteredShadow('+' + CONFIG.tv.failMinutes + ' ' + TV_TEXT.minutes, W / 2, 63, '#f4f4f4', '#1a1c2c');
+      if (this.endT >= 60) {
+        ctx.fillStyle = '#1a1c2c';
+        ctx.fillRect(50, 74, 140, this.failItems().length * 12 + 6);
+        drawMenu(this.menu, this.failItems(), W / 2, 78, 12);
+      }
+    }
+    if (state === tvState) drawHint();
+  },
+};
+
+// =============================================
 // ЭКРАН: ЭТАП «ЗА РУЛЁМ» — минивэн едет в офис (вид сверху)
 // =============================================
 // Дорога из 3 полос едет сверху вниз, минивэн внизу экрана, нос вверх.
@@ -6454,7 +6836,7 @@ let dimImage = null;      // затемнение «сеточкой» (толь
 // Можно ставить на паузу только на уровне и в бою (не в сценках)
 function canPause() {
   return state === levelState || state === bossState || state === momState || state === driveState || state === chiefState ||
-         state === crossState || state === tityaState;
+         state === crossState || state === tityaState || state === tvState;
 }
 
 function autoPause() {
@@ -6465,7 +6847,7 @@ function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
     state === bossState || state === momState || state === chiefState || state === tityaState ? 'НАЧАТЬ БОЙ ЗАНОВО' :
-      (state === driveState || state === crossState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
+      (state === driveState || state === crossState || state === tvState ? 'НАЧАТЬ ЭТАП ЗАНОВО' : 'НАЧАТЬ С ПОСЛЕДНЕГО ЗВОНКА'),
     'ЗВУК: ' + (soundOn ? 'ВКЛ' : 'ВЫКЛ'),
     'УПРАВЛЕНИЕ',
     'ВЫЙТИ В ГЛАВНОЕ МЕНЮ',
@@ -6486,6 +6868,7 @@ function updatePause(input) {
     else if (state === momState) setState('mom', 'retry');
     else if (state === driveState) setState('drive', 'retry');
     else if (state === crossState) setState('cross', 'retry');
+    else if (state === tvState) setState('tv', 'retry');
     else if (state === tityaState) setState('titya', 'retry');
     else if (state === chiefState) setState('chief', 'retry');
     else setState('level', 'lastCall');
@@ -6562,6 +6945,8 @@ const levelSelectState = {
         this.labels.push('УРОВЕНЬ ' + (li + 1) + ' — БОСС: ' + (lv.boss.name || '').toUpperCase());
       }
     });
+    this.entries.push({ tv: true });
+    this.labels.push('ПОЧИНКА ТЕЛЕВИЗОРА');
     this.entries.push({ drive: true });
     this.labels.push('ЗА РУЛЁМ');
     this.entries.push({ cross: true });
@@ -6579,6 +6964,7 @@ const levelSelectState = {
     if (e.back) { setState('title'); return; }
     resetGameStats();                               // новая проверка — счётчики с нуля
     if (e.drive) { setState('drive', 'new'); return; }
+    if (e.tv) { loadLevel(0); setState('tv', 'new'); return; }   // после починки — уровень 2
     if (e.cross) { loadLevel(3); setState('level'); setState('cross', 'new'); return; }
     if (e.finale) { resetGameStats(); setState('cutscene', 'finalYard'); return; }
     loadLevel(e.level);
@@ -6650,6 +7036,7 @@ const states = {
   drive: driveState,                          // ЭТАП «ЗА РУЛЁМ»: минивэн едет в офис
   cross: crossState,                          // ЭТАП «ПЕРЕХОД ДОРОГИ»: конец уровня 4
   titya: tityaState,                          // БОСС УРОВНЯ 4: Титя
+  tv: tvState,                                // МИНИ-ИГРА «ПОЧИНИ ТЕЛЕВИЗОР»
   stats: statsState,                          // ФИНАЛ: «ИТОГИ ДНЯ»
   credits: creditsState,                      // ФИНАЛ: титры
   chief: chiefState,                          // БОСС УРОВНЯ 3: начальник и годовой отчёт
@@ -6668,12 +7055,14 @@ function setState(name, arg) {
   // Ставим после enter: при переходе на уровень 2 номер уровня меняется внутри enter
   document.body.classList.toggle('boss-fight', name === 'boss');
   document.body.classList.toggle('armed', (name === 'level' || name === 'mom' || name === 'chief' || name === 'titya') && weaponsOn());
-  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya'].indexOf(name) !== -1);
+  document.body.classList.toggle('playing', ['level', 'boss', 'mom', 'drive', 'chief', 'cross', 'titya', 'tv'].indexOf(name) !== -1);
   // За рулём: «Прыжок» — тормоз, вместо бросков — «Гудок»
   document.body.classList.toggle('driving', name === 'drive');
   document.body.classList.toggle('crossing', name === 'cross');
+  document.body.classList.toggle('tvfix', name === 'tv');
   if (jumpBtn) jumpBtn.textContent = name === 'drive' ? 'Тормоз' : (name === 'cross' ? 'Вперёд' : 'Прыжок');
-  if (hornBtn) hornBtn.textContent = name === 'cross' ? 'Назад' : 'Гудок';
+  if (hornBtn) hornBtn.textContent = name === 'cross' ? 'Назад' : (name === 'tv' ? 'Ускорить' : 'Гудок');
+  if (jumpBtn && name === 'tv') jumpBtn.textContent = 'Поставить';
 }
 
 // =============================================

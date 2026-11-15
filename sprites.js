@@ -7942,3 +7942,128 @@ function drawMessagePhone(g, cx, cy, from, text, t) {
   lines.forEach((ln, i) => drawText(g, ln, x + 8, y + 19 + i * 9, '#1a1c2c'));
   if (t > 30 && Math.floor(t / 20) % 2) { g.fillStyle = '#b13e53'; g.fillRect(x + 68, y + 8, 5, 5); }   // «новое»
 }
+
+// =============================================
+// МИНИ-ИГРА «ПОЧИНИ ТЕЛЕВИЗОР» (провода, вид сзади)
+// =============================================
+// Стороны клетки: 0 — верх, 1 — право, 2 — низ, 3 — лево
+const TV_DX = [0, 1, 0, -1];
+const TV_DY = [-1, 0, 1, 0];
+// Куски провода: какие стороны у них открыты
+const TV_PIECES = {
+  h:  { name: 'Горизонтальный', open: [1, 3] },
+  v:  { name: 'Вертикальный', open: [0, 2] },
+  ne: { name: 'Угол вверх-вправо', open: [0, 1] },
+  nw: { name: 'Угол вверх-влево', open: [0, 3] },
+  se: { name: 'Угол вниз-вправо', open: [2, 1] },
+  sw: { name: 'Угол вниз-влево', open: [2, 3] },
+  x:  { name: 'Крестовина-скрутка', open: [0, 1, 2, 3] },
+};
+
+// Кусочек провода от середины клетки к стороне side: два провода в изоляции — красный и синий
+function drawWireArm(g, cx, cy, side, half) {
+  const vert = side === 0 || side === 2;
+  const len = half;
+  const sx = side === 3 ? cx - len : cx, sy = side === 0 ? cy - len : cy;
+  g.fillStyle = '#1a1c2c';                             // контур
+  if (vert) g.fillRect(cx - 3, Math.min(sy, cy) - (side === 0 ? 0 : 0), 6, len + 1);
+  else g.fillRect(Math.min(sx, cx), cy - 3, len + 1, 6);
+  g.fillStyle = '#b13e53';                             // красный провод
+  if (vert) g.fillRect(cx - 2, sy, 2, len + 1); else g.fillRect(sx, cy - 2, len + 1, 2);
+  g.fillStyle = '#3b5dc9';                             // синий провод
+  if (vert) g.fillRect(cx, sy, 2, len + 1); else g.fillRect(sx, cy, len + 1, 2);
+}
+
+// Кусок провода в клетке size x size. type — h, v, ne, nw, se, sw, x
+function drawWirePiece(g, x, y, type, size) {
+  size = size || 20;
+  const cx = x + size / 2, cy = y + size / 2;
+  const open = TV_PIECES[type].open;
+  if (type === 'x') {
+    drawWireArm(g, cx, cy, 0, size / 2); drawWireArm(g, cx, cy, 2, size / 2);
+    drawWireArm(g, cx, cy, 1, size / 2); drawWireArm(g, cx, cy, 3, size / 2);
+    g.fillStyle = '#1a1c2c'; g.fillRect(cx - 4, cy - 4, 8, 8);   // скрутка посередине — медная, изолента
+    g.fillStyle = '#ef7d57'; g.fillRect(cx - 3, cy - 3, 6, 6);
+    g.fillStyle = '#ffcd75'; g.fillRect(cx - 3, cy - 3, 2, 2); g.fillRect(cx + 1, cy + 1, 2, 2);
+    return;
+  }
+  for (const s of open) drawWireArm(g, cx, cy, s, size / 2);
+  if (open[0] % 2 !== open[1] % 2) {                   // угол — аккуратный изгиб
+    g.fillStyle = '#1a1c2c'; g.fillRect(cx - 3, cy - 3, 6, 6);
+    g.fillStyle = '#b13e53'; g.fillRect(cx - 2, cy - 2, 2, 4);
+    g.fillStyle = '#3b5dc9'; g.fillRect(cx, cy - 2, 2, 4);
+  }
+}
+
+// Искры тока внутри провода: путь от стороны from через середину к стороне to, пройдено p (0–1)
+function drawCurrent(g, x, y, from, to, p, t, size) {
+  size = size || 20;
+  const cx = x + size / 2, cy = y + size / 2, h = size / 2;
+  const pts = [];
+  for (let i = 0; i <= h; i++) pts.push([cx + TV_DX[from] * (h - i), cy + TV_DY[from] * (h - i)]);
+  for (let i = 1; i <= h; i++) pts.push([cx + TV_DX[to] * i, cy + TV_DY[to] * i]);
+  const n = Math.floor(pts.length * Math.min(1, p));
+  for (let i = 0; i < n; i++) {
+    const k = (i + Math.floor(t / 3)) % 4;
+    g.fillStyle = k === 0 ? '#f4f4f4' : (k === 2 ? '#ffcd75' : '#ef7d57');
+    g.fillRect(pts[i][0] - 1, pts[i][1] - 1, 2, 2);
+  }
+}
+
+// Вилка: шнур уходит в сторону exit, штырьки — в обратную
+function drawTvPlug(g, x, y, exit, size) {
+  size = size || 20;
+  const cx = x + size / 2, cy = y + size / 2;
+  drawWireArm(g, cx, cy, exit, size / 2);
+  const back = (exit + 2) % 4;
+  g.fillStyle = '#1a1c2c'; g.fillRect(cx - 5, cy - 5, 10, 10);
+  g.fillStyle = '#f4f4f4'; g.fillRect(cx - 4, cy - 4, 8, 8);
+  g.fillStyle = '#94b0c2'; g.fillRect(cx - 4, cy + 2, 8, 2);
+  g.fillStyle = '#ffcd75';                             // штырьки
+  for (const o of [-2, 2]) {
+    if (back % 2 === 0) g.fillRect(cx + o - 1 + (o > 0 ? 0 : 1), cy + TV_DY[back] * 5 + (back === 0 ? -3 : 0), 1, 3);
+    else g.fillRect(cx + TV_DX[back] * 5 + (back === 3 ? -3 : 0), cy + o - 1 + (o > 0 ? 0 : 1), 3, 1);
+  }
+}
+
+// Занятая клетка: радиолампа (kind 0) или конденсатор (kind 1)
+function drawTvBlock(g, x, y, kind, t) {
+  if (kind === 0) {
+    g.fillStyle = '#566c86'; g.fillRect(x + 5, y + 14, 10, 4);          // цоколь
+    g.fillStyle = '#1a1c2c'; g.fillRect(x + 5, y + 2, 10, 13);
+    g.fillStyle = '#94b0c2'; g.fillRect(x + 6, y + 3, 8, 11);           // стекло
+    g.fillRect(x + 7, y + 2, 6, 1);
+    g.fillStyle = Math.floor(t / 20) % 2 ? '#ef7d57' : '#b13e53';     // накал
+    g.fillRect(x + 9, y + 8, 2, 4);
+    g.fillStyle = '#f4f4f4'; g.fillRect(x + 7, y + 4, 1, 4);           // блик
+  } else {
+    g.fillStyle = '#1a1c2c'; g.fillRect(x + 4, y + 3, 12, 15);
+    g.fillStyle = '#3b5dc9'; g.fillRect(x + 5, y + 4, 10, 13);
+    g.fillStyle = '#41a6f6'; g.fillRect(x + 6, y + 5, 2, 11);
+    g.fillStyle = '#f4f4f4'; g.fillRect(x + 12, y + 5, 2, 11);         // полоска «минус»
+    g.fillStyle = '#94b0c2'; g.fillRect(x + 5, y + 4, 10, 1);
+  }
+}
+
+// Плата под полем: зелёная, дорожки, пайка
+function drawTvBoard(g, x, y, w, h) {
+  g.fillStyle = '#257179'; g.fillRect(x, y, w, h);
+  g.fillStyle = '#38b764';
+  for (let i = 4; i < w; i += 14) g.fillRect(x + i, y, 1, h);
+  for (let j = 6; j < h; j += 18) g.fillRect(x, y + j, w, 1);
+  g.fillStyle = '#94b0c2';
+  for (let i = 4; i < w; i += 14) for (let j = 6; j < h; j += 18) g.fillRect(x + i - 1, y + j - 1, 3, 3);
+}
+
+// Фон сценки: квартира бабушки, телевизор развёрнут задом, задняя крышка снята и стоит рядом
+BACKGROUNDS.grannyTvBack = function (g, t) {
+  BACKGROUNDS.grannyRoom(g, t);
+  g.fillStyle = '#5d275d'; g.fillRect(156, 22, 46, 38);                  // корпус сзади
+  g.fillStyle = '#1a1c2c'; g.fillRect(160, 26, 38, 30);                  // открытое нутро
+  drawTvBoard(g, 161, 27, 36, 28);
+  drawTvBlock(g, 162, 30, 0, t); drawTvBlock(g, 176, 30, 0, t + 10);     // лампы светятся
+  g.fillStyle = '#b13e53'; g.fillRect(186, 48, 10, 2);
+  g.fillStyle = '#3b5dc9'; g.fillRect(186, 50, 10, 2);
+  g.fillStyle = '#333c57'; g.fillRect(208, 44, 6, 42);                   // крышка у тумбы
+  g.fillStyle = '#566c86'; for (let j = 48; j < 84; j += 6) g.fillRect(209, j, 4, 2);   // дырочки
+};
