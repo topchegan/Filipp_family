@@ -1772,7 +1772,7 @@ const levelState = {
   nods: 0,           // сколько раз Филипп «кивнул» бабушкам
   nodTimer: 0,       // для картинки кивка
   slowT: 0,          // сколько шагов ещё собачка держит шлёпанец
-  thought: null,     // мысль над Филиппом {text, t} — «ЭТО ПРАВДА.»
+  thought: null,     // мысль над Филиппом {text, t} — «МАРАТ УЖЕ ПЕРЕБЕЖАЛ ЧЕРЕЗ ПОЛЕ.»
   truthDone: false,  // мысль у граффити уже была
   carry: null,       // что переносится в следующий уровень: кружки, ключи, плов
 
@@ -2677,7 +2677,7 @@ const levelState = {
     }
   },
 
-  // Двор: сигнализация машин, ящики с ключами, граффити «ЭТО ПРАВДА.»
+  // Двор: сигнализация машин, ящики с ключами, граффити «МАРАТ УЖЕ ПЕРЕБЕЖАЛ ЧЕРЕЗ ПОЛЕ.»
   updateYard() {
     for (const c of level.cars) if (c.alarm > 0) c.alarm--;
     if (weaponsOn()) {
@@ -2692,7 +2692,7 @@ const levelState = {
         }
       });
     }
-    // Стена с граффити: Филипп дошёл до середины экрана — думает «ЭТО ПРАВДА.»
+    // Стена с граффити: Филипп дошёл до середины экрана — думает «МАРАТ УЖЕ ПЕРЕБЕЖАЛ ЧЕРЕЗ ПОЛЕ.»
     const pcx = player.x + player.w / 2;
     const scr = level.screens[Math.floor(pcx / SCREEN_W)];
     if (!this.truthDone && scr && LEVEL_BACKGROUNDS[scr.bg].truth && pcx % SCREEN_W > 110) {
@@ -3093,7 +3093,7 @@ const levelState = {
     }
   },
 
-  // Девчонки-подростки: заметили — бегут хвостом «ДЯДЬ, ДАЙ СИГАРЕТКУ!», рядом Филипп медленнее.
+  // Девчонки-подростки: заметили — бегут хвостом «ФИЛЬ, ПОШЛИ НА ТРУБЫ!», рядом Филипп медленнее.
   // Отстают через несколько секунд или если Филипп забрался повыше. Ключ — «ФУ, ДУРАК!» и уходят
   updateTeen(e, dx, sameRow, ecx) {
     const C = (n) => levelCfg(n);
@@ -3538,7 +3538,7 @@ const levelState = {
       drawTextCenteredShadow(p.text, px, Math.max(HUD_H + 2, Math.round(p.y - 10 - p.t / 3)), '#f4f4f4', '#b13e53');
     }
 
-    // Мысль над Филиппом («ЭТО ПРАВДА.») и подсказка «КИВАЙ!» у бабушек
+    // Мысль над Филиппом («МАРАТ УЖЕ ПЕРЕБЕЖАЛ ЧЕРЕЗ ПОЛЕ.») и подсказка «КИВАЙ!» у бабушек
     if (this.thought) {
       const half = Math.ceil(textWidth(this.thought.text) / 2) + 2;    // длинная фраза не вылезает за край
       drawTextCenteredShadow(this.thought.text, Math.max(half, Math.min(W - half, sx + 8)), Math.max(HUD_H + 14, sy - 12), '#ffcd75', '#1a1c2c');

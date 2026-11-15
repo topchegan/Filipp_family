@@ -70,15 +70,16 @@ const SCENES = {
     steps: [
       { type: 'title', text: 'СУББОТА. 09:00' },
       { type: 'phone' },
-      { type: 'say', who: 'sanya',  text: 'Филя, здорово! Сегодня у меня на даче шашлыки. Пиво уже в холодильнике!' },
+      { type: 'say', who: 'sanya',  text: 'Чел! Сегодня спонтанный сбор на даче. Пиво, шашлык.' },
       { type: 'say', who: 'filipp', text: 'Саня, я в деле! Вечером буду!' },
       { type: 'say', who: 'sanya',  text: 'Лёня, Глеб и Жирный мозг тоже подтянутся. Не опаздывай!' },
       { type: 'enter', who: 'lera' },
-      { type: 'say', who: 'lera',   text: 'Филипп! Какая дача?! Ты обещал сегодня делать пристройку!' },
-      { type: 'say', who: 'filipp', text: 'Лерусь... Пристройка никуда не денется...' },
-      { type: 'say', who: 'lera',   text: 'Вот именно. И ты тоже никуда не денешься. Пойду за досками.' },
+      { type: 'say', who: 'lera',   text: 'Филипп! Ты куда собрался?! Ты обещал сегодня пристройкой заняться! Год уже строим.' },
+      { type: 'say', who: 'filipp', text: 'Лер... Я Санька раз в год вижу.' },
+      { type: 'say', who: 'filipp', text: 'Пристройка может подождать один день. Никуда не денется...' },
+      { type: 'say', who: 'lera',   text: 'Вот именно. И ты тоже никуда не денешься. Жду тебя там.' },
       { type: 'leave', who: 'lera' },
-      { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%... Шашлык ждать не будет.' },
+      { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%... Достало все. Чё вы все от меня хотите' },
       { type: 'title', text: 'ПОБЕГ НАЧИНАЕТСЯ! 09:30' },
     ],
   },
@@ -113,7 +114,7 @@ const SCENES = {
     steps: [
       { type: 'say', who: 'vasya',  text: 'Папа! Поиграй с нами!' },
       { type: 'say', who: 'nastya', text: 'Ну пожа-а-алуйста!' },
-      { type: 'say', who: 'filipp', text: 'Девочки, папе надо... за гвоздями!' },
+      { type: 'say', who: 'filipp', text: 'Девочки, папе надо... за саморезами!' },
       { type: 'say', who: 'vasya',  name: 'ВАСЯ И НАСТЯ', text: 'ПОИГРА-А-АЙ!' },
     ],
   },
@@ -126,7 +127,7 @@ const SCENES = {
     nextArg: 'grannyFlat',      // ...в квартире бабушки
     steps: [
       { type: 'phone' },
-      { type: 'say', who: 'babushka', text: 'Филиппушка! Телевизор не показывает! Приходи, почини!' },
+      { type: 'say', who: 'babushka', text: 'Филипп! Телевизор не показывает! Приходи, почини!' },
       { type: 'say', who: 'filipp',   text: 'Бабуль, я так-то немного занят...' },
       { type: 'say', who: 'babushka', text: 'Я пирожков напекла.' },
       { type: 'say', who: 'filipp',   name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%... Иду.' },
@@ -146,7 +147,7 @@ const SCENES = {
       babushka: { x: 112, visible: true, facing: 'left' },
     },
     steps: [
-      { type: 'say', who: 'babushka', text: 'Показывает! Филиппушка, золотые руки!' },
+      { type: 'say', who: 'babushka', text: 'Показывает! Филипп, золотые руки!' },
       { type: 'say', who: 'filipp',   text: 'Да там лампа отошла...' },
       { type: 'say', who: 'babushka', text: 'Возьми плова с собой. Мама в магазин пошла, скоро вернётся. Подождёшь?' },
       { type: 'say', who: 'filipp',   text: 'Э-э... В другой раз, бабуль!' },
@@ -181,7 +182,7 @@ const SCENES = {
       { type: 'phone' },
       { type: 'say', who: 'nachalnik', text: 'Филипп, выручай! Клиент горит. Приезжай в офис, минут на 10–20!' },
       { type: 'say', who: 'filipp', text: 'В субботу?!' },
-      { type: 'say', who: 'nachalnik', text: 'Двадцать минут! Ты лучший!' },
+      { type: 'say', who: 'nachalnik', text: 'Двадцать минут! Дел-то на 20 минут. Хорош ныть!' },
       { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%...' },
       { type: 'title', text: 'КОНЕЦ УРОВНЯ 2\nНА ЧАСАХ {ВРЕМЯ}' },
       { type: 'title', text: 'СУББОТА. 15:30' },
@@ -256,7 +257,7 @@ const SCENES = {
     steps: [
       { type: 'say', who: 'nachalnik', text: 'Филипп! Раз уж ты здесь...' },
       { type: 'say', who: 'filipp',    text: 'Нет-нет-нет.' },
-      { type: 'say', who: 'nachalnik', text: 'Годовой отчёт. Срочно.' },
+      { type: 'say', who: 'nachalnik', text: 'Нужен отчет. Срочно.' },
       { type: 'say', who: 'filipp',    text: 'Сегодня суббота!' },
       { type: 'say', who: 'nachalnik', text: 'Вот и отлично, никто не отвлекает.' },
       { type: 'say', who: 'filipp',    name: 'ФИЛИПП (ПРО СЕБЯ)', text: '#@!%...' },
@@ -269,12 +270,12 @@ const SCENES = {
     next: 'cutscene',           // потом — Филипп ставит машину у дома...
     nextArg: 'walkIntro',       // ...и уровень 4 (пешком)
     steps: [
-      { type: 'say', who: 'nachalnik', text: 'Ну... годится. Свободен!' },
+      { type: 'say', who: 'nachalnik', text: 'Ладно, пойдет. Свободен!' },
       { type: 'say', who: 'filipp',    text: 'Хорошей субботы!' },
       { type: 'title', text: '20:15' },
       { type: 'phone' },
       { type: 'say', who: 'sanya',  text: 'Филя, ты где?! Все уже здесь — Лёня, Глеб, Жирный мозг!' },
-      { type: 'say', who: 'sanya',  text: 'Шашлык почти готов, пиво греется!' },
+      { type: 'say', who: 'sanya',  text: 'Нам мясо некому жарить, пиво греется!' },
       { type: 'say', who: 'filipp', text: 'Машину только домой поставлю — и пешком к тебе!' },
       { type: 'title', text: 'КОНЕЦ УРОВНЯ 3\nНА ЧАСАХ 20:15' },
       { type: 'title', text: 'СУББОТА. 20:30' },
@@ -302,9 +303,9 @@ const SCENES = {
     steps: [
       { type: 'say', who: 'titya',  text: 'О-о, Филипп! Здорово, братан!' },
       { type: 'say', who: 'filipp', text: 'Титя... Я тороплюсь.' },
-      { type: 'say', who: 'titya',  text: 'Да куда ты? Пошли ко мне, у меня тусовка. Шнырнёмся!' },
-      { type: 'say', who: 'filipp', text: 'Меня шашлык ждёт.' },
-      { type: 'say', who: 'titya',  text: 'Ну тогда по-плохому!' },
+      { type: 'say', who: 'titya',  text: 'Да куда ты? Пошли ко мне, у меня тусовка. Пацаны ждут — Дукал, Толмач!' },
+      { type: 'say', who: 'filipp', text: 'Эээ… давай в другой день.' },
+      { type: 'say', who: 'titya',  text: 'Не, пацаны сказали без тебя не возвращаться, чего бы мне этого не стоило.' },
       { type: 'say', who: 'filipp', name: 'ФИЛИПП (ПРО СЕБЯ)', text: 'Только этого не хватало.' },
     ],
   },
@@ -356,7 +357,7 @@ const SCENES = {
     next: 'cutscene',
     nextArg: 'finalYard',         // дальше — финал на даче
     steps: [
-      { type: 'say', who: 'sanya',  text: 'Филя! Дошёл! Мы уж думали — всё, Лера поймала.' },
+      { type: 'say', who: 'sanya',  text: 'Филя! Дошёл! Мы уж думали — всё, Лера не отпустила.' },
       { type: 'say', who: 'filipp', text: 'Двадцать минут, Саня. Как и обещал.' },
     ],
   },
@@ -389,10 +390,10 @@ const SCENES = {
       { type: 'title', text: '22:00. ДАЧА САНИ', auto: 3 },
       { type: 'enter', who: 'filipp' },
       { type: 'say', who: 'sanya',  text: 'Ну наконец-то! Мы думали, тебя Лера в пристройку замуровала.' },
-      { type: 'say', who: 'filipp', text: 'Почти. Двенадцать часов побега.' },
-      { type: 'say', who: 'gleb',   text: 'Штрафную ему.' },
+      { type: 'say', who: 'filipp', text: 'Почти. Чет устал от сегодняшнего дня. Всем что-то нужно от меня.' },
+      { type: 'say', who: 'gleb',   text: 'Пиво бери.' },
       { type: 'anim', who: 'all', anim: 'cheers' },
-      { type: 'say', who: 'all',    text: 'ЗА ФИЛИППА!' },
+      { type: 'say', who: 'all',    text: 'ЗА ФИЛИППА АТРОФИРОВАННОЕ СЕДАЛИЩЕ!' },
       { type: 'anim', who: 'all', anim: 'sitBeer' },
       { type: 'say', who: 'sanya',  text: 'Шашлык готов. А потом — в дом. Сега ждёт.' },
       { type: 'fade' },
@@ -411,38 +412,38 @@ const SCENES = {
       sanya:  { x: 104, visible: true, facing: 'right', anim: 'sitJoy' },
     },
     steps: [
-      { type: 'say', who: 'gleb',   text: 'Вот вы мне скажите. Куда мы все попадём, когда помрём?' },
-      { type: 'say', who: 'lenya',  text: 'Начинается.' },
-      { type: 'say', who: 'gleb',   text: 'Нет, серьёзно. Не рай, не ад. Каждому — своё место.' },
+      { type: 'say', who: 'gleb',   text: 'Никогда не думали, куда мы все попадём, когда помрём?' },
+      { type: 'say', who: 'lenya',  text: 'Странно, что в нашей компании ты этот разговор начинаешь, а не Саня.' },
+      { type: 'say', who: 'gleb',   text: 'Нет, серьёзно. Ясно же, что ад и рай придумали. Я думаю, что каждый попадает в свое место.' },
       { type: 'say', who: 'sanya',  text: 'Я знаю, куда я.' },
       { type: 'say', who: 'sanya',  text: 'Там я двухметровый чёрный баскетболист. Сто двадцать кило. Одни мышцы.', dream: 'sanya' },
       { type: 'say', who: 'lenya',  text: 'И что ты там делаешь?', dream: 'sanya', dreamer: 'sanya' },
-      { type: 'say', who: 'sanya',  text: 'Забиваю сверху. Весь день. Каждый день. Вечность.', dream: 'sanya' },
+      { type: 'say', who: 'sanya',  text: 'Забиваю сверху, играю в NBA. Весь день забиваю сверху. Каждый день. Вечность.', dream: 'sanya' },
       { type: 'say', who: 'sanya',  text: 'Тренер говорит: «Саня, отдохни». А я: «Нет, тренер. Ещё один».', dream: 'sanya' },
-      { type: 'say', who: 'mozg',   text: 'А шашлык там есть?', dream: 'sanya', dreamer: 'sanya' },
-      { type: 'say', who: 'sanya',  text: 'Шашлык там жарю я. В перерыве.', dream: 'sanya' },
+      { type: 'say', who: 'mozg',   text: 'А ты там будешь трансом?', dream: 'sanya', dreamer: 'sanya' },
+      { type: 'say', who: 'sanya',  text: 'Не думал об этом. Возможно.', dream: 'sanya' },
       { type: 'say', who: 'lenya',  text: 'Глеб, ты?' },
-      { type: 'say', who: 'gleb',   text: 'Я — в Готику. В первую. Навсегда.', dream: 'gleb' },
-      { type: 'say', who: 'filipp', text: 'В игру?' },
-      { type: 'say', who: 'gleb',   text: 'В игру. Колония, барьер, Старый лагерь. Там всё понятно.', dream: 'gleb' },
+      { type: 'say', who: 'gleb',   text: 'Я — буду жить в мире Готики. Первой. Навсегда.', dream: 'gleb' },
+      { type: 'say', who: 'filipp', text: 'В игре?' },
+      { type: 'say', who: 'gleb',   text: 'Да. Колония, барьер, Старый лагерь. Я там вообще все знаю.', dream: 'gleb' },
       { type: 'say', who: 'gleb',   text: 'Если тебе что-то надо от человека — бьёшь его палкой. Всё честно.', dream: 'gleb' },
       { type: 'say', who: 'lenya',  text: 'А потом?', dream: 'gleb', dreamer: 'gleb' },
       { type: 'say', who: 'gleb',   text: 'А потом он даёт тебе кусок мяса и говорит: «Ты мне нравишься». Вот это система.', dream: 'gleb' },
-      { type: 'say', who: 'lenya',  text: 'А я знаю, где я буду. Там нет ковров.', dream: 'lenyaCarpet' },
+      { type: 'say', who: 'lenya',  text: 'А я знаю, где я буду. Там нет ковров, паласов.', dream: 'lenyaCarpet' },
       { type: 'say', who: 'sanya',  text: 'В смысле?' },
       { type: 'say', who: 'lenya',  text: 'Вообще. Ни одного. Ни на полу, ни на стене. Голые стены. Красота.', dream: 'lenyaCarpet' },
       { type: 'look', at: -10, seconds: 2.5 },          // все медленно поворачиваются к ковру на стене
-      { type: 'say', who: 'sanya',  text: 'Это бабушкин.' },
+      { type: 'say', who: 'sanya',  text: 'Не смотрите так. Он задает стиль всей комнате.' },
       { type: 'look', at: 300, seconds: 0.5 },          // снова к телевизору
-      { type: 'say', who: 'lenya',  text: 'И там не изобрели аккордеон.', dream: 'lenya' },
-      { type: 'say', who: 'gleb',   text: 'А что тебе аккордеон сделал?' },
-      { type: 'say', who: 'lenya',  text: 'Глеб. Я не хочу об этом говорить.' },
-      { type: 'say', who: 'lenya',  text: '...Свадьба двоюродной сестры. Четыре часа. Один аккордеонист.', dream: 'lenya' },
+      { type: 'say', who: 'lenya',  text: 'И там нет аккордеонов.', dream: 'lenya' },
+      { type: 'say', who: 'gleb',   text: 'Детская травма?' },
+      { type: 'say', who: 'lenya',  text: 'Ага…' },
+      { type: 'say', who: 'lenya',  text: '...От звука сразу в дрожь бросает.', dream: 'lenya' },
       { type: 'say', who: 'mozg',   text: 'А я — на остров в Таиланде.', dream: 'mozg' },
-      { type: 'say', who: 'sanya',  text: 'Море, пальмы. Нормально.', dream: 'mozg', dreamer: 'mozg' },
-      { type: 'say', who: 'mozg',   text: 'Где все — трансвеститы.', dream: 'mozg' },
+      { type: 'say', who: 'sanya',  text: 'Почему Тай?', dream: 'mozg', dreamer: 'mozg' },
+      { type: 'say', who: 'mozg',   text: 'Там условие есть важное — все должны быть трансвеститами.', dream: 'mozg' },
       { type: 'wait', seconds: 2.5, music: true },      // пауза, слышна только музыка из приставки
-      { type: 'say', who: 'lenya',  text: '...Мозг. Мы не будем задавать вопросов.' },
+      { type: 'say', who: 'lenya',  text: '...Почему-то у меня тут вопросов нет.' },
       { type: 'say', who: 'mozg',   text: 'И правильно. Там шоу каждый вечер. Блёстки, перья. А я в первом ряду.', dream: 'mozg' },
       { type: 'say', who: 'gleb',   text: 'С твоей головой из первого ряда задним ничего не видно.' },
       { type: 'say', who: 'sanya',  text: 'Филя. Ты чего молчишь?' },
@@ -506,7 +507,7 @@ const CREDITS_TEXT = {
     { name: 'САНЯ', sprites: [['sanya', 'walk']] },
     { name: 'ЛЁНЯ', sprites: [['lenya', 'walk']] },
     { name: 'ГЛЕБ', sprites: [['gleb', 'walk']] },
-    { name: 'МОЗГ', sprites: [['mozg', 'walk']] },
+    { name: 'ЖИРНЫЙ МОЗГ', sprites: [['mozg', 'walk']] },
   ],
   idea: 'ИДЕЯ И СЦЕНАРИЙ:',
   author: 'АВТОР',                // ← сюда впиши своё имя
@@ -546,7 +547,7 @@ const GOSSIP_LINES = [
 // Что говорит Филипп, когда вырвался («кивнул» 6 раз)
 const GOSSIP_BYE = 'ДО СВИДАНИЯ!';
 // Что думает Филипп у стены с граффити «ГЛЕБ — ЛОХ»
-const GRAFFITI_THOUGHT = 'ЭТО ПРАВДА.';
+const GRAFFITI_THOUGHT = 'МАРАТ УЖЕ ПЕРЕБЕЖАЛ ЧЕРЕЗ ПОЛЕ.';
 
 // =============================================
 // ЗВОНКИ-ОТМАЗКИ (телефоны на уровне, символ C в levels.js)
@@ -557,22 +558,22 @@ const GRAFFITI_THOUGHT = 'ЭТО ПРАВДА.';
 
 // Отмазки Филиппа (уровень 1)
 const CALL_EXCUSES = [
-  'Лерусь, я за гвоздями для пристройки!',
+  'Лер, я за затиркой!',
   'Я в строительный, доски выбираю!',
-  'Машину гляну — что-то стучит!',
+  'Машину гляну — вибаста опять сломалась!',
   'Соседу дрель отдам и сразу назад!',
   'Я мусор вынести!',
   'Мама звонила, просила зайти!',
   'Я на секунду, только Сане отвечу!',
-  'Лерусь, я проверяю, где у нас уровень!',
+  'Лер, я проверяю, где у нас уровень!',
   'Ищу рулетку, чтобы всё замерить!',
 ];
 
 // Ответы Леры (уровень 1)
 const CALL_ANSWERS = [
   'ДЕСЯТЬ МИНУТ!',
-  'СМОТРИ МНЕ!',
-  'ГВОЗДИ У НАС ЕСТЬ!',
+  'ДОСТАЛ УЖЕ!',
+  '№%@&!',
   'Я ВСЁ ВИЖУ!',
   'А ДОСКИ КТО ПОНЕСЁТ?',
   'ЖДУ.',
@@ -676,7 +677,7 @@ const CHIEF_TEXT = {
 // =============================================
 // Отмазки Филиппа (уровень 4)
 const CALL_EXCUSES_4 = [
-  'Лерусь, я за хлебом!',
+  'Лер, я за хлебом!',
   'Я в магазине, тут очередь!',
   'Гуляю, дышу воздухом!',
   'Телефон садится, перезвоню!',
@@ -705,9 +706,9 @@ const LEVEL4_TEXT = {
   drunkHello: 'ТРЕТЬИМ БУДЕШЬ?',                   // алкаш идёт к Филиппу
   cheers: 'ЗА ВСТРЕЧУ!',                           // догнал — стоят вместе, потом Филипп «подшофе»
   teenAsk: [                                       // девчонки-подростки бегут хвостом
-    ['ДЯДЬ, ДАЙ СИГАРЕТКУ!', 'НУ ДЯДЬ!', 'ЖАЛКО, ДА?'],
-    ['ДЯДЬ, ДАЙ ПОЗВОНИТЬ!', 'НУ ПО-БРАТСКИ!', 'А ТЫ ЧЁ ТАКОЙ?'],
+    ['ФИЛЬ, ПОШЛИ НА ТРУБЫ!', 'НУ ФИЛЬ!', 'ФИЛЬ, КУПИШЬ НАМ ЭССУ?'],
+    ['ФИЛЬ, ПОКАТАЙ НАС ПО ПОСЕЛКУ!', 'ДА ЛАДНО ТЕБЕ!', 'А ТЫ ЧЁ ТАКОЙ?'],
   ],
-  teenLost: 'НУ И ЛАДНО!',                         // отстали
+  teenLost: 'ПОЙДУ К КУСКУ ТОГДА!',                         // отстали
   teenBye: 'ФУ, ДУРАК!',                           // попал ключом — обиделись и ушли
 };
