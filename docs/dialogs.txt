@@ -458,7 +458,7 @@
 [CREDITS_TEXT.parade 13] ГЛЕБ
 [CREDITS_TEXT.parade 14] ЖИРНЫЙ МОЗГ
 [CREDITS_TEXT.idea] ИДЕЯ И СЦЕНАРИЙ:
-[CREDITS_TEXT.author] АВТОР
+[CREDITS_TEXT.author] ЛЕНИДЖ
 [CREDITS_TEXT.thanks] СПАСИБО ЗА ИГРУ!
 [CREDITS_TEXT.done] ИГРА ПРОЙДЕНА
 
