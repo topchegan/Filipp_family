@@ -2180,14 +2180,17 @@ const levelState = {
                    leraSpeed: this.leraSpeed, clockSteps: clockSteps, taken: copyTaken(this.taken),
                    beersTaken: copyTaken(this.beersTaken), boostsTaken: copyTaken(this.boostsTaken),
                    boxesTaken: copyTaken(this.boxesTaken), keys: this.keys, plov: this.plov };
-    // Сценка разговора поверх замершего уровня
+    // Сценка разговора поверх замершего уровня. Отмазка и ответ Леры — из одной пары:
+    // ответ №1 — на отмазку №1, №2 — на №2 и так далее (списки в scenes.js)
+    const excuses = this.callExcuses(), answers = this.callAnswers();
+    const k = takeFromBag('calls' + currentLevelIndex, excuses.map((_, n) => n));
     setState('inLevelScene', {
       background: 'level',
       next: 'level',
       nextArg: 'resume',
       steps: [
-        { type: 'say', who: 'filipp', text: this.countExcuse(takeFromBag('excuses' + currentLevelIndex, this.callExcuses())) },
-        { type: 'say', who: 'lera', text: takeFromBag('answers' + currentLevelIndex, this.callAnswers()) },
+        { type: 'say', who: 'filipp', text: this.countExcuse(excuses[k]) },
+        { type: 'say', who: 'lera', text: answers[k] !== undefined ? answers[k] : answers[Math.floor(Math.random() * answers.length)] },
       ],
     });
   },
