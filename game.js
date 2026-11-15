@@ -5812,6 +5812,16 @@ const tvState = {
         ctx.fillRect(x, y, 1, TV_CELL); ctx.fillRect(x + TV_CELL - 1, y, 1, TV_CELL);
       }
     }
+    // Подписи: где вилка и где кинескоп (над клеткой, а в верхнем ряду — под ней). Первые 8 секунд
+    if (this.phase === 'build' && this.steps < 8 * 60) {
+      const tag = (text, c, r, color) => {
+        const ty = r === 0 ? TV_FY + TV_CELL + 2 : TV_FY + r * TV_CELL - 8;
+        const half = Math.ceil(textWidth(text) / 2) + 1;
+        drawTextCenteredShadow(text, Math.max(TV_FX + half, Math.min(TV_FX + C.cols * TV_CELL - half, TV_FX + c * TV_CELL + 10)), ty, color, '#1a1c2c');
+      };
+      tag(TV_TEXT.plugName, this.plug.c, this.plug.r, '#f4f4f4');
+      tag(TV_TEXT.targetName, this.target.c, this.target.r, '#ef7d57');
+    }
     // Курсор
     if (this.phase === 'build' || this.phase === 'flow') {
       const x = TV_FX + this.cursor.c * TV_CELL, y = TV_FY + this.cursor.r * TV_CELL;
@@ -5820,9 +5830,19 @@ const tvState = {
       ctx.fillRect(x, y, 1, TV_CELL); ctx.fillRect(x + TV_CELL - 1, y, 1, TV_CELL);
     }
     // Очередь слева: верхний кусок — текущий (в жёлтой рамке)
+    // Текущий кусок подходит в зелёную рамку (открыт со стороны стрелки и не ведёт в край)?
+    const fits = (p) => {
+      if (!link.head || link.wrong) return false;
+      const open = TV_PIECES[p].open, f = link.head.from;
+      if (open.indexOf(f) === -1) return false;
+      const e = p === 'x' ? (f + 2) % 4 : (open[0] === f ? open[1] : open[0]);
+      const next = this.cellAt(link.head.c + TV_DX[e], link.head.r + TV_DY[e]);
+      return next !== undefined && !(next && (next.block || next.plug)) && !(next && next.target && next.open !== (e + 2) % 4);
+    };
+    const curFits = (this.phase === 'build' || this.phase === 'flow') && fits(this.queue[0]);
     this.queue.forEach((p, i) => {
       const x = 8, y = TV_FY + i * TV_CELL;
-      ctx.fillStyle = i === 0 ? '#ffcd75' : '#333c57';
+      ctx.fillStyle = i === 0 ? (curFits ? '#a7f070' : '#ffcd75') : '#333c57';
       ctx.fillRect(x - 1, y - 1, TV_CELL + 2, TV_CELL + 2);
       ctx.fillStyle = '#29366f';
       ctx.fillRect(x + 1, y + 1, TV_CELL - 2, TV_CELL - 2);
@@ -5848,6 +5868,7 @@ const tvState = {
     const left = Math.max(0, Math.ceil(C.startSeconds - this.steps / 60));
     const status = this.phase === 'build' ? TV_TEXT.timer + ' ' + left : (this.phase === 'flow' ? (this.fast ? TV_TEXT.fast : TV_TEXT.flowing) : '');
     drawText(ctx, status, 4, 4, this.phase === 'build' && left <= 5 && Math.floor(this.tick / 10) % 2 ? '#b13e53' : '#ffcd75');
+    drawText(ctx, VERSION, W - 1 - textWidth(VERSION), 54, '#566c86');   // номер версии мелко — видно, какая загрузилась
     const goal = this.phase === 'win' ? '' : (link.ready ? TV_TEXT.ready : TV_TEXT.goal);
     drawText(ctx, goal, W - 4 - textWidth(goal), 4, link.ready ? '#a7f070' : '#ef7d57');
     // Реплика внизу

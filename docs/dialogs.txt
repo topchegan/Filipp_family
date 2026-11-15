@@ -334,6 +334,8 @@
 [TV_TEXT.flowing] ТОК ИДЁТ! E — БЫСТРЕЕ
 [TV_TEXT.fast] ТОК ИДЁТ — БЫСТРО!
 [TV_TEXT.goal] ВЕДИ ТОК К КИНЕСКОПУ
+[TV_TEXT.plugName] ВИЛКА
+[TV_TEXT.targetName] КИНЕСКОП
 [TV_TEXT.ready] ПРОВОД ГОТОВ!
 [TV_TEXT.dead] ТУПИК
 [TV_TEXT.wrong] НЕ ТОТ
