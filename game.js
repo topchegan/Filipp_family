@@ -435,10 +435,15 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false; // при увеличении картинок пиксели остаются чёткими
 
-// Увеличиваем холст под экран в ЦЕЛОЕ число раз,
-// чтобы все пиксели были одинакового размера.
+// Увеличиваем холст под экран.
+// fit — во сколько раз увеличить, чтобы картинка заняла весь экран (без искажений).
+// Сначала пробуем ЦЕЛОЕ число точек экрана на пиксель игры — тогда все пиксели одинаковые.
+// Если так картинка занимает меньше 90% экрана (бывает на телефонах), растягиваем на весь экран.
 function resize() {
-  const scale = Math.max(1, Math.floor(Math.min(window.innerWidth / W, window.innerHeight / H)));
+  const fit = Math.min(window.innerWidth / W, window.innerHeight / H);
+  const dpr = window.devicePixelRatio || 1;          // сколько точек экрана в одном CSS-пикселе
+  const even = Math.floor(fit * dpr) / dpr;          // ровные пиксели
+  const scale = even >= fit * 0.9 ? even : fit;
   canvas.style.width = W * scale + 'px';
   canvas.style.height = H * scale + 'px';
 }

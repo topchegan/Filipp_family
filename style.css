@@ -41,9 +41,9 @@ html, body {
   width: 96px;
   height: 96px;
   border-radius: 20px;
-  background: rgba(244, 244, 244, 0.25);   /* #f4f4f4, полупрозрачный */
-  border: 3px solid rgba(244, 244, 244, 0.5);
-  color: #f4f4f4;
+  background: rgba(244, 244, 244, 0.08);   /* #f4f4f4, почти прозрачный — игра видна сквозь кнопку */
+  border: 3px solid rgba(244, 244, 244, 0.3);
+  color: rgba(244, 244, 244, 0.55);
   font: bold 40px sans-serif;
   display: flex;
   align-items: center;
@@ -54,7 +54,7 @@ html, body {
 
 /* Подсветка нажатой кнопки (класс ставит game.js) */
 .btn.pressed {
-  background: rgba(244, 244, 244, 0.5);
+  background: rgba(244, 244, 244, 0.3);
 }
 
 .btn[data-btn="left"]  { left: 24px; }
@@ -123,7 +123,7 @@ body.playing .btn.pause {
   width: 8px;
   height: 26px;
   margin: 0 4px;
-  background: #f4f4f4;
+  background: rgba(244, 244, 244, 0.55);
   border-radius: 2px;
   pointer-events: none;
 }
