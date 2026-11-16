@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Фон иконки — голубой из палитры (как у иконок сайта в папке icons/) -->
+    <color name="ic_launcher_background">#41A6F6</color>
+    <!-- Фон экрана запуска — тёмный из палитры -->
+    <color name="splash_background">#1A1C2C</color>
+</resources>

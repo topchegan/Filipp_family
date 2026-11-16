@@ -41,6 +41,9 @@
 - docs/characters.md — справочник внешности персонажей. Сверяться с ним при рисовании.
 - font.js — пиксельный шрифт 5x7 и функции вывода текста.
 - manifest.webmanifest, sw.js, icons/ — приложение (PWA): манифест, офлайн-кэш, иконки. docs/install.md — как установить.
+- package.json, capacitor.config.json, android/, scripts/build-www.js, .github/workflows/android.yml —
+  Android-приложение (Capacitor) и его сборка на GitHub Actions. docs/install.md — как собрать и установить.
+  Ключ подписи APK НИКОГДА не класть в репозиторий: он только в секретах GitHub.
 - intro.js, intro.css — заставка при запуске в стиле обложки GTA (HTML поверх игры). Картинка — art/intro.jpg.
 - scenes.js — сценарий заставок (его правит пользователь сам). Код туда не класть.
 - levels.js — карты уровней: части (parts) из экранов 15x30 символов (правит пользователь сам). Код туда не класть.

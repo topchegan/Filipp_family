@@ -6916,6 +6916,31 @@ function autoPause() {
   if (canPause()) { paused = true; pauseMenu.index = 0; }
 }
 
+// =============================================
+// КНОПКА «НАЗАД» НА ANDROID — только в приложении (Capacitor). На сайте её нет.
+// =============================================
+// Во время игры — пауза, в меню — назад, на титуле — выход из приложения.
+const capacitorApp = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() &&
+                     window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+let androidBackHit = false;   // нажали «Назад» — разберёмся в начале следующего шага игры
+if (capacitorApp) capacitorApp.addListener('backButton', () => { androidBackHit = true; });
+
+function androidBack() {
+  if (window.INTRO_ACTIVE || state === titleState || state === errorState) {
+    capacitorApp.exitApp();                         // заставка и титул — выходим из приложения
+  } else if (paused) {
+    if (pauseControls) pauseControls = false;       // список «УПРАВЛЕНИЕ» → назад в меню паузы
+    else paused = false;                            // меню паузы → назад в игру
+  } else if (canPause()) {
+    paused = true;                                  // идёт игра → пауза
+    pauseMenu.index = 0;
+    pauseControls = false;
+  } else if (state === levelSelectState || state === creditsState) {
+    setState('title');                              // выбор уровня, титры → на титул
+  }
+  // В сценках и на экране итогов «Назад» ничего не делает: их листают касанием
+}
+
 function pauseItems() {
   return [
     'ПРОДОЛЖИТЬ',
@@ -7143,6 +7168,8 @@ function setState(name, arg) {
 // =============================================
 // Один шаг игры (60 раз в секунду)
 function update() {
+  // Кнопка «Назад» на Android (в приложении)
+  if (androidBackHit) { androidBackHit = false; androidBack(); }
   // Пока на экране заставка (intro.js), игра под ней кнопки не слушает
   if (window.INTRO_ACTIVE) {
     jumpHit = throwHit = plovHit = backHit = pauseHit = confirmHit = false;

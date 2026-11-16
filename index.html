@@ -22,9 +22,11 @@
   <!-- Номер версии. Сам version.js грузим с текущим временем в адресе — он всегда свежий -->
   <script>document.write('<script src="version.js?t=' + Date.now() + '"><\/script>');</script>
   <!-- Офлайн-режим: service worker с номером версии (sw.js?v=0.25). Новая версия — новый адрес,
-       браузер ставит новый service worker, и он заменяет старый кэш новым -->
+       браузер ставит новый service worker, и он заменяет старый кэш новым.
+       В Android-приложении (Capacitor) он не нужен: там все файлы и так внутри -->
   <script>
-    if ('serviceWorker' in navigator) {
+    const IN_APP = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if ('serviceWorker' in navigator && !IN_APP) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js?v=' + VERSION.replace('v', ''), { scope: './' })
           .catch(() => { /* без офлайн-режима игра всё равно работает */ });

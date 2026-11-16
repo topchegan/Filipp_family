@@ -1,0 +1,11 @@
+{
+  "appId": "com.topchegan.filipp",
+  "appName": "Филипп",
+  "webDir": "www",
+  "backgroundColor": "#1a1c2c",
+  "plugins": {
+    "SystemBars": {
+      "hidden": true
+    }
+  }
+}

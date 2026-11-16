@@ -1,0 +1,108 @@
+# =============================================
+# СБОРКА ANDROID-ПРИЛОЖЕНИЯ (APK) И ВЫКЛАДКА В RELEASES
+# =============================================
+# Как запустить: вкладка Actions → «Android APK» → Run workflow.
+# Или сама — когда в репозиторий приходит новый тег версии (например v0.27).
+# Номер версии берётся из version.js. Готовый файл: Releases → Filipp-v0.26.apk.
+# APK подписывается одним и тем же ключом из секретов репозитория
+# (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64  — сам ключ (файл keystore, записанный текстом base64)
+#   ANDROID_KEYSTORE_PASSWORD — пароль от ключа
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write          # нужно, чтобы создать релиз
+
+concurrency:
+  group: android-apk       # две сборки одновременно не идут
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Скачать репозиторий
+        uses: actions/checkout@v5
+
+      - name: Номер версии из version.js
+        id: ver
+        run: |
+          VERSION=$(grep -oP "VERSION = '\Kv[0-9.]+" version.js)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Версия игры: $VERSION"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "$VERSION" ]; then
+            echo "::error::Тег $GITHUB_REF_NAME не совпадает с версией $VERSION в version.js"
+            exit 1
+          fi
+
+      - name: Node.js (для Capacitor)
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Java (для сборки Android)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Файлы игры → папка www → Android-проект
+        run: |
+          npm ci
+          npm run sync
+
+      - name: Ключ подписи из секретов
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::warning::Нет секретов ANDROID_KEYSTORE_BASE64 и ANDROID_KEYSTORE_PASSWORD — APK будет без подписи"
+            exit 0
+          fi
+          # Убираем пробелы и переносы строк, если они попали при вставке
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.keystore"
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass "$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '\r\n')" -alias filipp > /dev/null; then
+            echo "::error::Ключ не открылся: проверьте секреты ANDROID_KEYSTORE_BASE64 и ANDROID_KEYSTORE_PASSWORD"
+            exit 1
+          fi
+          echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+
+      - name: Сборка APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: filipp
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Проверка подписи
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$APK" ]; then
+            ls android/app/build/outputs/apk/release
+            echo "::error::Приложение собралось, но без подписи. Добавьте секреты ANDROID_KEYSTORE_BASE64 и ANDROID_KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions) и запустите сборку ещё раз"
+            exit 1
+          fi
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          cp "$APK" "Filipp-${{ steps.ver.outputs.version }}.apk"
+
+      - name: Релиз на странице Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          FILE="Filipp-$VERSION.apk"
+          if gh release view "$VERSION" > /dev/null 2>&1; then
+            # Релиз этой версии уже есть — заменяем в нём файл
+            gh release upload "$VERSION" "$FILE" --clobber
+          else
+            gh release create "$VERSION" "$FILE" --target "$GITHUB_SHA" --title "Филипп $VERSION" \
+              --notes "Android-приложение «Всем что-то надо от Филиппа», версия $VERSION. Как установить — docs/install.md."
+          fi
