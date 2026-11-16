@@ -10,12 +10,27 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Филипп">
   <title>Всем что-то надо от Филиппа</title>
+  <!-- Приложение (PWA): манифест, иконки, цвет полосок -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+  <meta name="theme-color" content="#1a1c2c">
   <!-- Просим браузер не хранить саму страницу в кэше, а каждый раз спрашивать свежую -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <!-- Номер версии. Сам version.js грузим с текущим временем в адресе — он всегда свежий -->
   <script>document.write('<script src="version.js?t=' + Date.now() + '"><\/script>');</script>
+  <!-- Офлайн-режим: service worker с номером версии (sw.js?v=0.25). Новая версия — новый адрес,
+       браузер ставит новый service worker, и он заменяет старый кэш новым -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js?v=' + VERSION.replace('v', ''), { scope: './' })
+          .catch(() => { /* без офлайн-режима игра всё равно работает */ });
+      });
+    }
+  </script>
   <!-- Стили с меткой версии: style.css?v=0.6 -->
   <script>loadWithVersion(['style.css', 'intro.css']);</script>
 </head>
